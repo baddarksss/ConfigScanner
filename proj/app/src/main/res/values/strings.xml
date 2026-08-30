@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Config Scanner</string>
+
+    <!-- Header -->
+    <string name="header_title">🌍 Config Scanner</string>
+
+    <!-- Input card -->
+    <string name="servers_title">📥 Servers</string>
+    <string name="input_hint">Paste your configs here...\nvless://...\ntrojan://...</string>
+    <string name="btn_file">📄 From file</string>
+    <string name="btn_paste">📋 Paste</string>
+    <string name="btn_clear">🗑 Clear</string>
+    <string name="protocols_footer">Supports: VLESS (Reality/TLS/WS/gRPC) • VMess • Trojan • Shadowsocks • Hysteria2 (native client + Salamander/Gecko)</string>
+
+    <!-- Settings card -->
+    <string name="settings_title">⚙️ Settings</string>
+    <string name="channel_hint">your channel</string>
+    <string name="channel_caption">When the switch below is ON, this name is added to every working server so you can recognize your own configs. It is saved automatically.</string>
+    <string name="channel_switch">Add channel name to working servers</string>
+    <string name="parallel_label">Parallel tests</string>
+    <string name="parallel_caption">How many servers are tested at the same time. Recommended: 5 — faster, without overheating the phone.</string>
+    <string name="timeout_label">Per-server timeout</string>
+    <string name="timeout_seconds">%1$d sec</string>
+    <string name="timeout_caption">How long to wait for each server. If it does not answer in time it is marked ❌, but the rest of the test keeps running.</string>
+    <string name="language_btn">🌐 Language / زبان</string>
+
+    <!-- Start -->
+    <string name="btn_start">🚀 Start test</string>
+    <string name="btn_stop">⏹ Stop</string>
+
+    <!-- Progress -->
+    <string name="progress_testing">⏳ Testing...</string>
+    <string name="progress_done">✅ Finished</string>
+    <string name="progress_stopped">⏹ Stopped</string>
+    <string name="progress_finished">Test finished</string>
+    <string name="progress_starting">Starting...</string>
+
+    <!-- Output card -->
+    <string name="results_title">📤 Results</string>
+    <string name="lines_count">%1$d line(s)</string>
+    <string name="btn_copy">📋 Copy all</string>
+    <string name="btn_save">💾 Save file</string>
+
+    <!-- Xray card -->
+    <string name="xray_title">🧩 Xray core</string>
+    <string name="core_version">Core version: %1$s</string>
+    <string name="core_ok">✓ core active</string>
+    <string name="core_missing">✗ core missing</string>
+    <string name="btn_core_test">🧪 Test core</string>
+    <string name="btn_update_file">📦 Update from file</string>
+    <string name="btn_update_stable">⬆️ Update (stable)</string>
+    <string name="btn_update_pre">🧪 Update (pre-release)</string>
+
+    <!-- Bottom -->
+    <string name="btn_about">ℹ️ About &amp; versions</string>
+    <string name="btn_log">📄 Log (debug)</string>
+
+    <!-- Bottom nav -->
+    <string name="nav_test">Test</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Appearance -->
+    <string name="appearance_title">🎨 Appearance</string>
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_title">Theme / ظاهر</string>
+    <string name="language_label">Language</string>
+    <string name="appearance_caption">Theme and language apply to the whole app</string>
+    <string name="log_save">Save as .txt</string>
+    <string name="toast_log_saved">Log saved</string>
+
+    <!-- Language dialog -->
+    <string name="lang_title">Language / زبان</string>
+    <string name="lang_system">System default</string>
+    <string name="lang_fa">فارسی</string>
+    <string name="lang_en">English</string>
+
+    <!-- Toasts & messages -->
+    <string name="toast_paste_first">Paste some configs first</string>
+    <string name="toast_no_config">No valid config found</string>
+    <string name="toast_file_loaded">File loaded</string>
+    <string name="toast_file_error">Failed to read file: %1$s</string>
+    <string name="toast_saved">Saved ✓</string>
+    <string name="toast_save_error">Failed to save: %1$s</string>
+    <string name="toast_copy_done">Copied ✓</string>
+    <string name="toast_output_empty">Output is empty</string>
+    <string name="toast_core_missing">Core binary not found</string>
+    <string name="toast_core_ok">Core is OK: %1$s</string>
+    <string name="toast_core_testing">Testing core...</string>
+    <string name="toast_checking_core">Checking core...</string>
+    <string name="toast_core_searching">Looking for a newer version...</string>
+    <string name="toast_downloading">Downloading %1$s ...</string>
+    <string name="toast_core_updated">Updated: %1$s</string>
+    <string name="toast_update_failed">Update failed: %1$s</string>
+    <string name="toast_update_file_failed">Update from file failed: %1$s</string>
+    <string name="toast_stopped">Test stopped</string>
+
+    <!-- Result line reasons -->
+    <string name="res_xray_error">Xray error — invalid config</string>
+    <string name="res_connect_failed">Could not connect to server</string>
+    <string name="res_country_unknown">Connected but country unknown</string>
+    <string name="res_obfs_nopass">obfs without password — cannot test</string>
+    <string name="res_engine_error">Engine error — invalid config</string>
+
+    <!-- Log dialog -->
+    <string name="log_title">App log</string>
+    <string name="log_empty">(log is empty)</string>
+    <string name="log_clear">🗑 Clear</string>
+    <string name="log_copy">📋 Copy</string>
+
+    <!-- About / changelog -->
+    <string name="about_title">Config Scanner v%1$s</string>
+<string name="changelog">v1.0.8\n• Log can now be saved as a .txt file (Log button → Save as .txt)\n• New iOS lock-screen glass look: frosted panels over a soft gradient background\n• Much bigger water circle, now always visible at the top of the screen\n• New modern app icon\n• Clearer explanations in Settings\n\n\n\nv1.0.7\n• Dark &amp; Light mode: theme switch (System / Dark / Light) in Settings\n• New Settings tab: channel, parallelism, timeout, language and theme moved to their own tab\n• New animated water-circle progress: the circle fills with water as the test advances\n• Geo check is now parallel over 6 services (was 3 in series) — slow/filtered exits are detected much more often\n• Fixed: no more scroll jumps/jitter while a run is in progress\n\n\n\nv1.0.6\n• Hysteria2: the Hysteria native client is now built in — Salamander and Gecko obfs links now work (the Xray core obfs implementation was broken upstream)\n• Hysteria2: fixed parsing of the obfs-password parameter (salamander links now actually get tested)\n• Hysteria2: insecure=1 links are tested directly\n• Xray logging fixed: Xray 26.x renamed the log file field, so errors are now actually written to the log\n\nv1.0.5\n• Bilingual: English / Persian, with a language switch\n• Hysteria2: forced classic key exchange (x25519) — the new post-quantum exchange broke the connection\n• Hysteria2: SNI is now set automatically\n• insecure=1 links: the server certificate is fetched and pinned automatically\n• Better Xray logging: exact errors are now written to the log\n• Fixed: after a run finishes the app returns to the start state\n• Stable signing: future updates install over the previous version (no uninstall needed)\n\nv1.0.3\n• allowInsecure fix (removed in new Xray)\n• Xray error tail in app log on failure\n\nv1.0.2\n• Core moved to jniLibs (exec error=13 fixed)\n\nv1.0.1\n• Log button for debugging\n\nv1.0.0\n• Initial release</string>
+</resources>

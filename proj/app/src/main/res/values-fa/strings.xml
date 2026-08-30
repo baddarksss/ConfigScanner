@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Config Scanner</string>
+
+    <!-- Header -->
+    <string name="header_title">🌍 Config Scanner</string>
+
+    <!-- Input card -->
+    <string name="servers_title">📥 سرورها</string>
+    <string name="input_hint">کانفیگ‌ها رو اینجا بچسبون...\nvless://...\ntrojan://...</string>
+    <string name="btn_file">📄 از فایل</string>
+    <string name="btn_paste">📋 پست</string>
+    <string name="btn_clear">🗑 پاک</string>
+    <string name="protocols_footer">پشتیبانی: VLESS (Reality/TLS/WS/gRPC) • VMess • Trojan • Shadowsocks • Hysteria2 (کلاینت بومی + Salamander/Gecko)</string>
+
+    <!-- Settings card -->
+    <string name="settings_title">⚙️ تنظیمات</string>
+    <string name="channel_hint">کانال خودت</string>
+    <string name="channel_caption">وقتی سوییچ پایین روشن باشه، این نام به اسم همه سرورهای سالم اضافه می‌شه تا کانفیگ‌های خودت رو راحت بشناسی. خودکار ذخیره می‌شه.</string>
+    <string name="channel_switch">افزودن نام کانال به سرورهای سالم</string>
+    <string name="parallel_label">تست‌های همزمان</string>
+    <string name="parallel_caption">چند سرور هم‌زمان تست می‌شن. پیشنهادی: ۵ — هم سریع‌تره، هم گوشی داغ نمی‌کنه.</string>
+    <string name="timeout_label">محدودیت زمانی هر سرور</string>
+    <string name="timeout_seconds">%1$d ثانیه</string>
+    <string name="timeout_caption">تا چند ثانیه برای هر سرور صبر کنیم. اگه تا اون زمان جواب نده ❌ می‌شه، ولی بقیه تست ادامه داره.</string>
+    <string name="language_btn">🌐 Language / زبان</string>
+
+    <!-- Start -->
+    <string name="btn_start">🚀 شروع تست</string>
+    <string name="btn_stop">⏹ توقف</string>
+
+    <!-- Progress -->
+    <string name="progress_testing">⏳ در حال تست...</string>
+    <string name="progress_done">✅ پایان یافت</string>
+    <string name="progress_stopped">⏹ توقف شد</string>
+    <string name="progress_finished">تست تمام شد</string>
+    <string name="progress_starting">در حال شروع...</string>
+
+    <!-- Output card -->
+    <string name="results_title">📤 نتیجه</string>
+    <string name="lines_count">%1$d خط</string>
+    <string name="btn_copy">📋 کپی همه</string>
+    <string name="btn_save">💾 ذخیره فایل</string>
+
+    <!-- Xray card -->
+    <string name="xray_title">🧩 هسته Xray</string>
+    <string name="core_version">نسخه هسته: %1$s</string>
+    <string name="core_ok">✓ هسته فعال</string>
+    <string name="core_missing">✗ هسته نیست</string>
+    <string name="btn_core_test">🧪 تست هسته</string>
+    <string name="btn_update_file">📦 آپدیت از فایل</string>
+    <string name="btn_update_stable">⬆️ آپدیت ریلیز اصلی</string>
+    <string name="btn_update_pre">🧪 آپدیت پریریلیز</string>
+
+    <!-- Bottom -->
+    <string name="btn_about">ℹ️ درباره و نسخه‌ها</string>
+    <string name="btn_log">📄 لاگ (دیباگ)</string>
+
+    <!-- Bottom nav -->
+    <string name="nav_test">تست</string>
+    <string name="nav_settings">تنظیمات</string>
+
+    <!-- Appearance -->
+    <string name="appearance_title">🎨 ظاهر</string>
+    <string name="theme_label">تم</string>
+    <string name="theme_system">سیستم</string>
+    <string name="theme_dark">تیره</string>
+    <string name="theme_light">روشن</string>
+    <string name="theme_title">Theme / ظاهر</string>
+    <string name="language_label">زبان</string>
+    <string name="appearance_caption">تم و زبان برای کل برنامه اعمال می‌شه</string>
+    <string name="log_save">ذخیره به‌عنوان .txt</string>
+    <string name="toast_log_saved">لاگ ذخیره شد</string>
+
+    <!-- Language dialog -->
+    <string name="lang_title">زبان / Language</string>
+    <string name="lang_system">پیش‌فرض سیستم</string>
+    <string name="lang_fa">فارسی</string>
+    <string name="lang_en">English</string>
+
+    <!-- Toasts & messages -->
+    <string name="toast_paste_first">اول کانفیگ بده</string>
+    <string name="toast_no_config">هیچ کانفیگ معتبری پیدا نشد</string>
+    <string name="toast_file_loaded">فایل خوند شد</string>
+    <string name="toast_file_error">خطا در خواندن فایل: %1$s</string>
+    <string name="toast_saved">ذخیره شد ✓</string>
+    <string name="toast_save_error">خطا در ذخیره: %1$s</string>
+    <string name="toast_copy_done">کپی شد ✓</string>
+    <string name="toast_output_empty">اول نتیجه باید باشد</string>
+    <string name="toast_core_missing">هسته پیدا نشد</string>
+    <string name="toast_core_ok">هسته سالم است: %1$s</string>
+    <string name="toast_core_testing">در حال تست هسته...</string>
+    <string name="toast_checking_core">در حال بررسی هسته...</string>
+    <string name="toast_core_searching">در حال جستجوی نسخه جدید...</string>
+    <string name="toast_downloading">در حال دانلود %1$s ...</string>
+    <string name="toast_core_updated">آپدیت شد: %1$s</string>
+    <string name="toast_update_failed">آپدیت شکست خورد: %1$s</string>
+    <string name="toast_update_file_failed">آپدیت از فایل شکست خورد: %1$s</string>
+    <string name="toast_stopped">تست متوقف شد</string>
+
+    <!-- Result line reasons -->
+    <string name="res_xray_error">Xray خطا داد — پیکربندی نامعتبر</string>
+    <string name="res_connect_failed">اتصال به سرور برقرار نشد</string>
+    <string name="res_country_unknown">وصل شد ولی کشور ناشناخته</string>
+    <string name="res_obfs_nopass">obfs بدون پسورد — قابل تست نیست</string>
+    <string name="res_engine_error">هسته خطا داد — پیکربندی نامعتبر</string>
+
+    <!-- Log dialog -->
+    <string name="log_title">لاگ برنامه</string>
+    <string name="log_empty">(لاگ خالی است)</string>
+    <string name="log_clear">🗑 پاک کردن</string>
+    <string name="log_copy">📋 کپی</string>
+
+    <!-- About / changelog -->
+    <string name="about_title">Config Scanner v%1$s</string>
+<string name="changelog">v1.0.8\n• امکان ذخیره لاگ به‌عنوان فایل .txt (دکمه لاگ → ذخیره به‌عنوان .txt)\n• ظاهر جدید شیشه‌ای مثل لوک‌اسکرین آیفون: پنل‌های مات روی پس‌زمینه گرادیانی\n• دایره آب خیلی بزرگ‌تر، همیشه بالای صفحه\n• آیکون جدید و مدرن\n• توضیحات بهتر در تنظیمات\n\n\n\nv1.0.7\n• حالت تیره و روشن: انتخاب تم (سیستم / تیره / روشن) در تنظیمات\n• تب تنظیمات جدید: کانال، همزمانی، تایم‌اوت، زبان و تم به تب جداگانه منتقل شدند\n• دایره پیشرفت جدید با انیمیشن آب: با پیشرفت تست، دایره مثل آب پر می‌شه\n• تست country حالا روی ۶ سرویس به‌صورت موازی اجرا می‌شه (قبلاً ۳ تا پشت‌سرهم) — سرورهای کند/فیلترشده خیلی بیشتر تشخیص داده می‌شن\n• رفع باگ: پرش و لرزش اسکرول در حین تست\n\n\n\nv1.0.6\n• Hysteria2: کلاینت بومی Hysteria داخل اپ اضافه شد — لینک‌های Salamander و Gecko حالا کار می‌کنند (پیاده‌سازی obfs در هسته Xray باگ داشت)\n• Hysteria2: رفع باگ خواندن پارامتر obfs-password (لینک‌های salamander حالا واقعاً تست می‌شن)\n• Hysteria2: لینک‌های insecure=1 مستقیم تست می‌شن\n• رفع باگ لاگ Xray: در Xray 26 نام فیلد لاگ عوض شده بود؛ حالا خطاها واقعاً توی لاگ ثبت می‌شن\n\nv1.0.5\n• دوزبانه: انگلیسی / فارسی با دکمه انتخاب زبان\n• Hysteria2: تبادل کلید کلاسیک (x25519) مجبور می‌شه — تبادل جدید Post-Quantum اتصال رو خراب می‌کرد\n• Hysteria2: SNI به‌صورت خودکار ست می‌شه\n• لینک‌های insecure=1: گواهی سرور خودکار گرفته و پین می‌شه\n• لاگ Xray بهتر: خطای دقیق توی لاگ ثبت می‌شه\n• رفع باگ: بعد از اتمام تست، اپ به حالت شروع برمی‌گرده\n• امضای ثابت: آپدیت‌های بعدی مستقیم روی نسخه قبلی نصب می‌شن (بدون پاک کردن)\n\nv1.0.3\n• رفع مشکل لینک‌های insecure=1 (allowInsecure در Xray جدید حذف شده بود)\n• خطای Xray به لاگ اضافه می‌شه\n\nv1.0.2\n• انتقال هسته به jniLibs (رفع error=13)\n\nv1.0.1\n• دکمه لاگ برای دیباگ\n\nv1.0.0\n• اولین نسخه</string>
+</resources>
