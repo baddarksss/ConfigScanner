@@ -97,19 +97,44 @@ public class ServerSpec {
             int i = kv.indexOf('=');
             if (i <= 0) continue;
             String k = kv.substring(0, i).toLowerCase().trim();
-            String v = urlDecode(kv.substring(i + 1));
+            // a literal '+' in a URI query is a plus, not a space — protect it
+            // before percent-decoding
+            String v = urlDecode(kv.substring(i + 1).replace("+", "%2B"));
             if (!k.isEmpty()) m.put(k, v);
         }
         return m;
     }
 
-    /** Splits host:port, tolerating [ipv6]:port */
+    /**
+     * Splits host:port. Tolerates [ipv6]:port; a bare (bracketless) colon only
+     * counts as the port separator when what follows is a valid numeric port,
+     * so a portless IPv6 address is not mis-split.
+     */
     static String[] splitHostPort(String hp) {
         if (hp == null) return new String[]{"", ""};
         hp = hp.trim();
+        if (hp.startsWith("[")) {
+            int c = hp.indexOf(']');
+            if (c < 0) return new String[]{hp, ""};
+            String host = hp.substring(1, c);
+            String port = (c + 2 < hp.length() && hp.charAt(c + 1) == ':')
+                    ? hp.substring(c + 2) : "";
+            return new String[]{host, port};
+        }
         int c = hp.lastIndexOf(':');
         if (c < 0) return new String[]{hp, ""};
-        return new String[]{hp.substring(0, c).replace("[", "").replace("]", ""), hp.substring(c + 1)};
+        String maybePort = hp.substring(c + 1);
+        if (isPort(maybePort)) return new String[]{hp.substring(0, c), maybePort};
+        return new String[]{hp, ""};
+    }
+
+    static boolean isPort(String p) {
+        if (p == null || p.isEmpty() || p.length() > 5) return false;
+        for (int i = 0; i < p.length(); i++) {
+            char ch = p.charAt(i);
+            if (ch < '0' || ch > '9') return false;
+        }
+        return Integer.parseInt(p) <= 65535;
     }
 
     static String firstNonEmpty(String... vals) {

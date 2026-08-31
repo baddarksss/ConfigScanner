@@ -280,6 +280,13 @@ public class XrayManager {
      * @return the verified first line of `xray version`
      */
     public static String installNewBinary(Context ctx, InputStream xrayStream) throws Exception {
+        return installNewBinary(ctx, xrayStream, null);
+    }
+
+    /** Installs a staged core binary; if expectedVersion is given, the binary's
+     *  reported version must contain it before the running core is touched. */
+    public static String installNewBinary(Context ctx, InputStream xrayStream,
+                                          String expectedVersion) throws Exception {
         File dir = coreDir(ctx);
         if (!dir.exists()) dir.mkdirs();
         File newBin = new File(dir, "xray_new");
@@ -316,13 +323,32 @@ public class XrayManager {
         }
         AppLog.i("update", "verified staged binary: " + vline);
 
-        File target = new File(dir, "xray");
-        boolean renamed = newBin.renameTo(target);
-        if (!renamed) {
-            try { target.delete(); } catch (Exception ignored) { }
-            renamed = newBin.renameTo(target);
+        if (expectedVersion != null && !expectedVersion.isEmpty()
+                && !vline.contains(expectedVersion)) {
+            try { newBin.delete(); } catch (Exception ignored) { }
+            AppLog.e("update", "version mismatch: release says " + expectedVersion
+                    + " but binary reports [" + vline + "] — refusing to install");
+            throw new Exception("core version mismatch: expected " + expectedVersion
+                    + ", binary reports " + vline);
         }
-        if (!renamed) {
+
+        // atomic replace: no window where the running core does not exist
+        File target = new File(dir, "xray");
+        boolean moved = false;
+        try {
+            java.nio.file.Files.move(newBin.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            moved = true;
+        } catch (Exception atomicFail) {
+            AppLog.w("update", "atomic move failed (" + atomicFail.getMessage()
+                    + ") — fallback delete+rename");
+            if (!newBin.renameTo(target)) {
+                try { target.delete(); } catch (Exception ignored) { }
+                moved = newBin.renameTo(target);
+            }
+        }
+        if (!moved) {
             try { newBin.delete(); } catch (Exception ignored) { }
             throw new Exception("could not move updated core into " + dir);
         }

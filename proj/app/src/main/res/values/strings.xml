@@ -135,6 +135,7 @@
     <!-- Log dialog -->
     <!-- Country premium-emoji codes -->
     <string name="nav_caption">Caption</string>
+    <string name="core_update_busy">One moment — another core operation is in progress</string>
     <string name="out_lang_title">Country name in output</string>
     <string name="out_lang_fa">Persian</string>
     <string name="out_lang_en">English</string>
@@ -184,7 +185,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.20
+<string name="changelog">v1.0.21
+• Hardened: GeoChecker now uses a CompletionService — the fastest-answering service is used immediately instead of waiting in order
+• Hardened: IPv6 host/port parsing (bracketed, bare-with-port and portless forms)
+• Hardened: core update — the downloaded zip SHA-256 is logged, the installed version must match the release tag, the replace is atomic, and core update/test are locked while a run is active (and Run is locked during an update)
+• Hardened: query values keep a literal plus sign (no more + → space), Stop can no longer trigger a fake finish, AppLog only reads the log tail
+
+v1.0.20
 • New: output language for country names — Persian or English (shown after the flag in results; the channel suffix order is unchanged)
 • Country code list in the Caption tab is now collapsible (tap the row to open/close)
 • Livelier test animation: deeper water with a gradient, drifting wave layers, rising bubbles and a glow pulse, smoother percentage

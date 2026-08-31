@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -56,21 +58,27 @@ public class GeoChecker {
                 + Math.max(10, Math.min(connectTimeoutSec, 25)) * 1000L;
 
         List<String[]> votes = new ArrayList<>();
-        List<Future<String[]>> futures = new ArrayList<>();
         ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
+        // CompletionService: the FIRST service to answer is used immediately —
+        // a slow service can no longer hold the shared deadline hostage.
+        CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
         try {
             for (final String[] svc : SERVICES) {
-                futures.add(ex.submit(() ->
-                        query(newProxyClient(proxyPort, connectTimeoutSec), svc)));
+                cs.submit(() ->
+                        query(newProxyClient(proxyPort, connectTimeoutSec), svc));
             }
-            for (Future<String[]> f : futures) {
+            for (int i = 0; i < SERVICES.length; i++) {
                 long left = deadline - System.currentTimeMillis();
-                if (left <= 0) {
-                    f.cancel(true);
-                    continue;
-                }
+                if (left <= 0) break;
+                Future<String[]> f;
                 try {
-                    votes.add(f.get(left, TimeUnit.MILLISECONDS));
+                    f = cs.poll(left, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (f == null) break;
+                try {
+                    votes.add(f.get());
                 } catch (Exception e) {
                     votes.add(null);
                 }

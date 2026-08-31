@@ -120,6 +120,8 @@ public class MainActivity extends AppCompatActivity {
 
     private ExecutorService pool;
     private volatile boolean running = false;
+    private volatile boolean coreUpdating = false;
+    private volatile boolean runStopped = false;
 
     private final List<String> outputLines = Collections.synchronizedList(new ArrayList<>());
     private final List<String> flagList = new ArrayList<>();
@@ -648,6 +650,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startRun() {
+        if (coreUpdating) {
+            toast(getString(R.string.core_update_busy));
+            return;
+        }
+        runStopped = false;
         String text = input.getText().toString().trim();
         if (text.isEmpty()) {
             toast(getString(R.string.toast_paste_first));
@@ -695,6 +702,7 @@ public class MainActivity extends AppCompatActivity {
         }
         running = true;
         runFinished.set(false);
+        syncCoreButtons();
         doneCount.set(0);
         totalCount = servers.size();
         basePort = 21000 + (int) (Math.random() * 500);
@@ -714,15 +722,12 @@ public class MainActivity extends AppCompatActivity {
 
         pool = Executors.newFixedThreadPool(Math.max(1, parallelBar.getProgress() + 1));
         final int timeoutSec = timeoutBar.getProgress() + 5;
-
-        new Thread(() -> {
-            for (int i = 0; i < servers.size(); i++) {
-                final ServerSpec s = servers.get(i);
-                final int idx = i;
-                final int port = findFreePort(basePort + idx);
-                pool.submit(() -> testOne(s, port, timeoutSec));
-            }
-        }).start();
+        // pool.submit only enqueues — no extra thread needed
+        for (int i = 0; i < servers.size(); i++) {
+            final ServerSpec s = servers.get(i);
+            final int port = findFreePort(basePort + i);
+            pool.submit(() -> testOne(s, port, timeoutSec));
+        }
     }
 
     /** Keep at most the 24 most recent engine log/config files. */
@@ -758,7 +763,9 @@ public class MainActivity extends AppCompatActivity {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
         running = false;
+        runStopped = true;
         postUi(() -> {
+            syncCoreButtons();
             btnStart.setText(R.string.btn_start);
             waterCircle.setRunning(false);
             progressStatus.setText(R.string.progress_stopped);
@@ -907,9 +914,11 @@ public class MainActivity extends AppCompatActivity {
 
     /** Called once when every server of the current run has finished. */
     private void finishRun() {
+        if (runStopped) return; // a stopped run never "finishes"
         if (runFinished.compareAndSet(false, true)) {
             postUi(() -> {
                 running = false;
+                syncCoreButtons();
                 btnStart.setText(R.string.btn_start);
                 btnStart.setEnabled(true);
                 waterCircle.setRunning(false);
@@ -1364,6 +1373,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void testCore() {
+        if (running || coreUpdating) {
+            toast(getString(R.string.core_update_busy));
+            return;
+        }
         toast(getString(R.string.toast_core_testing));
         new Thread(() -> {
             File bin = XrayManager.binary(this);
@@ -1384,6 +1397,12 @@ public class MainActivity extends AppCompatActivity {
      *  The downloaded zip is kept in filesDir/core_updates, so a failed install
      *  is retried from the cache (no re-download). On success the zip is deleted. */
     private void updateFromGithub() {
+        if (running || coreUpdating) {
+            toast(getString(R.string.core_update_busy));
+            return;
+        }
+        coreUpdating = true;
+        syncCoreButtons();
         final boolean pre = coreBetaCheck.isChecked();
         coreProgressBar.setVisibility(View.VISIBLE);
         coreProgressBar.setIndeterminate(false);
@@ -1500,6 +1519,9 @@ public class MainActivity extends AppCompatActivity {
                         throw new Exception("empty download");
                 }
 
+                AppLog.i("update", "zip sha256=" + sha256(zipFile)
+                        + " (tag " + tag + ", " + zipFile.length() + " bytes)");
+
                 postUi(() -> {
                     coreStatus.setText(R.string.core_update_installing);
                     coreProgressBar.setIndeterminate(true);
@@ -1511,7 +1533,7 @@ public class MainActivity extends AppCompatActivity {
                         String name = ze.getName();
                         if (name.equalsIgnoreCase("xray") || name.endsWith("/xray")) {
                             AppLog.i("update", "extracting entry: " + name);
-                            String vline = XrayManager.installNewBinary(this, zis);
+                            String vline = XrayManager.installNewBinary(this, zis, cand);
                             final String vl = vline;
                             boolean deleted = zipFile.delete();
                             AppLog.i("update", "install OK — cached zip removed=" + deleted);
@@ -1542,8 +1564,32 @@ public class MainActivity extends AppCompatActivity {
                     coreStatus.setText("");
                     toast(getString(R.string.toast_update_failed, String.valueOf(m)));
                 });
+            } finally {
+                coreUpdating = false;
+                postUi(() -> syncCoreButtons());
             }
         }).start();
+    }
+
+    private static String sha256(File f) {
+        try (java.io.InputStream is = new FileInputStream(f)) {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[32768];
+            int n;
+            while ((n = is.read(buf)) > 0) md.update(buf, 0, n);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : md.digest()) sb.append(String.format(java.util.Locale.US, "%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return "unavailable";
+        }
+    }
+
+    /** Core update/test and a live run must never overlap. */
+    private void syncCoreButtons() {
+        boolean busy = running || coreUpdating;
+        btnCoreUpdate.setEnabled(!busy);
+        btnCoreTest.setEnabled(!busy);
     }
 
     /** Numeric version of the currently active core binary, e.g. "26.7.28". */

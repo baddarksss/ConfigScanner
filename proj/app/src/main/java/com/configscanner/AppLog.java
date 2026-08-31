@@ -31,15 +31,17 @@ public class AppLog {
         // still visible in the Log dialog (memory is fresh on every start).
         try {
             if (logFile.exists() && logFile.length() > 0) {
-                BufferedReader br = new BufferedReader(new java.io.FileReader(logFile));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) sb.append(line).append("\n");
-                br.close();
+                // read only the tail that fits in memory (never the whole file)
+                long len = logFile.length();
+                long from = Math.max(0, len - MAX);
+                java.io.RandomAccessFile raf = new java.io.RandomAccessFile(logFile, "r");
+                raf.seek(from);
+                byte[] part = new byte[(int) (len - from)];
+                raf.readFully(part);
+                raf.close();
                 synchronized (LOCK) {
                     if (BUF.length() == 0) {
-                        if (sb.length() > MAX) sb.delete(0, sb.length() - MAX);
-                        BUF.append(sb);
+                        BUF.append(new String(part, java.nio.charset.StandardCharsets.UTF_8));
                     }
                 }
             }
