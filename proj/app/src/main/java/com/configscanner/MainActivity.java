@@ -97,6 +97,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView flagStrip;
     private android.view.View themeHeader, themeOptions, langHeader, langOptions;
     private ScrollView pageCaption;
+    private android.view.View captionCountryHeader, captionCountryOptions;
+    private android.widget.TextView captionCountryChevron;
+    private MaterialButton btnOutLangFa, btnOutLangEn;
     private EditText captionSearch;
     private android.widget.LinearLayout countryListContainer, captionMissingContainer;
     private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox;
@@ -206,6 +209,11 @@ public class MainActivity extends AppCompatActivity {
         themeOptions = findViewById(R.id.themeOptions);
         langHeader = findViewById(R.id.langHeader);
         langOptions = findViewById(R.id.langOptions);
+        captionCountryHeader = findViewById(R.id.captionCountryHeader);
+        captionCountryOptions = findViewById(R.id.captionCountryOptions);
+        captionCountryChevron = findViewById(R.id.captionCountryChevron);
+        btnOutLangFa = findViewById(R.id.btnOutLangFa);
+        btnOutLangEn = findViewById(R.id.btnOutLangEn);
         captionSearch = findViewById(R.id.captionSearch);
         countryListContainer = findViewById(R.id.countryListContainer);
         captionMissingContainer = findViewById(R.id.captionMissingContainer);
@@ -450,6 +458,14 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void afterTextChanged(Editable e) { }
         });
+        captionCountryHeader.setOnClickListener(v -> {
+            boolean open = captionCountryOptions.getVisibility() != View.VISIBLE;
+            setCountryListOpen(open);
+        });
+        btnOutLangFa.setOnClickListener(v -> applyOutLang("fa"));
+        btnOutLangEn.setOnClickListener(v -> applyOutLang("en"));
+        updateOutLangStyle();
+
         loadEmojiCodes();
         loadLastRunCountries();
         buildCountryList("");
@@ -847,6 +863,10 @@ public class MainActivity extends AppCompatActivity {
             if (geo.ok && !geo.code.isEmpty()) {
                 String countryName = geo.country.isEmpty()
                         ? geo.code : geo.country;
+                if ("fa".equals(prefs.getString("out_lang", "en"))) {
+                    CountryData.C cc = CountryData.byCode(geo.code);
+                    if (cc != null) countryName = cc.fa;
+                }
                 String flag = GeoChecker.flag(geo.code);
                 String channel = prefs.getString("channel", "");
                 boolean incCh = prefs.getBoolean("include_channel", true);
@@ -1056,6 +1076,26 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .setNeutralButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void setCountryListOpen(boolean open) {
+        captionCountryOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+        captionCountryChevron.setText(open ? "\u2303" : "\u2304");
+    }
+
+    private void applyOutLang(String tag) {
+        prefs.edit().putString("out_lang", tag).apply();
+        updateOutLangStyle();
+    }
+
+    private void updateOutLangStyle() {
+        boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+        int accent = getResources().getColor(R.color.accent, getTheme());
+        int normal = getResources().getColor(R.color.btn_text, getTheme());
+        btnOutLangFa.setTextColor(fa ? accent : normal);
+        btnOutLangEn.setTextColor(fa ? normal : accent);
+        btnOutLangFa.setTypeface(null, fa ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        btnOutLangEn.setTypeface(null, fa ? android.graphics.Typeface.NORMAL : android.graphics.Typeface.BOLD);
     }
 
     private void buildCountryList(String filter) {

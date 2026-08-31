@@ -135,6 +135,10 @@
     <!-- Log dialog -->
     <!-- Country premium-emoji codes -->
     <string name="nav_caption">Caption</string>
+    <string name="out_lang_title">Country name in output</string>
+    <string name="out_lang_fa">Persian</string>
+    <string name="out_lang_en">English</string>
+    <string name="out_lang_caption">The name shown after the flag in the results; your channel suffix stays in place.</string>
     <string name="caption_country_title">Country emoji codes</string>
     <string name="caption_country_caption">Tap a country to set its premium (animated) flag-emoji code.</string>
     <string name="caption_search_hint">Search country…</string>
@@ -180,7 +184,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.19
+<string name="changelog">v1.0.20
+• New: output language for country names — Persian or English (shown after the flag in results; the channel suffix order is unchanged)
+• Country code list in the Caption tab is now collapsible (tap the row to open/close)
+• Livelier test animation: deeper water with a gradient, drifting wave layers, rising bubbles and a glow pulse, smoother percentage
+
+v1.0.19
 • New: dedicated Caption tab — country code list (flag + name, searchable), premium-code dialog, and backup/restore for your code list
 • New: editable caption template (the {{FLAGS}} placeholder is replaced with the flag codes from the last run)
 • New: one-tap final caption — flag codes in [123456]… format plus your full template, ready to copy into the channel post
