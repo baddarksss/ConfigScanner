@@ -133,6 +133,22 @@
     <string name="res_engine_error">هسته خطا داد — پیکربندی نامعتبر</string>
 
     <!-- Log dialog -->
+    <!-- Country premium-emoji codes -->
+    <string name="country_emoji_title">کدهای ایموجی کشورها</string>
+    <string name="country_emoji_open">پرچم‌های ایموجیِ پریمیوم (برای کپشن کانال)</string>
+    <string name="country_emoji_open_count">%1$d از %2$d تنظیم شده</string>
+    <string name="country_emoji_caption">برای هر کشور، کدِ ایموجیِ پریمیوم (متحرک) رو بذار. بعد از هر اجرا، کادر زیر نتایج کدهای کشورهایی که پیدا شده رو می‌ده — هر کد یک خط — آماده چسبوندن توی کپشن کانال.</string>
+    <string name="country_emoji_clear">پاک کردن همه کدها</string>
+    <string name="country_emoji_code_label">کد ایموجی پریمیوم (همون عدد، مثلاً 5390843037349679256)</string>
+    <string name="country_emoji_save">ذخیره</string>
+    <string name="country_emoji_remove">حذف</string>
+    <string name="country_emoji_saved">کد ذخیره شد</string>
+    <string name="country_emoji_clear_all_toast">همه کدهای کشورها پاک شد</string>
+    <string name="emoji_strip_empty">کدهای ایموجی پریمیوم اینجا میاد (هر کد یک خط)</string>
+    <string name="emoji_missing_hint">%1$d کشورِ نتیجه هنوز کد نداره</string>
+    <string name="toast_copied_codes">کدهای ایموجی کپی شد</string>
+    <string name="toast_no_codes">هنوز کد ایموجی‌ای ثبت نشده</string>
+
     <string name="log_title">لاگ برنامه</string>
     <string name="log_empty">(لاگ خالی است)</string>
     <string name="log_clear">🗑 پاک کردن</string>
@@ -140,7 +156,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.17
+<string name="changelog">v1.0.18
+• جدید: کدهای ایموجی پریمیوم کشورها — توی تنظیمات روی پرچم هر کشور بزن و کدِ ایموجیِ متحرکش رو بذار
+• جدید: خروجی سوم زیر نتایج — بعد از هر اجرا، کدهای کشورهایی که پیدا شده رو می‌ده، هر کد یک خط؛ مستقیم برای کپشن کانال (لمز بزن = کپی)
+
+v1.0.17
 • فیکس (کرش): کرشِ آپدیت داخل اپ در اندروید ۱۲ به بالا — مجوز نصب مجدد اعلام شد و چکِ آن دیگر کرش نمی‌کنه
 • فیکس: لینک‌های Hysteria2 بدون پسورد دیگر اجرای کامل رو روی «در حال اجرا» گیر نمی‌ندازن
 • فیکس: لینک‌های TUIC به فرمت رایج uuid:password@host درست خوند می‌شن

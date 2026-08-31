@@ -95,6 +95,14 @@ public class MainActivity extends AppCompatActivity {
     private android.widget.ProgressBar appProgressBar;
     private TextView flagStrip;
     private android.view.View themeHeader, themeOptions, langHeader, langOptions;
+    private android.view.View emojiHeader, emojiOptions;
+    private android.widget.TextView emojiCount, emojiChevron, emojiStrip, emojiMissingHint;
+    private android.widget.GridLayout emojiGrid;
+    private com.google.android.material.button.MaterialButton btnEmojiClear;
+    /** ISO country code -> premium emoji code, persisted in prefs */
+    private final java.util.Map<String, String> emojiCodes = new java.util.HashMap<>();
+    /** ISO codes of countries seen in the current run, in order of first appearance */
+    private final List<String> runCountryCodes = java.util.Collections.synchronizedList(new ArrayList<>());
     private TextView themeValue, themeChevron, langValue, langChevron;
     private MaterialButton btnThemeSystem, btnThemeDark, btnThemeLight;
     private MaterialButton btnLangSystem, btnLangFa, btnLangEn;
@@ -190,6 +198,14 @@ public class MainActivity extends AppCompatActivity {
         themeOptions = findViewById(R.id.themeOptions);
         langHeader = findViewById(R.id.langHeader);
         langOptions = findViewById(R.id.langOptions);
+        emojiHeader = findViewById(R.id.emojiHeader);
+        emojiOptions = findViewById(R.id.emojiOptions);
+        emojiCount = findViewById(R.id.emojiCount);
+        emojiChevron = findViewById(R.id.emojiChevron);
+        emojiStrip = findViewById(R.id.emojiStrip);
+        emojiMissingHint = findViewById(R.id.emojiMissingHint);
+        emojiGrid = findViewById(R.id.emojiGrid);
+        btnEmojiClear = findViewById(R.id.btnEmojiClear);
         themeValue = findViewById(R.id.themeValue);
         themeChevron = findViewById(R.id.themeChevron);
         langValue = findViewById(R.id.langValue);
@@ -389,6 +405,31 @@ public class MainActivity extends AppCompatActivity {
                 toast(getString(R.string.toast_flags_copied));
             }
         });
+        emojiStrip.setOnClickListener(v -> {
+            String t = emojiStrip.getText().toString();
+            if (t.isEmpty() || t.equals(getString(R.string.emoji_strip_empty))) {
+                toast(getString(R.string.toast_no_codes));
+                return;
+            }
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("emoji-codes", t));
+            toast(getString(R.string.toast_copied_codes));
+        });
+
+        emojiHeader.setOnClickListener(v -> {
+            boolean open = emojiOptions.getVisibility() != View.VISIBLE;
+            setEmojiOpen(open);
+        });
+        btnEmojiClear.setOnClickListener(v -> {
+            emojiCodes.clear();
+            saveEmojiCodes();
+            rebuildEmojiGrid();
+            refreshEmojiStrip();
+            toast(getString(R.string.country_emoji_clear_all_toast));
+        });
+        loadEmojiCodes();
+        rebuildEmojiGrid();
 
         themeHeader.setOnClickListener(v -> {
             boolean open = themeOptions.getVisibility() != View.VISIBLE;
@@ -582,6 +623,8 @@ public class MainActivity extends AppCompatActivity {
 
         synchronized (flagList) { flagList.clear(); }
         flagStrip.setText("");
+        runCountryCodes.clear();
+        refreshEmojiStrip();
 
         File dir = XrayManager.coreDir(this);
         if (!dir.exists()) dir.mkdirs();
@@ -784,6 +827,7 @@ public class MainActivity extends AppCompatActivity {
                 status(String.format("✓ [%d/%d] %s = %s", doneCount.get(), totalCount,
                         hostport, geo.code));
                 success(renamedRaw, flag);
+                noteCountry(geo.code);
             } else {
                 doneCount.incrementAndGet();
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
@@ -856,6 +900,139 @@ public class MainActivity extends AppCompatActivity {
         int i = raw.lastIndexOf('#');
         if (i < 0) return raw + "#" + enc;
         return raw.substring(0, i + 1) + enc;
+    }
+
+    // ---------------------------------------------------- country emoji codes
+
+    private void loadEmojiCodes() {
+        emojiCodes.clear();
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(prefs.getString("country_emoji_codes", "{}"));
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                emojiCodes.put(k.toUpperCase(), o.getString(k));
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private void saveEmojiCodes() {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject();
+            for (java.util.Map.Entry<String, String> e : emojiCodes.entrySet()) o.put(e.getKey(), e.getValue());
+            prefs.edit().putString("country_emoji_codes", o.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private void setEmojiOpen(boolean open) {
+        emojiOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+        emojiChevron.setText(open ? "⌃" : "⌄");
+    }
+
+    private void updateEmojiCounter() {
+        emojiCount.setText(getString(R.string.country_emoji_open_count,
+                emojiCodes.size(), CountryData.all().size()));
+    }
+
+    private void rebuildEmojiGrid() {
+        emojiGrid.removeAllViews();
+        int width = 0;
+        for (CountryData.C c : CountryData.all()) {
+            final String iso = c.code;
+            TextView cell = new TextView(this);
+            cell.setText(c.flag);
+            cell.setGravity(android.view.Gravity.CENTER);
+            cell.setTextSize(18f);
+            cell.setBackgroundResource(emojiCodes.containsKey(iso)
+                    ? R.drawable.bg_flag_set : 0);
+            cell.setOnClickListener(v -> showCountryEmojiDialog(iso));
+            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams(
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f),
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED));
+            lp.height = dpToPx(34);
+            cell.setLayoutParams(lp);
+            emojiGrid.addView(cell);
+        }
+        updateEmojiCounter();
+    }
+
+    private int dpToPx(float dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void showCountryEmojiDialog(String iso) {
+        CountryData.C c = CountryData.byCode(iso);
+        if (c == null) return;
+        EditText edit = new EditText(this);
+        edit.setHint("5390843037349679256");
+        edit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        edit.setGravity(android.view.Gravity.START);
+        edit.setText(emojiCodes.getOrDefault(iso, ""));
+        edit.setTransformationMethod(null);
+        edit.setTextDirection(View.TEXT_DIRECTION_LTR);
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding(dpToPx(4), dpToPx(2), dpToPx(4), 0);
+        box.addView(edit);
+        androidx.appcompat.app.AlertDialog.Builder b = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(c.flag + "  " + c.en + " • " + c.fa)
+                .setMessage(getString(R.string.country_emoji_code_label))
+                .setView(box)
+                .setPositiveButton(R.string.country_emoji_save, (d, w) -> {
+                    String val = edit.getText().toString().trim();
+                    if (val.isEmpty()) emojiCodes.remove(iso);
+                    else emojiCodes.put(iso, val);
+                    saveEmojiCodes();
+                    rebuildEmojiGrid();
+                    refreshEmojiStrip();
+                    toast(getString(R.string.country_emoji_saved));
+                });
+        if (emojiCodes.containsKey(iso)) {
+            b.setNegativeButton(R.string.country_emoji_remove, (d, w) -> {
+                emojiCodes.remove(iso);
+                saveEmojiCodes();
+                rebuildEmojiGrid();
+                refreshEmojiStrip();
+            });
+        }
+        b.show();
+    }
+
+    /** Remember a country found in this run and refresh the codes strip. */
+    private void noteCountry(String iso) {
+        if (iso == null || iso.length() != 2) return;
+        boolean added;
+        synchronized (runCountryCodes) {
+            added = !runCountryCodes.contains(iso);
+            if (added) runCountryCodes.add(iso);
+        }
+        if (added) refreshEmojiStrip();
+    }
+
+    private void refreshEmojiStrip() {
+        StringBuilder sb = new StringBuilder();
+        int missing = 0;
+        synchronized (runCountryCodes) {
+            for (String iso : runCountryCodes) {
+                String code = emojiCodes.get(iso);
+                if (code != null && !code.isEmpty()) {
+                    if (sb.length() > 0) sb.append("\n");
+                    sb.append(code);
+                } else {
+                    missing++;
+                }
+            }
+        }
+        String text = sb.length() == 0 ? getString(R.string.emoji_strip_empty) : sb.toString();
+        String hint = missing > 0 ? getString(R.string.emoji_missing_hint, missing) : null;
+        postUi(() -> {
+            emojiStrip.setText(text);
+            if (hint != null) {
+                emojiMissingHint.setText(hint);
+                emojiMissingHint.setVisibility(View.VISIBLE);
+            } else {
+                emojiMissingHint.setVisibility(View.GONE);
+            }
+        });
     }
 
     /**

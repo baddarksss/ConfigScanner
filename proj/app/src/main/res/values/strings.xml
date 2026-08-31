@@ -133,6 +133,22 @@
     <string name="res_engine_error">Engine error — invalid config</string>
 
     <!-- Log dialog -->
+    <!-- Country premium-emoji codes -->
+    <string name="country_emoji_title">Country emoji codes</string>
+    <string name="country_emoji_open">Premium flag emojis (for channel captions)</string>
+    <string name="country_emoji_open_count">%1$d/%2$d set</string>
+    <string name="country_emoji_caption">Set the premium (animated) emoji code for each country. After a run, the box under the results lists the codes of the countries it found — one per line — ready to paste into your channel caption.</string>
+    <string name="country_emoji_clear">Clear all codes</string>
+    <string name="country_emoji_code_label">Premium emoji code (the number, e.g. 5390843037349679256)</string>
+    <string name="country_emoji_save">Save</string>
+    <string name="country_emoji_remove">Remove</string>
+    <string name="country_emoji_saved">Code saved</string>
+    <string name="country_emoji_clear_all_toast">All country codes cleared</string>
+    <string name="emoji_strip_empty">premium emoji codes appear here (one per line)</string>
+    <string name="emoji_missing_hint">%1$d result countries have no code yet</string>
+    <string name="toast_copied_codes">Emoji codes copied</string>
+    <string name="toast_no_codes">No emoji codes yet</string>
+
     <string name="log_title">App log</string>
     <string name="log_empty">(log is empty)</string>
     <string name="log_clear">🗑 Clear</string>
@@ -140,7 +156,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.17
+<string name="changelog">v1.0.18
+• New: country premium-emoji codes — set the animated flag-emoji code for each country in Settings (tap the flag)
+• New: third output box under the results — after a run it lists the emoji codes of the countries it found, one code per line, ready to paste into your channel caption (tap to copy)
+
+v1.0.17
 • FIXED (crash): in-app update crash on Android 12+ — the REQUEST_INSTALL_PACKAGES permission is declared again and the install-permission check is now crash-proof
 • FIXED: Hysteria2 links that cannot be tested no longer leave the run stuck on \"Running"\" when they are the only configs
 • FIXED: TUIC links in the common uuid:password@host form are now parsed correctly
