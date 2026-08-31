@@ -704,15 +704,11 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnAppUpdate"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
                             android:text="@string/btn_app_update"
-                            android:textColor="@color/btn_text"
-                            android:textSize="13sp"
-                            app:cornerRadius="12dp"
-                            app:strokeColor="@color/stroke" />
+                            android:textSize="13sp" />
 
                         <ProgressBar
                             android:id="@+id/appProgressBar"

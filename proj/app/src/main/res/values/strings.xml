@@ -185,7 +185,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.21
+<string name="changelog">v1.0.22
+• Country flags in the results strip no longer repeat — each country appears once, even with multiple servers from it (the emoji-code box was already unique)
+• The app update button now uses the same bright filled style as the core update button
+
+v1.0.21
 • Hardened: GeoChecker now uses a CompletionService — the fastest-answering service is used immediately instead of waiting in order
 • Hardened: IPv6 host/port parsing (bracketed, bare-with-port and portless forms)
 • Hardened: core update — the downloaded zip SHA-256 is logged, the installed version must match the release tag, the replace is atomic, and core update/test are locked while a run is active (and Run is locked during an update)

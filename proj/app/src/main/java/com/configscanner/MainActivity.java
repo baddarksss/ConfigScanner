@@ -938,7 +938,7 @@ public class MainActivity extends AppCompatActivity {
         if (flag != null && !flag.isEmpty()) {
             final List<String> copy;
             synchronized (flagList) {
-                flagList.add(flag);
+                if (!flagList.contains(flag)) flagList.add(flag); // one per country
                 copy = new ArrayList<>(flagList);
             }
             postUi(() -> flagStrip.setText(String.join("  ", copy)));
