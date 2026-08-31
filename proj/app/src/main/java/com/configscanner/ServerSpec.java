@@ -117,6 +117,11 @@ public class ServerSpec {
         return "";
     }
 
+    static String firstNonEmptyOrNull(String... vals) {
+        for (String v : vals) if (v != null && !v.isEmpty()) return v;
+        return null;
+    }
+
     /**
      * Parses one line. Returns null if it's not a recognizable config line.
      */
@@ -288,7 +293,15 @@ public class ServerSpec {
             String userinfo = b64decode(body.substring(0, at));
             String rest = body.substring(at + 1);
             int qi = rest.indexOf('?');
-            if (qi >= 0) rest = rest.substring(0, qi);
+            if (qi >= 0) {
+                String query = rest.substring(qi + 1);
+                if (query.startsWith("plugin=") || query.contains("&plugin=")) {
+                    // v2-plugin shadowsocks is not what the core's ss outbound
+                    // speaks — the base ss connection is still what we can test
+                    System.out.println("cfgscan: ss plugin ignored (testing base ss only)");
+                }
+                rest = rest.substring(0, qi);
+            }
             String[] hp = splitHostPort(rest);
             s.host = hp[0];
             try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
@@ -397,16 +410,31 @@ public class ServerSpec {
         }
         int qi = body.indexOf('?');
         Map<String, String> q = new HashMap<>();
-        String hostport = body;
+        String rest = body;
         if (qi >= 0) {
-            hostport = body.substring(0, qi);
+            rest = body.substring(0, qi);
             q = parseQuery(body.substring(qi + 1));
+        }
+        // common share form: tuic://uuid:password@host:port
+        String hostport = rest;
+        int at = rest.lastIndexOf('@');
+        String userUuid = null, userPass = null;
+        if (at >= 0) {
+            String userinfo = rest.substring(0, at);
+            hostport = rest.substring(at + 1);
+            int ci = userinfo.indexOf(':');
+            if (ci > 0) {
+                userUuid = userinfo.substring(0, ci);
+                userPass = userinfo.substring(ci + 1);
+            } else {
+                userUuid = userinfo;
+            }
         }
         String[] hp = splitHostPort(hostport);
         s.host = hp[0];
         try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
-        s.uuid = q.get("uuid");
-        s.password = q.get("password");
+        s.uuid = firstNonEmptyOrNull(q.get("uuid"), userUuid);
+        s.password = firstNonEmptyOrNull(q.get("password"), userPass);
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
         if ("true".equals(q.get("allowinsecure")) || "1".equals(q.get("allowinsecure"))
                 || "true".equals(q.get("insecure")) || "1".equals(q.get("insecure")))
@@ -457,9 +485,12 @@ public class ServerSpec {
             s.name = urlDecode(body.substring(fi + 1));
             body = body.substring(0, fi);
         }
+        // official share form: anytls://password@host:port — the userinfo
+        // segment is the auth password, not a uuid
         int at = body.lastIndexOf('@');
+        String userinfoPass = null;
         if (at >= 0) {
-            s.uuid = urlDecode(body.substring(0, at));
+            userinfoPass = urlDecode(body.substring(0, at));
             body = body.substring(at + 1);
         }
         int qi = body.indexOf('?');
@@ -472,7 +503,8 @@ public class ServerSpec {
         String[] hp = splitHostPort(hostport);
         s.host = hp[0];
         try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
-        s.password = q.get("password");
+        s.password = firstNonEmptyOrNull(q.get("password"), userinfoPass);
+        s.uuid = q.get("uuid");
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
         if (s.host.isEmpty()) return null;
         return s;

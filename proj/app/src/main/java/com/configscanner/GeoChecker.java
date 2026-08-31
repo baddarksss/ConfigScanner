@@ -19,7 +19,9 @@ import okhttp3.Response;
 
 /**
  * Detects the exit country of a local SOCKS5 proxy by querying several
- * free IP-geolocation services IN PARALLEL and taking a majority vote.
+ * free IP-geolocation services IN PARALLEL and taking a plurality vote
+ * (a 2+ service agreement is "confident"; a lone answer is flagged
+ * singleVote / low confidence).
  *
  * Parallelism matters: some exits block or slow down one specific service
  * (MITM proxies, SNI filters). With 6 independent services run at once,
@@ -35,6 +37,8 @@ public class GeoChecker {
         public String ip = "";
         public int votes = 0;
         public int answered = 0;
+        /** true when exactly ONE service answered — treat as low confidence */
+        public boolean singleVote = false;
     }
 
     /** {url, countryField, codeField, successField (nullable)} */
@@ -101,6 +105,7 @@ public class GeoChecker {
             r.code = best;
             r.ok = true;
             r.votes = bestN;
+            r.singleVote = (bestN < 2);
             for (String[] v : votes) {
                 if (v != null && v[0] != null && v[0].toUpperCase().equals(best)) {
                     if (v[1] != null && !v[1].isEmpty()) r.country = v[1];

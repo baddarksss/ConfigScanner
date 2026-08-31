@@ -21,6 +21,8 @@ public class AppLog {
     private static final Object LOCK = new Object();
     private static final StringBuilder BUF = new StringBuilder();
     private static final int MAX = 150_000;
+    /** hard cap for the on-disk log (bytes); the tail is kept when exceeded */
+    private static final long MAXFILE = 1_000_000;
     private static File logFile;
 
     public static void init(Context ctx) {
@@ -79,11 +81,30 @@ public class AppLog {
         }
         if (logFile != null) {
             try {
+                trimFile();
                 FileWriter fw = new FileWriter(logFile, true);
                 fw.write(line);
                 fw.close();
             } catch (IOException ignored) {
             }
+        }
+    }
+
+    /** Keep the on-disk log bounded: above the cap, keep only the last 200 KB. */
+    private static void trimFile() {
+        try {
+            long len = logFile.length();
+            if (len <= MAXFILE) return;
+            long keep = 200_000;
+            java.io.RandomAccessFile raf = new java.io.RandomAccessFile(logFile, "r");
+            raf.seek(len - keep);
+            byte[] rest = new byte[(int) keep];
+            raf.readFully(rest);
+            raf.close();
+            FileWriter fw = new FileWriter(logFile, false);
+            fw.write(new String(rest, java.nio.charset.StandardCharsets.UTF_8));
+            fw.close();
+        } catch (Exception ignored) {
         }
     }
 

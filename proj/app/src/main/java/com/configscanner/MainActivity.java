@@ -115,6 +115,9 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
     private int totalCount = 0;
     private final AtomicBoolean runFinished = new AtomicBoolean(false);
+    private volatile boolean destroyed = false;
+    private final java.util.Set<Process> activeEngines = java.util.Collections
+            .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     private ActivityResultLauncher<String[]> fileImportLauncher;
     private ActivityResultLauncher<String> fileExportLauncher;
@@ -509,15 +512,15 @@ public class MainActivity extends AppCompatActivity {
                 zf2.close();
                 tmp.delete();
                 final String vl = vline;
-                main.post(() -> {
+                postUi(() -> {
                     toast(getString(R.string.toast_core_updated, vl));
                     refreshCoreStatus(true);
                 });
             } catch (XrayManager.CoreExecBlockedException ex) {
-                main.post(() -> coreBlocked(ex.getMessage()));
+                postUi(() -> coreBlocked(ex.getMessage()));
             } catch (Exception ex) {
                 final String m = ex.getMessage();
-                main.post(() -> toast(getString(R.string.toast_update_file_failed, String.valueOf(m))));
+                postUi(() -> toast(getString(R.string.toast_update_file_failed, String.valueOf(m))));
             }
         }).start();
     }
@@ -582,6 +585,7 @@ public class MainActivity extends AppCompatActivity {
 
         File dir = XrayManager.coreDir(this);
         if (!dir.exists()) dir.mkdirs();
+        cleanupEngineLogs(dir);
 
         // ensure binary
         XrayManager.ensureBinary(this);
@@ -630,6 +634,18 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
+    /** Keep at most the 24 most recent engine log/config files. */
+    private void cleanupEngineLogs(File dir) {
+        try {
+            File[] logs = dir.listFiles((d, n) ->
+                    n.startsWith("xray_") || n.startsWith("xrayw_")
+                    || n.startsWith("hy2_") || n.startsWith("cfg_"));
+            if (logs == null || logs.length <= 24) return;
+            java.util.Arrays.sort(logs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+            for (int i = 24; i < logs.length; i++) logs[i].delete();
+        } catch (Exception ignored) { }
+    }
+
     /** Returns the first TCP port not already listening, starting at `start`. */
     private int findFreePort(int start) {
         for (int p = start; p < start + 500; p++) {
@@ -639,10 +655,19 @@ public class MainActivity extends AppCompatActivity {
         return start + 500;
     }
 
+    /** Post a UI update, skipping it if the activity is gone (rotations/
+     *  background kills would otherwise touch stale views). */
+    private void postUi(Runnable r) {
+        if (!destroyed) main.post(r);
+    }
+
     private void stopRun() {
         if (pool != null) pool.shutdownNow();
+        for (Process p : activeEngines) {
+            try { p.destroyForcibly(); } catch (Exception ignored) { }
+        }
         running = false;
-        main.post(() -> {
+        postUi(() -> {
             btnStart.setText(R.string.btn_start);
             waterCircle.setRunning(false);
             progressStatus.setText(R.string.progress_stopped);
@@ -656,22 +681,7 @@ public class MainActivity extends AppCompatActivity {
     private void testOne(ServerSpec s, int port, int timeoutSec) {
         String hostport = s.host + ":" + s.port;
         AppLog.d("test", ">> " + s.protocol + " " + hostport);
-        status(String.format("[%d/%d] %s %s", doneCount.get() + 1, totalCount, s.protocol, hostport));
-
-        // obfs type without a password: cannot be tested at all
-        if ("hysteria2".equals(s.protocol)
-                && s.obfs != null && !s.obfs.isEmpty()
-                && !"plain".equalsIgnoreCase(s.obfs)
-                && (s.obfsParam == null || s.obfsParam.isEmpty())) {
-            doneCount.incrementAndGet();
-            String base = s.name.isEmpty() ? hostport : s.name;
-            outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
-            AppLog.w("test", "SKIP " + hostport + " (hysteria2 obfs without password)");
-            refreshOutput();
-            autoScroll();
-            updateProgress();
-            return;
-        }
+        status(s.protocol + " " + hostport);
 
         // Engine choice: Xray-core's salamander/gecko UDP obfs is broken
         // upstream (its finalmask wrapper never sends or reads packets —
@@ -680,6 +690,21 @@ public class MainActivity extends AppCompatActivity {
         Process engine = null;
         File engineLog;
         try {
+            // obfs type without a password: cannot be tested at all.
+            // (inside the try so the finally below still counts the server and
+            //  finishes the run when every server takes this path)
+            if ("hysteria2".equals(s.protocol)
+                    && s.obfs != null && !s.obfs.isEmpty()
+                    && !"plain".equalsIgnoreCase(s.obfs)
+                    && (s.obfsParam == null || s.obfsParam.isEmpty())) {
+                doneCount.incrementAndGet();
+                String base = s.name.isEmpty() ? hostport : s.name;
+                outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
+                AppLog.w("test", "SKIP " + hostport + " (hysteria2 obfs without password)");
+                refreshOutput();
+                autoScroll();
+                return;
+            }
             if ("hysteria2".equals(s.protocol)) {
                 engineLog = new File(XrayManager.coreDir(this), "hy2_" + port + ".log");
                 engine = HysteriaManager.start(this, s, port, engineLog);
@@ -705,6 +730,7 @@ public class MainActivity extends AppCompatActivity {
                         new File(XrayManager.coreDir(this), "xray_" + port + ".log"));
             }
 
+            activeEngines.add(engine);
             Thread.sleep(300);
             if (!engine.isAlive()) {
                 String earlyTail = AppLog.fileTail(engineLog, 8);
@@ -738,7 +764,10 @@ public class MainActivity extends AppCompatActivity {
             GeoChecker.Result geo = GeoChecker.check(port, timeoutSec);
             long took = (System.currentTimeMillis() - t0) / 1000;
             AppLog.d("test", "geo code=" + geo.code + " country=" + geo.country
-                    + " ip=" + geo.ip + " ok=" + geo.ok + " took=" + took + "s");
+                    + " ip=" + geo.ip + " ok=" + geo.ok
+                    + " votes=" + geo.votes + "/" + geo.answered
+                    + (geo.singleVote ? " (single-vote, low confidence)" : "")
+                    + " took=" + took + "s");
 
             if (geo.ok && !geo.code.isEmpty()) {
                 String countryName = geo.country.isEmpty()
@@ -766,6 +795,7 @@ public class MainActivity extends AppCompatActivity {
             doneCount.incrementAndGet();
             fail(s, String.valueOf(e.getMessage()));
         } finally {
+            activeEngines.remove(engine);
             if (engine != null) {
                 try {
                     engine.destroyForcibly();
@@ -782,7 +812,7 @@ public class MainActivity extends AppCompatActivity {
     /** Called once when every server of the current run has finished. */
     private void finishRun() {
         if (runFinished.compareAndSet(false, true)) {
-            main.post(() -> {
+            postUi(() -> {
                 running = false;
                 btnStart.setText(R.string.btn_start);
                 btnStart.setEnabled(true);
@@ -801,10 +831,12 @@ public class MainActivity extends AppCompatActivity {
     private void success(String renamedLine, String flag) {
         outputLines.add(renamedLine);
         if (flag != null && !flag.isEmpty()) {
-            flagList.add(flag);
             final List<String> copy;
-            synchronized (flagList) { copy = new ArrayList<>(flagList); }
-            main.post(() -> flagStrip.setText(String.join("  ", copy)));
+            synchronized (flagList) {
+                flagList.add(flag);
+                copy = new ArrayList<>(flagList);
+            }
+            postUi(() -> flagStrip.setText(String.join("  ", copy)));
         }
         refreshOutput();
         autoScroll();
@@ -820,9 +852,28 @@ public class MainActivity extends AppCompatActivity {
 
     /** Replace the last #name segment of the raw URI */
     private String renameUri(String raw, String newName) {
+        String enc = encodeFragment(newName);
         int i = raw.lastIndexOf('#');
-        if (i < 0) return raw + "#" + newName;
-        return raw.substring(0, i + 1) + newName;
+        if (i < 0) return raw + "#" + enc;
+        return raw.substring(0, i + 1) + enc;
+    }
+
+    /**
+     * Percent-encode only characters that are illegal in a URI fragment
+     * (spaces, control chars) and leave Unicode (flags, Persian, ...) raw —
+     * that keeps exported links both valid and human-readable.
+     */
+    private String encodeFragment(String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == ' ' || c < 0x20 || c == 0x7f) {
+                sb.append('%').append(String.format(java.util.Locale.US, "%02X", (int) c));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------- ui
@@ -830,7 +881,7 @@ public class MainActivity extends AppCompatActivity {
     private void updateProgress() {
         final int done = doneCount.get();
         final int total = totalCount;
-        main.post(() -> {
+        postUi(() -> {
             int pct = total == 0 ? 0 : (int) (100.0 * done / total);
             waterCircle.setProgress(pct);
             progressCount.setText(done + "/" + total);
@@ -843,7 +894,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void status(String s) {
-        main.post(() -> progressStatus.setText(s));
+        postUi(() -> progressStatus.setText(s));
     }
 
     private void refreshOutput() {
@@ -857,7 +908,7 @@ public class MainActivity extends AppCompatActivity {
         // reading position survives the update (no jitter).
         final int curY = outputScroll.getScrollY();
         final boolean nearBottom = isNearBottom();
-        main.post(() -> {
+        postUi(() -> {
             outputView.setText(sb.toString());
             outCount.setText(getString(R.string.lines_count, n));
             if (nearBottom) {
@@ -907,7 +958,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             File bin = XrayManager.binary(this);
             String v = XrayManager.version(bin);
-            main.post(() -> {
+            postUi(() -> {
                 coreStatus.setText(bin.exists()
                         ? getString(R.string.core_ok) : getString(R.string.core_missing));
                 coreVersionLabel.setText(getString(R.string.core_version, v));
@@ -920,11 +971,11 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             File bin = XrayManager.binary(this);
             if (!bin.exists()) {
-                main.post(() -> toast(getString(R.string.toast_core_missing)));
+                postUi(() -> toast(getString(R.string.toast_core_missing)));
                 return;
             }
             String v = XrayManager.version(bin);
-            main.post(() -> {
+            postUi(() -> {
                 coreStatus.setText("✓ " + v);
                 coreVersionLabel.setText(getString(R.string.core_version, v));
                 toast(getString(R.string.toast_core_ok, v));
@@ -988,7 +1039,7 @@ public class MainActivity extends AppCompatActivity {
                 String cur = currentCoreVersion();
                 if (cur != null && !isNewer(cand, cur)) {
                     AppLog.i("update", "skip: candidate " + cand + " not newer than current " + cur);
-                    main.post(() -> {
+                    postUi(() -> {
                         coreStatus.setText(getString(R.string.core_update_up_to_date, cur));
                         coreProgressBar.setVisibility(View.GONE);
                     });
@@ -1002,7 +1053,7 @@ public class MainActivity extends AppCompatActivity {
                 if (zipFile.exists() && zipFile.length() > 0 && zipHasXray(zipFile)) {
                     AppLog.i("update", "using cached zip " + zipFile.getName()
                             + " (" + zipFile.length() + " bytes) — no download");
-                    main.post(() -> coreStatus.setText(R.string.core_update_cached));
+                    postUi(() -> coreStatus.setText(R.string.core_update_cached));
                 } else {
                     zipFile.delete();
                     for (int attempt = 1; attempt <= 2; attempt++) {
@@ -1030,7 +1081,7 @@ public class MainActivity extends AppCompatActivity {
                                             final int p = step;
                                             final long fg = got;
                                             final long ft = total;
-                                            main.post(() -> {
+                                            postUi(() -> {
                                                 coreProgressBar.setProgress(p);
                                                 coreStatus.setText(getString(R.string.core_update_prog,
                                                         ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg)));
@@ -1052,7 +1103,7 @@ public class MainActivity extends AppCompatActivity {
                         throw new Exception("empty download");
                 }
 
-                main.post(() -> {
+                postUi(() -> {
                     coreStatus.setText(R.string.core_update_installing);
                     coreProgressBar.setIndeterminate(true);
                 });
@@ -1067,7 +1118,7 @@ public class MainActivity extends AppCompatActivity {
                             final String vl = vline;
                             boolean deleted = zipFile.delete();
                             AppLog.i("update", "install OK — cached zip removed=" + deleted);
-                            main.post(() -> {
+                            postUi(() -> {
                                 toast(getString(R.string.toast_core_updated, vl));
                                 coreProgressBar.setVisibility(View.GONE);
                                 refreshCoreStatus(true);
@@ -1082,14 +1133,14 @@ public class MainActivity extends AppCompatActivity {
                     throw new Exception("zip had no xray entry");
                 }
             } catch (XrayManager.CoreExecBlockedException e) {
-                main.post(() -> {
+                postUi(() -> {
                     coreProgressBar.setVisibility(View.GONE);
                     coreBlocked(e.getMessage());
                 });
             } catch (Exception e) {
                 final String m = e.getMessage();
                 AppLog.e("update", "update failed (will keep cache, no re-download): " + m);
-                main.post(() -> {
+                postUi(() -> {
                     coreProgressBar.setVisibility(View.GONE);
                     coreStatus.setText("");
                     toast(getString(R.string.toast_update_failed, String.valueOf(m)));
@@ -1151,7 +1202,7 @@ public class MainActivity extends AppCompatActivity {
                     String latest = tag.startsWith("v") ? tag.substring(1) : tag;
                     if (latest.isEmpty()) throw new Exception("no version");
                     if (!isNewer(latest, VERSION)) {
-                        main.post(() -> {
+                        postUi(() -> {
                             appUpdateStatus.setText(getString(R.string.app_update_latest, VERSION));
                             btnAppUpdate.setEnabled(true);
                         });
@@ -1178,7 +1229,7 @@ public class MainActivity extends AppCompatActivity {
                         AppLog.i("appupdate", "using cached apk " + apk.getName()
                                 + " (" + apk.length() + " bytes) — no download");
                         final File f = apk;
-                        main.post(() -> {
+                        postUi(() -> {
                             appUpdateStatus.setText(getString(R.string.app_update_cached, latest));
                             btnAppUpdate.setEnabled(true);
                             installApk(f);
@@ -1186,7 +1237,7 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
                     AppLog.i("appupdate", "downloading v" + latest + " from " + apkUrl);
-                    main.post(() -> {
+                    postUi(() -> {
                         appUpdateStatus.setText(getString(R.string.app_update_download, latest));
                         appProgressBar.setVisibility(View.VISIBLE);
                         appProgressBar.setIndeterminate(false);
@@ -1212,7 +1263,7 @@ public class MainActivity extends AppCompatActivity {
                                     final int p = step;
                                     final long fg = got;
                                     final long ft = total;
-                                    main.post(() -> {
+                                    postUi(() -> {
                                         appProgressBar.setProgress(p);
                                         appUpdateStatus.setText(getString(R.string.app_update_prog,
                                                 ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg), mb(ft)));
@@ -1222,7 +1273,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                         AppLog.i("appupdate", "apk download complete: " + apk.length() + " bytes");
                         final File f = apk;
-                        main.post(() -> {
+                        postUi(() -> {
                             appProgressBar.setVisibility(View.GONE);
                             appUpdateStatus.setText(getString(R.string.app_update_ready, latest));
                             btnAppUpdate.setEnabled(true);
@@ -1235,7 +1286,7 @@ public class MainActivity extends AppCompatActivity {
                 AppLog.e("appupdate", fail);
             }
             final String ff = fail;
-            main.post(() -> {
+            postUi(() -> {
                 appProgressBar.setVisibility(View.GONE);
                 if (ff != null) {
                     appUpdateStatus.setText(getString(R.string.app_update_failed, ff));
@@ -1247,8 +1298,23 @@ public class MainActivity extends AppCompatActivity {
 
     private File pendingInstall;
 
+    /**
+     * canRequestPackageInstalls() throws SecurityException on Android 12+
+     * when the permission is not declared (and on pre-26 it doesn't exist),
+     * so the result must never take the app down with it.
+     */
+    private boolean canInstallPkgs() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT < 26) return true;
+            return getPackageManager().canRequestPackageInstalls();
+        } catch (Exception e) {
+            AppLog.e("appupdate", "canRequestPackageInstalls failed: " + e.getMessage());
+            return false;
+        }
+    }
+
     private void installApk(File apk) {
-        if (!getPackageManager().canRequestPackageInstalls()) {
+        if (!canInstallPkgs()) {
             // Ask once, on demand (the app no longer declares this permission,
             // which is what made Play Protect nervous).
             pendingInstall = apk;
@@ -1257,7 +1323,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new android.content.Intent(
                         android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         android.net.Uri.fromParts("package", getPackageName(), null)));
-                main.post(() -> appUpdateStatus.setText(R.string.app_update_grant));
+                postUi(() -> appUpdateStatus.setText(R.string.app_update_grant));
             } catch (Exception e) {
                 pendingInstall = null;
                 AppLog.e("appupdate", "permission page failed: " + e.getMessage());
@@ -1270,11 +1336,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (pendingInstall != null && getPackageManager().canRequestPackageInstalls()) {
+        if (pendingInstall != null && canInstallPkgs()) {
             File f = pendingInstall;
             pendingInstall = null;
             AppLog.i("appupdate", "permission granted — continuing install");
-            main.post(() -> {
+            postUi(() -> {
                 appUpdateStatus.setText(getString(R.string.app_update_ready,
                         f.getName().replace("ConfigScanner-v", "").replace(".apk", "")));
             });
@@ -1407,6 +1473,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        destroyed = true;
+        if (running) stopRun();
         super.onDestroy();
         if (pool != null) pool.shutdownNow();
     }
