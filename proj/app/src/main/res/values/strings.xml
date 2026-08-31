@@ -134,6 +134,30 @@
 
     <!-- Log dialog -->
     <!-- Country premium-emoji codes -->
+    <string name="nav_caption">Caption</string>
+    <string name="caption_country_title">Country emoji codes</string>
+    <string name="caption_country_caption">Tap a country to set its premium (animated) flag-emoji code.</string>
+    <string name="caption_search_hint">Search country…</string>
+    <string name="caption_list_count">%1$d countries · %2$d with code</string>
+    <string name="caption_backup_title">Backup</string>
+    <string name="caption_backup_caption">Save your codes to a file (or clipboard) so you never have to retype them.</string>
+    <string name="caption_backup">Backup</string>
+    <string name="caption_restore">Restore</string>
+    <string name="caption_copy">Copy</string>
+    <string name="caption_template_title">Caption template</string>
+    <string name="caption_template_edit">Edit</string>
+    <string name="caption_template_msg">Put {{FLAGS}} where the country flag codes go — everything else is sent exactly as written.</string>
+    <string name="caption_latest_title">Latest run</string>
+    <string name="caption_flags_empty">run a test first — the flag codes will appear here</string>
+    <string name="caption_set_code">Set code</string>
+    <string name="caption_final_label">Final caption — copy and paste into your channel post</string>
+    <string name="caption_copy_btn">Copy caption</string>
+    <string name="caption_codes_empty">No country codes set yet</string>
+    <string name="caption_template_saved">Template saved</string>
+    <string name="caption_backed_up">Country codes saved</string>
+    <string name="caption_restored">%1$d codes restored</string>
+    <string name="caption_copied_clip">Code list copied</string>
+    <string name="caption_copied_post">Caption copied</string>
     <string name="country_emoji_title">Country emoji codes</string>
     <string name="country_emoji_open">Premium flag emojis (for channel captions)</string>
     <string name="country_emoji_open_count">%1$d/%2$d set</string>
@@ -156,7 +180,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.18
+<string name="changelog">v1.0.19
+• New: dedicated Caption tab — country code list (flag + name, searchable), premium-code dialog, and backup/restore for your code list
+• New: editable caption template (the {{FLAGS}} placeholder is replaced with the flag codes from the last run)
+• New: one-tap final caption — flag codes in [123456]… format plus your full template, ready to copy into the channel post
+• Countries without a code are listed under Latest run — tap to set the code and the caption updates instantly, no re-test needed
+
+v1.0.18
 • New: country premium-emoji codes — set the animated flag-emoji code for each country in Settings (tap the flag)
 • New: third output box under the results — after a run it lists the emoji codes of the countries it found, one code per line, ready to paste into your channel caption (tap to copy)
 

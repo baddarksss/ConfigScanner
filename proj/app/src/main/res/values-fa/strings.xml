@@ -134,6 +134,30 @@
 
     <!-- Log dialog -->
     <!-- Country premium-emoji codes -->
+    <string name="nav_caption">کپشن</string>
+    <string name="caption_country_title">کدهای ایموجی کشورها</string>
+    <string name="caption_country_caption">روی هر کشور بزن تا کدِ ایموجیِ پریمیوم (متحرک) پرچمش رو بذاری.</string>
+    <string name="caption_search_hint">جستجوی کشور…</string>
+    <string name="caption_list_count">%1$d کشور · %2$d با کد</string>
+    <string name="caption_backup_title">بکاپ</string>
+    <string name="caption_backup_caption">کدهات رو توی فایل (یا کلیپ‌بورد) ذخیره کن که دیگه مجبور نباشی از اول بزنی.</string>
+    <string name="caption_backup">بکاپ</string>
+    <string name="caption_restore">بازیابی</string>
+    <string name="caption_copy">کپی</string>
+    <string name="caption_template_title">قالب کپشن</string>
+    <string name="caption_template_edit">ادیت</string>
+    <string name="caption_template_msg">جای کدهای پرچم کشورها بنویس {{FLAGS}} — بقیه‌ی قالب دقیقاً همان‌طور که نوشتی ارسال می‌شه.</string>
+    <string name="caption_latest_title">آخرین اجرا</string>
+    <string name="caption_flags_empty">اول یه تست بزن — کدهای پرچم اینجا ظاهر می‌شن</string>
+    <string name="caption_set_code">ثبت کد</string>
+    <string name="caption_final_label">کپشن نهایی — کپی کن و توی پست کانال بچسبون</string>
+    <string name="caption_copy_btn">کپی کپشن</string>
+    <string name="caption_codes_empty">هنوز کد کشورهایی ثبت نشده</string>
+    <string name="caption_template_saved">قالب ذخیره شد</string>
+    <string name="caption_backed_up">کدهای کشورها ذخیره شد</string>
+    <string name="caption_restored">%1$d کد بازیابی شد</string>
+    <string name="caption_copied_clip">لیست کدها کپی شد</string>
+    <string name="caption_copied_post">کپشن کپی شد</string>
     <string name="country_emoji_title">کدهای ایموجی کشورها</string>
     <string name="country_emoji_open">پرچم‌های ایموجیِ پریمیوم (برای کپشن کانال)</string>
     <string name="country_emoji_open_count">%1$d از %2$d تنظیم شده</string>
@@ -156,7 +180,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.18
+<string name="changelog">v1.0.19
+• جدید: تب اختصاصی «کپشن» — لیست کشورها (پرچم + اسم، با جستجو)، کدگذاری تک‌تک کشورها + بکاپ/بازیابی لیست کدها
+• جدید: قالب کپشن قابل ادیت (جای {{FLAGS}} با کدهای پرچمِ آخرین اجرا پر می‌شه)
+• جدید: کپشن نهایی با یه لمز — کدها به‌صورت [123456]… + قالب کامل، آماده کپی توی پست کانال
+• کشورهایی که کد ندارن زیر «آخرین اجرا» لیست می‌شن — لمز بزن، کد رو بذار، کپشن فوری آپدیت می‌شه (نه از اول تست)
+
+v1.0.18
 • جدید: کدهای ایموجی پریمیوم کشورها — توی تنظیمات روی پرچم هر کشور بزن و کدِ ایموجیِ متحرکش رو بذار
 • جدید: خروجی سوم زیر نتایج — بعد از هر اجرا، کدهای کشورهایی که پیدا شده رو می‌ده، هر کد یک خط؛ مستقیم برای کپشن کانال (لمز بزن = کپی)
 

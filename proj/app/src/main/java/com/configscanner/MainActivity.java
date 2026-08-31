@@ -1,6 +1,7 @@
 package com.configscanner;
 
 import android.content.ClipData;
+import android.text.Editable;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -95,10 +96,10 @@ public class MainActivity extends AppCompatActivity {
     private android.widget.ProgressBar appProgressBar;
     private TextView flagStrip;
     private android.view.View themeHeader, themeOptions, langHeader, langOptions;
-    private android.view.View emojiHeader, emojiOptions;
-    private android.widget.TextView emojiCount, emojiChevron, emojiStrip, emojiMissingHint;
-    private android.widget.GridLayout emojiGrid;
-    private com.google.android.material.button.MaterialButton btnEmojiClear;
+    private ScrollView pageCaption;
+    private EditText captionSearch;
+    private android.widget.LinearLayout countryListContainer, captionMissingContainer;
+    private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox;
     /** ISO country code -> premium emoji code, persisted in prefs */
     private final java.util.Map<String, String> emojiCodes = new java.util.HashMap<>();
     /** ISO codes of countries seen in the current run, in order of first appearance */
@@ -108,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton btnLangSystem, btnLangFa, btnLangEn;
 
     /** Last selected bottom-nav tab; static so it survives activity recreation. */
-    private static int sLastNav = 0; // 0=test 1=settings
+    private static int sLastNav = 0; // 0=test 1=settings 2=caption
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
@@ -131,6 +132,8 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<String> fileExportLauncher;
     private ActivityResultLauncher<String[]> coreFileLauncher;
     private ActivityResultLauncher<String> logExportLauncher;
+    private ActivityResultLauncher<String> codesBackupLauncher;
+    private ActivityResultLauncher<String[]> codesImportLauncher;
 
     // ------------------------------------------------------------------- setup
 
@@ -152,6 +155,10 @@ public class MainActivity extends AppCompatActivity {
                 new ActivityResultContracts.OpenDocument(), this::onCoreFilePicked);
         logExportLauncher = registerForActivityResult(
                 new ActivityResultContracts.CreateDocument("text/plain"), this::onLogExport);
+        codesBackupLauncher = registerForActivityResult(
+                new ActivityResultContracts.CreateDocument("text/plain"), this::onCodesBackup);
+        codesImportLauncher = registerForActivityResult(
+                new ActivityResultContracts.OpenDocument(), this::onCodesImport);
 
         bindViews();
         restorePrefs();
@@ -175,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
         progressStatus = findViewById(R.id.progressStatus);
         pageTest = findViewById(R.id.pageTest);
         pageSettings = findViewById(R.id.pageSettings);
+        pageCaption = findViewById(R.id.pageCaption);
         bottomNav = findViewById(R.id.bottomNav);
         outputScroll = findViewById(R.id.outputScroll);
         outputView = findViewById(R.id.outputView);
@@ -198,14 +206,13 @@ public class MainActivity extends AppCompatActivity {
         themeOptions = findViewById(R.id.themeOptions);
         langHeader = findViewById(R.id.langHeader);
         langOptions = findViewById(R.id.langOptions);
-        emojiHeader = findViewById(R.id.emojiHeader);
-        emojiOptions = findViewById(R.id.emojiOptions);
-        emojiCount = findViewById(R.id.emojiCount);
-        emojiChevron = findViewById(R.id.emojiChevron);
-        emojiStrip = findViewById(R.id.emojiStrip);
-        emojiMissingHint = findViewById(R.id.emojiMissingHint);
-        emojiGrid = findViewById(R.id.emojiGrid);
-        btnEmojiClear = findViewById(R.id.btnEmojiClear);
+        captionSearch = findViewById(R.id.captionSearch);
+        countryListContainer = findViewById(R.id.countryListContainer);
+        captionMissingContainer = findViewById(R.id.captionMissingContainer);
+        countryListCount = findViewById(R.id.countryListCount);
+        captionTemplatePreview = findViewById(R.id.captionTemplatePreview);
+        captionFlagsBox = findViewById(R.id.captionFlagsBox);
+        captionFullBox = findViewById(R.id.captionFullBox);
         themeValue = findViewById(R.id.themeValue);
         themeChevron = findViewById(R.id.themeChevron);
         langValue = findViewById(R.id.langValue);
@@ -405,31 +412,48 @@ public class MainActivity extends AppCompatActivity {
                 toast(getString(R.string.toast_flags_copied));
             }
         });
-        emojiStrip.setOnClickListener(v -> {
-            String t = emojiStrip.getText().toString();
-            if (t.isEmpty() || t.equals(getString(R.string.emoji_strip_empty))) {
-                toast(getString(R.string.toast_no_codes));
-                return;
-            }
+        captionFlagsBox.setOnClickListener(v -> {
+            String t = buildFlagsLine();
+            if (t.isEmpty()) { toast(getString(R.string.caption_flags_empty)); return; }
             android.content.ClipboardManager cm =
                     (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("emoji-codes", t));
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("flag-codes", t));
             toast(getString(R.string.toast_copied_codes));
         });
-
-        emojiHeader.setOnClickListener(v -> {
-            boolean open = emojiOptions.getVisibility() != View.VISIBLE;
-            setEmojiOpen(open);
+        findViewById(R.id.btnCodesBackup).setOnClickListener(v -> {
+            if (emojiCodes.isEmpty()) { toast(getString(R.string.caption_codes_empty)); return; }
+            codesBackupLauncher.launch("cfgscan_country_codes_"
+                    + new java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US)
+                    .format(new java.util.Date()) + ".txt");
         });
-        btnEmojiClear.setOnClickListener(v -> {
-            emojiCodes.clear();
-            saveEmojiCodes();
-            rebuildEmojiGrid();
-            refreshEmojiStrip();
-            toast(getString(R.string.country_emoji_clear_all_toast));
+        findViewById(R.id.btnCodesRestore).setOnClickListener(v ->
+                codesImportLauncher.launch(new String[]{"text/plain", "*/*"}));
+        findViewById(R.id.btnCodesCopy).setOnClickListener(v -> {
+            String t = exportCodesText();
+            if (t.isEmpty()) { toast(getString(R.string.caption_codes_empty)); return; }
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("country-codes", t));
+            toast(getString(R.string.caption_copied_clip));
+        });
+        findViewById(R.id.btnTemplateEdit).setOnClickListener(v -> showTemplateEditor());
+        findViewById(R.id.btnCopyCaption).setOnClickListener(v -> {
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("caption", buildFullCaption()));
+            toast(getString(R.string.caption_copied_post));
+        });
+        captionSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int a, int b, int cc) { }
+            @Override public void onTextChanged(CharSequence c, int a, int b, int cc) {
+                buildCountryList(c.toString());
+            }
+            @Override public void afterTextChanged(Editable e) { }
         });
         loadEmojiCodes();
-        rebuildEmojiGrid();
+        loadLastRunCountries();
+        buildCountryList("");
+        refreshCaptionTab();
 
         themeHeader.setOnClickListener(v -> {
             boolean open = themeOptions.getVisibility() != View.VISIBLE;
@@ -450,9 +474,10 @@ public class MainActivity extends AppCompatActivity {
         cleanupStaleApks();
 
         bottomNav.setOnItemSelectedListener(item -> {
-            boolean test = item.getItemId() == R.id.navTest;
-            sLastNav = test ? 0 : 1;
-            applyNavPage(test);
+            int idx = item.getItemId() == R.id.navTest ? 0
+                    : item.getItemId() == R.id.navSettings ? 1 : 2;
+            sLastNav = idx;
+            applyNavPage(idx);
             return true;
         });
         // restore the tab the user was on (language/theme switches recreate the
@@ -461,6 +486,10 @@ public class MainActivity extends AppCompatActivity {
             pageTest.setVisibility(View.GONE);
             pageSettings.setVisibility(View.VISIBLE);
             bottomNav.getMenu().findItem(R.id.navSettings).setChecked(true);
+        } else if (sLastNav == 2) {
+            pageTest.setVisibility(View.GONE);
+            pageCaption.setVisibility(View.VISIBLE);
+            bottomNav.getMenu().findItem(R.id.navCaption).setChecked(true);
         }
 
         input.addTextChangedListener(new android.text.TextWatcher() {
@@ -574,9 +603,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void applyNavPage(boolean test) {
-        pageTest.setVisibility(test ? View.VISIBLE : View.GONE);
-        pageSettings.setVisibility(test ? View.GONE : View.VISIBLE);
+    private void applyNavPage(int which) {
+        pageTest.setVisibility(which == 0 ? View.VISIBLE : View.GONE);
+        pageSettings.setVisibility(which == 1 ? View.VISIBLE : View.GONE);
+        pageCaption.setVisibility(which == 2 ? View.VISIBLE : View.GONE);
+        if (which == 2) refreshCaptionTab();
     }
 
     /** Crashes are written to the in-app log so a bug report is one tap away. */
@@ -624,7 +655,8 @@ public class MainActivity extends AppCompatActivity {
         synchronized (flagList) { flagList.clear(); }
         flagStrip.setText("");
         runCountryCodes.clear();
-        refreshEmojiStrip();
+        saveLastRunCountries();
+        refreshCaptionTab();
 
         File dir = XrayManager.coreDir(this);
         if (!dir.exists()) dir.mkdirs();
@@ -902,7 +934,17 @@ public class MainActivity extends AppCompatActivity {
         return raw.substring(0, i + 1) + enc;
     }
 
-    // ---------------------------------------------------- country emoji codes
+    // ---------------------------------------------------- caption / country codes
+
+    private static final String DEFAULT_CAPTION_TEMPLATE =
+            "NpvTunnel [6050626661043411760]  \n"
+            + "[5395616385734833119] لوکیشن | Location {{FLAGS}}\n"
+            + "\n"
+            + "[6172601958428313804] @Wpnfa  \n"
+            + "\n"
+            + "[5206607081334906820]  \n"
+            + "#npvtunnel #vpn #v2ray\n"
+            + "#فیلترشکن #کانفیگ #پروکسی";
 
     private void loadEmojiCodes() {
         emojiCodes.clear();
@@ -924,36 +966,198 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) { }
     }
 
-    private void setEmojiOpen(boolean open) {
-        emojiOptions.setVisibility(open ? View.VISIBLE : View.GONE);
-        emojiChevron.setText(open ? "⌃" : "⌄");
+    /** The last run's countries are persisted so the caption can be rebuilt
+     *  (and codes added) after a restart, without re-testing. */
+    private void saveLastRunCountries() {
+        try {
+            org.json.JSONArray a = new org.json.JSONArray();
+            synchronized (runCountryCodes) { for (String c : runCountryCodes) a.put(c); }
+            prefs.edit().putString("last_run_countries", a.toString()).apply();
+        } catch (Exception ignored) { }
     }
 
-    private void updateEmojiCounter() {
-        emojiCount.setText(getString(R.string.country_emoji_open_count,
-                emojiCodes.size(), CountryData.all().size()));
+    private void loadLastRunCountries() {
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("last_run_countries", "[]"));
+            synchronized (runCountryCodes) {
+                runCountryCodes.clear();
+                for (int i = 0; i < a.length(); i++) runCountryCodes.add(a.getString(i));
+            }
+        } catch (Exception ignored) { }
     }
 
-    private void rebuildEmojiGrid() {
-        emojiGrid.removeAllViews();
-        int width = 0;
+    /** Backup/restore file format: one "XX=code" per line. */
+    private String exportCodesText() {
+        if (emojiCodes.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("# ConfigScanner country emoji codes\n");
         for (CountryData.C c : CountryData.all()) {
-            final String iso = c.code;
-            TextView cell = new TextView(this);
-            cell.setText(c.flag);
-            cell.setGravity(android.view.Gravity.CENTER);
-            cell.setTextSize(18f);
-            cell.setBackgroundResource(emojiCodes.containsKey(iso)
-                    ? R.drawable.bg_flag_set : 0);
-            cell.setOnClickListener(v -> showCountryEmojiDialog(iso));
-            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams(
-                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f),
-                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED));
-            lp.height = dpToPx(34);
-            cell.setLayoutParams(lp);
-            emojiGrid.addView(cell);
+            String v = emojiCodes.get(c.code);
+            if (v != null && !v.isEmpty()) sb.append(c.code).append('=').append(v).append('\n');
         }
-        updateEmojiCounter();
+        return sb.toString();
+    }
+
+    private void onCodesBackup(Uri uri) {
+        if (uri == null) return;
+        try (java.io.OutputStream os = getContentResolver().openOutputStream(uri)) {
+            os.write(exportCodesText().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            toast(getString(R.string.caption_backed_up));
+        } catch (Exception e) {
+            toast(getString(R.string.toast_save_error, String.valueOf(e.getMessage())));
+        }
+    }
+
+    private void onCodesImport(Uri uri) {
+        if (uri == null) return;
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            byte[] buf = new byte[16384];
+            StringBuilder sb = new StringBuilder();
+            int n;
+            while ((n = is.read(buf)) > 0)
+                sb.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
+            int count = 0;
+            for (String line : sb.toString().split("\\r?\\n")) {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#")) continue;
+                int eq = line.indexOf('=');
+                if (eq < 2) continue;
+                String iso = line.substring(0, eq).trim().toUpperCase();
+                String code = line.substring(eq + 1).trim();
+                if (iso.length() != 2 || code.isEmpty()) continue;
+                emojiCodes.put(iso, code);
+                count++;
+            }
+            saveEmojiCodes();
+            buildCountryList(captionSearch.getText().toString());
+            refreshCaptionTab();
+            toast(getString(R.string.caption_restored, count));
+        } catch (Exception e) {
+            toast(getString(R.string.toast_save_error, String.valueOf(e.getMessage())));
+        }
+    }
+
+    private void showTemplateEditor() {
+        EditText edit = new EditText(this);
+        edit.setText(prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE));
+        edit.setMinLines(9);
+        edit.setGravity(android.view.Gravity.START);
+        edit.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding(dpToPx(10), dpToPx(6), dpToPx(10), 0);
+        box.addView(edit);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.caption_template_title)
+                .setMessage(R.string.caption_template_msg)
+                .setView(box)
+                .setPositiveButton(R.string.caption_template_edit, (d, w) -> {
+                    prefs.edit().putString("caption_template", edit.getText().toString()).apply();
+                    refreshCaptionTab();
+                    toast(getString(R.string.caption_template_saved));
+                })
+                .setNeutralButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void buildCountryList(String filter) {
+        countryListContainer.removeAllViews();
+        String f = filter == null ? "" : filter.toLowerCase();
+        for (CountryData.C c : CountryData.all()) {
+            if (!f.isEmpty() && !(c.en.toLowerCase().contains(f) || c.fa.contains(f)
+                    || c.code.equalsIgnoreCase(f))) continue;
+            final String iso = c.code;
+            boolean has = emojiCodes.containsKey(iso);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            android.util.TypedValue tv = new android.util.TypedValue();
+            getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
+            row.setBackgroundResource(tv.resourceId);
+            TextView flag = new TextView(this);
+            flag.setText(c.flag);
+            flag.setTextSize(16f);
+            flag.setPadding(dpToPx(10), dpToPx(9), dpToPx(8), dpToPx(9));
+            TextView name = new TextView(this);
+            name.setText(c.en + "  •  " + c.fa);
+            name.setTextSize(12.5f);
+            name.setTextColor(getResources().getColor(R.color.text_primary, getTheme()));
+            name.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView codeTv = new TextView(this);
+            codeTv.setText(has ? emojiCodes.get(iso) : "\u2014");
+            codeTv.setTextSize(10f);
+            codeTv.setTypeface(android.graphics.Typeface.MONOSPACE);
+            codeTv.setTextColor(getResources().getColor(has ? R.color.accent : R.color.text_secondary, getTheme()));
+            codeTv.setPadding(dpToPx(8), dpToPx(9), dpToPx(10), dpToPx(9));
+            row.addView(flag);
+            row.addView(name);
+            row.addView(codeTv);
+            row.setOnClickListener(v -> showCountryEmojiDialog(iso));
+            countryListContainer.addView(row);
+        }
+        countryListCount.setText(getString(R.string.caption_list_count,
+                CountryData.all().size(), emojiCodes.size()));
+    }
+
+    /** "[code1][code2]…" for the countries of the last run (in order of first hit). */
+    private String buildFlagsLine() {
+        StringBuilder sb = new StringBuilder();
+        synchronized (runCountryCodes) {
+            for (String iso : runCountryCodes) {
+                String code = emojiCodes.get(iso);
+                if (code != null && !code.isEmpty()) sb.append('[').append(code).append(']');
+            }
+        }
+        return sb.toString();
+    }
+
+    private String buildFullCaption() {
+        String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
+        String flags = buildFlagsLine();
+        if (tpl.contains("{{FLAGS}}")) return tpl.replace("{{FLAGS}}", flags);
+        return tpl + "\n" + flags;
+    }
+
+    /** Rebuild every caption-tab output from the saved state (thread-safe). */
+    private void refreshCaptionTab() {
+        final String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
+        final String flags = buildFlagsLine();
+        final String full = buildFullCaption();
+        final java.util.List<String> missing;
+        synchronized (runCountryCodes) {
+            missing = new ArrayList<>(runCountryCodes);
+        }
+        postUi(() -> {
+            captionTemplatePreview.setText(tpl);
+            captionFlagsBox.setText(flags.isEmpty() ? getString(R.string.caption_flags_empty) : flags);
+            captionMissingContainer.removeAllViews();
+            for (String iso : missing) {
+                if (emojiCodes.containsKey(iso)) continue;
+                CountryData.C c = CountryData.byCode(iso);
+                if (c == null) continue;
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                TextView name = new TextView(this);
+                name.setText(c.flag + "  " + c.en + " \u2022 " + c.fa);
+                name.setTextSize(12f);
+                name.setTextColor(getResources().getColor(R.color.text_primary, getTheme()));
+                name.setLayoutParams(new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                MaterialButton btn = new MaterialButton(this, null,
+                        com.google.android.material.R.attr.materialButtonOutlinedStyle);
+                btn.setText(R.string.caption_set_code);
+                btn.setTextSize(11f);
+                btn.setOnClickListener(v -> showCountryEmojiDialog(iso));
+                row.addView(name);
+                row.addView(btn);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp.topMargin = dpToPx(5);
+                row.setLayoutParams(lp);
+                captionMissingContainer.addView(row);
+            }
+            captionFullBox.setText(full);
+        });
     }
 
     private int dpToPx(float dp) {
@@ -973,8 +1177,8 @@ public class MainActivity extends AppCompatActivity {
         android.widget.FrameLayout box = new android.widget.FrameLayout(this);
         box.setPadding(dpToPx(4), dpToPx(2), dpToPx(4), 0);
         box.addView(edit);
-        androidx.appcompat.app.AlertDialog.Builder b = new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(c.flag + "  " + c.en + " • " + c.fa)
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(c.flag + "  " + c.en + " \u2022 " + c.fa)
                 .setMessage(getString(R.string.country_emoji_code_label))
                 .setView(box)
                 .setPositiveButton(R.string.country_emoji_save, (d, w) -> {
@@ -982,22 +1186,22 @@ public class MainActivity extends AppCompatActivity {
                     if (val.isEmpty()) emojiCodes.remove(iso);
                     else emojiCodes.put(iso, val);
                     saveEmojiCodes();
-                    rebuildEmojiGrid();
-                    refreshEmojiStrip();
+                    buildCountryList(captionSearch.getText().toString());
+                    refreshCaptionTab();
                     toast(getString(R.string.country_emoji_saved));
                 });
         if (emojiCodes.containsKey(iso)) {
             b.setNegativeButton(R.string.country_emoji_remove, (d, w) -> {
                 emojiCodes.remove(iso);
                 saveEmojiCodes();
-                rebuildEmojiGrid();
-                refreshEmojiStrip();
+                buildCountryList(captionSearch.getText().toString());
+                refreshCaptionTab();
             });
         }
         b.show();
     }
 
-    /** Remember a country found in this run and refresh the codes strip. */
+    /** Remember a country found in this run; the caption outputs refresh live. */
     private void noteCountry(String iso) {
         if (iso == null || iso.length() != 2) return;
         boolean added;
@@ -1005,34 +1209,10 @@ public class MainActivity extends AppCompatActivity {
             added = !runCountryCodes.contains(iso);
             if (added) runCountryCodes.add(iso);
         }
-        if (added) refreshEmojiStrip();
-    }
-
-    private void refreshEmojiStrip() {
-        StringBuilder sb = new StringBuilder();
-        int missing = 0;
-        synchronized (runCountryCodes) {
-            for (String iso : runCountryCodes) {
-                String code = emojiCodes.get(iso);
-                if (code != null && !code.isEmpty()) {
-                    if (sb.length() > 0) sb.append("\n");
-                    sb.append(code);
-                } else {
-                    missing++;
-                }
-            }
+        if (added) {
+            saveLastRunCountries();
+            refreshCaptionTab();
         }
-        String text = sb.length() == 0 ? getString(R.string.emoji_strip_empty) : sb.toString();
-        String hint = missing > 0 ? getString(R.string.emoji_missing_hint, missing) : null;
-        postUi(() -> {
-            emojiStrip.setText(text);
-            if (hint != null) {
-                emojiMissingHint.setText(hint);
-                emojiMissingHint.setVisibility(View.VISIBLE);
-            } else {
-                emojiMissingHint.setVisibility(View.GONE);
-            }
-        });
     }
 
     /**
