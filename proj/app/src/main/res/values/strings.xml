@@ -136,6 +136,8 @@
     <!-- Country premium-emoji codes -->
     <string name="nav_caption">Caption</string>
     <string name="core_update_busy">One moment — another core operation is in progress</string>
+    <string name="scan_notif_title">Config Scanner</string>
+    <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
     <string name="out_lang_title">Country name in output</string>
     <string name="out_lang_fa">Persian</string>
     <string name="out_lang_en">English</string>
@@ -185,7 +187,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.22
+<string name="changelog">v1.0.23
+• Fixed: the screen no longer jumps to a fixed position while a test run is in progress — wherever you scroll, it stays put
+• New: a progress notification with a live percentage while scanning, so you can follow the run even when the app is in the background (you are asked once for the notification permission on Android 13+)
+
+v1.0.22
 • Country flags in the results strip no longer repeat — each country appears once, even with multiple servers from it (the emoji-code box was already unique)
 • The app update button now uses the same bright filled style as the core update button
 

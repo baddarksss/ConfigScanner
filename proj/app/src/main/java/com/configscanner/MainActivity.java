@@ -23,6 +23,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.os.LocaleListCompat;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -122,6 +124,8 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean running = false;
     private volatile boolean coreUpdating = false;
     private volatile boolean runStopped = false;
+
+    private static final int SCAN_NOTIF_ID = 42;
 
     private final List<String> outputLines = Collections.synchronizedList(new ArrayList<>());
     private final List<String> flagList = new ArrayList<>();
@@ -654,6 +658,7 @@ public class MainActivity extends AppCompatActivity {
             toast(getString(R.string.core_update_busy));
             return;
         }
+        ensureScanNotification();
         runStopped = false;
         String text = input.getText().toString().trim();
         if (text.isEmpty()) {
@@ -764,6 +769,7 @@ public class MainActivity extends AppCompatActivity {
         }
         running = false;
         runStopped = true;
+        cancelScanNotification();
         postUi(() -> {
             syncCoreButtons();
             btnStart.setText(R.string.btn_start);
@@ -916,6 +922,7 @@ public class MainActivity extends AppCompatActivity {
     private void finishRun() {
         if (runStopped) return; // a stopped run never "finishes"
         if (runFinished.compareAndSet(false, true)) {
+            cancelScanNotification();
             postUi(() -> {
                 running = false;
                 syncCoreButtons();
@@ -1297,6 +1304,50 @@ public class MainActivity extends AppCompatActivity {
                 progressLabel.setText(R.string.progress_done);
             }
         });
+        updateScanNotification();
+    }
+
+    private void ensureScanNotification() {
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null && nm.getNotificationChannel("scan_progress") == null) {
+                android.app.NotificationChannel ch = new android.app.NotificationChannel(
+                        "scan_progress", getString(R.string.scan_notif_title),
+                        android.app.NotificationManager.IMPORTANCE_LOW);
+                ch.setDescription(getString(R.string.scan_notif_prog, 0, 1, 0));
+                nm.createNotificationChannel(ch);
+            }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 7);
+        }
+    }
+
+    private void updateScanNotification() {
+        int total = totalCount;
+        if (total <= 0) return;
+        int done = doneCount.get();
+        int pct = (int) (100.0 * done / total);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, "scan_progress")
+                .setSmallIcon(R.drawable.ic_nav_test)
+                .setContentTitle(getString(R.string.scan_notif_title))
+                .setContentText(getString(R.string.scan_notif_prog, done, total, pct))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setProgress(total, done, false);
+        try {
+            NotificationManagerCompat.from(this).notify(SCAN_NOTIF_ID, b.build());
+        } catch (Exception ignored) { }
+    }
+
+    private void cancelScanNotification() {
+        try {
+            NotificationManagerCompat.from(this).cancel(SCAN_NOTIF_ID);
+        } catch (Exception ignored) { }
     }
 
     private void status(String s) {
@@ -1310,21 +1361,11 @@ public class MainActivity extends AppCompatActivity {
             n = outputLines.size();
             for (String l : outputLines) sb.append(l).append("\n");
         }
-        // Capture scroll state BEFORE replacing the text so the user's
-        // reading position survives the update (no jitter).
-        final int curY = outputScroll.getScrollY();
-        final boolean nearBottom = isNearBottom();
+        // Never scroll programmatically while a run is in progress — the
+        // ScrollView keeps the user's viewport where they left it.
         postUi(() -> {
             outputView.setText(sb.toString());
             outCount.setText(getString(R.string.lines_count, n));
-            if (nearBottom) {
-                outputScroll.fullScroll(ScrollView.FOCUS_DOWN);
-            } else {
-                View child = outputScroll.getChildAt(0);
-                int max = child == null ? 0
-                        : Math.max(0, child.getHeight() - outputScroll.getHeight());
-                outputScroll.scrollTo(0, Math.min(curY, max));
-            }
         });
     }
 
@@ -1335,12 +1376,9 @@ public class MainActivity extends AppCompatActivity {
                 >= (child.getHeight() - 60);
     }
 
+    /** Kept as a no-op on purpose: the run must never move the user's scroll
+     *  position (the ScrollView preserves it when content grows). */
     private void autoScroll() {
-        // Only follow the bottom if the user is already at the bottom;
-        // otherwise their reading position must not be disturbed.
-        main.postDelayed(() -> {
-            if (isNearBottom()) outputScroll.fullScroll(ScrollView.FOCUS_DOWN);
-        }, 50);
     }
 
     private void copyAll() {

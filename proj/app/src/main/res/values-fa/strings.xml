@@ -136,6 +136,8 @@
     <!-- Country premium-emoji codes -->
     <string name="nav_caption">کپشن</string>
     <string name="core_update_busy">یه لحظه — یه عملیات هسته‌ی دیگه در حال اجراست</string>
+    <string name="scan_notif_title">Config Scanner</string>
+    <string name="scan_notif_prog">%1$d از %2$d سرور — %3$d٪</string>
     <string name="out_lang_title">زبان اسم کشور توی خروجی</string>
     <string name="out_lang_fa">فارسی</string>
     <string name="out_lang_en">انگلیسی</string>
@@ -185,7 +187,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.22
+<string name="changelog">v1.0.23
+• فیکس: حین اجرای تست صفحه دیگر به یه جای مشخص پرش نمی‌کنه — هر جا اسکرول کردی، همون‌جا می‌مونه
+• جدید: نوتیفیکیشن با درصد زنده حین اسکن — حتی اگه اپ تو پس‌زمینه باشه متوجه مرحله‌ی کار می‌شی (توی اندروید ۱۲+ یک‌بار اجازه‌ی نوتیفیکیشن می‌گیره)
+
+v1.0.22
 • پرچم‌ها توی نوار نتایج دیگر تکرار نمی‌شن — هر کشور فقط یک بار میاد (حتی اگه چند سرورش از همون کشور باشه)
 • دکمه‌ی «چک آپدیت اپ» هم مثل دکمه‌ی آپدیت هسته رنگی/روشن شد
 

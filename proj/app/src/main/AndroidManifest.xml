@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- progress notification while a scan is running -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Required on Android 12+ to even CALL canRequestPackageInstalls()
          (the in-app update flow). Not requested at install time; it only
          enables the on-demand "install unknown apps" settings page. -->
