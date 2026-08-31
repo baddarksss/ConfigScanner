@@ -34,10 +34,14 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -876,18 +880,76 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 AppLog.i("update", "downloading " + tag + " from " + zipUrl);
-                toast(getString(R.string.toast_downloading, tag));
-                Request dz = new Request.Builder().url(zipUrl).get().build();
-                try (Response resp = client.newCall(dz).execute()) {
-                    if (!resp.isSuccessful() || resp.body() == null)
-                        throw new Exception("download failed: " + resp.code());
-                    String vline = XrayManager.installNewBinary(this, resp.body().byteStream());
-                    final String vl = vline;
-                    main.post(() -> {
-                        toast(getString(R.string.toast_core_updated, vl));
-                        refreshCoreStatus(true);
-                    });
+                final String ftag = tag;
+                main.post(() -> coreStatus.setText(getString(R.string.core_update_dl, ftag)));
+
+                // 1) download the release zip (progress + one retry on network hiccup)
+                File zipFile = new File(getCacheDir(), "xray_update.zip");
+                for (int attempt = 1; attempt <= 2; attempt++) {
+                    boolean ok = false;
+                    try {
+                        Request dz = new Request.Builder().url(zipUrl).get().build();
+                        try (Response resp = client.newCall(dz).execute()) {
+                            if (!resp.isSuccessful() || resp.body() == null)
+                                throw new Exception("download failed: HTTP " + resp.code());
+                            long total = resp.body().contentLength();
+                            AppLog.i("update", "zip download start, total=" + total
+                                    + " bytes (attempt " + attempt + ")");
+                            long got = 0;
+                            int lastStep = -1;
+                            try (InputStream zin = resp.body().byteStream();
+                                 FileOutputStream out = new FileOutputStream(zipFile)) {
+                                byte[] buf = new byte[32768];
+                                int n;
+                                while ((n = zin.read(buf)) > 0) {
+                                    out.write(buf, 0, n);
+                                    got += n;
+                                    int step = total > 0 ? (int) (got * 20 / total) : 0;
+                                    if (step > lastStep) {
+                                        lastStep = step;
+                                        final long fg = got;
+                                        final long ft = total;
+                                        main.post(() -> coreStatus.setText(
+                                                getString(R.string.core_update_prog,
+                                                        ft > 0 ? (int) (fg * 100 / ft) : 0,
+                                                        mb(fg))));
+                                    }
+                                }
+                            }
+                            AppLog.i("update", "zip download complete: " + zipFile.length() + " bytes");
+                            ok = true;
+                        }
+                    } catch (IOException ioe) {
+                        AppLog.e("update", "download attempt " + attempt + " failed: " + ioe.getMessage());
+                        if (attempt == 2) throw ioe;
+                    }
+                    if (ok) break;
                 }
+                if (!zipFile.exists() || zipFile.length() == 0)
+                    throw new Exception("empty download");
+
+                // 2) extract the "xray" binary out of the zip and install it
+                main.post(() -> coreStatus.setText(R.string.core_update_installing));
+                boolean installed = false;
+                try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
+                    ZipEntry ze;
+                    while ((ze = zis.getNextEntry()) != null) {
+                        String name = ze.getName();
+                        if (name.equalsIgnoreCase("xray") || name.endsWith("/xray")) {
+                            AppLog.i("update", "extracting entry: " + name);
+                            String vline = XrayManager.installNewBinary(this, zis);
+                            final String vl = vline;
+                            main.post(() -> {
+                                toast(getString(R.string.toast_core_updated, vl));
+                                refreshCoreStatus(true);
+                            });
+                            installed = true;
+                            break;
+                        }
+                    }
+                }
+                zipFile.delete();
+                if (!installed) throw new Exception("zip had no xray entry");
             } catch (XrayManager.CoreExecBlockedException e) {
                 main.post(() -> coreBlocked(e.getMessage()));
             } catch (Exception e) {
@@ -983,15 +1045,45 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
+    private File pendingInstall;
+
     private void installApk(File apk) {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= 26
-                    && !getPackageManager().canRequestPackageInstalls()) {
+        if (!getPackageManager().canRequestPackageInstalls()) {
+            // Ask once, on demand (the app no longer declares this permission,
+            // which is what made Play Protect nervous).
+            pendingInstall = apk;
+            toast(getString(R.string.install_grant_hint));
+            try {
                 startActivity(new android.content.Intent(
                         android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         android.net.Uri.fromParts("package", getPackageName(), null)));
-                return; // user comes back and presses the button again
+                main.post(() -> appUpdateStatus.setText(R.string.app_update_grant));
+            } catch (Exception e) {
+                pendingInstall = null;
+                AppLog.e("appupdate", "permission page failed: " + e.getMessage());
             }
+            return;
+        }
+        doInstall(apk);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingInstall != null && getPackageManager().canRequestPackageInstalls()) {
+            File f = pendingInstall;
+            pendingInstall = null;
+            AppLog.i("appupdate", "permission granted — continuing install");
+            main.post(() -> {
+                appUpdateStatus.setText(getString(R.string.app_update_ready,
+                        f.getName().replace("ConfigScanner-v", "").replace(".apk", "")));
+            });
+            doInstall(f);
+        }
+    }
+
+    private void doInstall(File apk) {
+        try {
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
                     this, getPackageName() + ".fileprovider", apk);
             android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
@@ -1002,6 +1094,11 @@ public class MainActivity extends AppCompatActivity {
             AppLog.e("appupdate", "install intent failed: " + e.getMessage());
             appUpdateStatus.setText(getString(R.string.app_update_failed, String.valueOf(e.getMessage())));
         }
+    }
+
+    /** Megabytes with one decimal, e.g. 12.3 */
+    private static String mb(long b) {
+        return String.format(java.util.Locale.US, "%.1f", b / 1048576.0);
     }
 
     /** Simple dotted version comparison (works for x.y.z). */

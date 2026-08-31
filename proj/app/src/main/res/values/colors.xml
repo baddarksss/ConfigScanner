@@ -1,25 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Light theme palette (default) -->
+<!-- Light theme palette: crisp blue-white, semi-transparent glass over a visible gradient -->
 <resources>
     <color name="ic_bg">#0B1534</color>
-    <color name="bg_main">#EEF1F8</color>
-    <color name="bg_grad_top">#F6F8FE</color>
-    <color name="bg_grad_bottom">#D9E3F5</color>
-    <color name="card_bg">#FFFFFF</color>
-    <color name="glass_card">#F2FFFFFF</color>
-    <color name="glass_stroke">#141B2437</color>
+    <color name="bg_main">#EEF2FB</color>
+    <color name="bg_grad_top">#F8FAFF</color>
+    <color name="bg_grad_bottom">#C9DCF8</color>
+    <color name="card_bg">#F5F8FF</color>
+    <!-- glass: 68% white so the gradient clearly shows through -->
+    <color name="glass_card">#AEFFFFFF</color>
+    <color name="glass_stroke">#2E2C4A80</color>
     <color name="text_primary">#1B2437</color>
     <color name="text_bright">#0F1524</color>
-    <color name="text_secondary">#5A6782</color>
-    <color name="input_bg">#0D1B2437</color>
-    <color name="chip_bg">#DCE6FB</color>
-    <color name="chip_text">#3D63C8</color>
-    <color name="accent">#3D7BFF</color>
+    <color name="text_secondary">#52617E</color>
+    <color name="input_bg">#121B2437</color>
+    <color name="chip_bg">#D5E3FC</color>
+    <color name="chip_text">#2F5FD0</color>
+    <color name="accent">#2E6BFF</color>
     <color name="accent_soft">#2563EB</color>
     <color name="status_ok">#0D9488</color>
-    <color name="stroke">#C9D4E8</color>
-    <color name="btn_text">#33415C</color>
-    <color name="water_circle_bg">#DDEBF9</color>
+    <color name="stroke">#BFD0EA</color>
+    <color name="btn_text">#2F3E5E</color>
+    <color name="water_circle_bg">#D5E7FC</color>
     <color name="water_1">#38BDF8</color>
-    <color name="water_2">#0EA5E9</color>
+    <color name="water_2">#0284C7</color>
 </resources>

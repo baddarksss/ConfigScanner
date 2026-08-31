@@ -5,6 +5,6 @@
         android:angle="270"
         android:startColor="@color/bg_grad_top"
         android:centerColor="@color/bg_grad_top"
-        android:centerY="0.55"
+        android:centerY="0.42"
         android:endColor="@color/bg_grad_bottom" />
 </shape>

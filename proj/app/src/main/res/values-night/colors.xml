@@ -1,25 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark theme palette (iOS lock-screen glass look) -->
+<!-- Dark theme palette: deep night gradient, very transparent glass panels with bright edges -->
 <resources>
     <color name="ic_bg">#0B1534</color>
-    <color name="bg_main">#0D1220</color>
-    <color name="bg_grad_top">#0A0E1E</color>
-    <color name="bg_grad_bottom">#1D2C55</color>
-    <color name="card_bg">#151C2E</color>
-    <color name="glass_card">#66243354</color>
-    <color name="glass_stroke">#22FFFFFF</color>
-    <color name="text_primary">#DCE3F0</color>
+    <color name="bg_main">#0A0F1E</color>
+    <color name="bg_grad_top">#060912</color>
+    <color name="bg_grad_bottom">#2A4685</color>
+    <color name="card_bg">#131B31</color>
+    <!-- glass: ~22% opacity — you see the gradient right through the panels -->
+    <color name="glass_card">#382F4675</color>
+    <color name="glass_stroke">#4DFFFFFF</color>
+    <color name="text_primary">#E2E9F7</color>
     <color name="text_bright">#FFFFFF</color>
-    <color name="text_secondary">#8A94A8</color>
-    <color name="input_bg">#400A1226</color>
-    <color name="chip_bg">#1B2742</color>
-    <color name="chip_text">#9FB4FF</color>
-    <color name="accent">#5B9BFF</color>
-    <color name="accent_soft">#5B9BFF</color>
-    <color name="status_ok">#2DD4BF</color>
-    <color name="stroke">#2A3550</color>
-    <color name="btn_text">#C7D2E8</color>
-    <color name="water_circle_bg">#101C30</color>
-    <color name="water_1">#38BDF8</color>
-    <color name="water_2">#0EA5E9</color>
+    <color name="text_secondary">#96A3BE</color>
+    <color name="input_bg">#380B1428</color>
+    <color name="chip_bg">#1D2C52</color>
+    <color name="chip_text">#AFC6FF</color>
+    <color name="accent">#63A0FF</color>
+    <color name="accent_soft">#63A0FF</color>
+    <color name="status_ok">#35D8C4</color>
+    <color name="stroke">#2C3A5E</color>
+    <color name="btn_text">#CBD7EF</color>
+    <color name="water_circle_bg">#0F1B33</color>
+    <color name="water_1">#4CC9F0</color>
+    <color name="water_2">#38BDF8</color>
 </resources>
