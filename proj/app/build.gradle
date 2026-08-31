@@ -4,6 +4,11 @@ plugins {
 
 def keystoreFile = file("${rootDir}/../cfgscan.keystore")
 
+// Signing password is NOT stored in the repo. Provide it via the
+// CFGSCAN_KEY_PASS environment variable or -PcfgscanKeyPass=... at build time.
+// Without it, builds fall back to the normal debug signature.
+def ksPass = System.getenv("CFGSCAN_KEY_PASS") ?: project.findProperty("cfgscanKeyPass")
+
 android {
     namespace 'com.wpnfa.configscan'
     compileSdk 34
@@ -12,27 +17,27 @@ android {
         applicationId "com.wpnfa.configscan"
         minSdk 26
         targetSdk 34
-        versionCode 9
-        versionName "1.0.8"
+        versionCode 10
+        versionName "1.0.9"
     }
 
     signingConfigs {
         stable {
             storeFile keystoreFile
-            storePassword "wpnfa2026"
+            storePassword ksPass
             keyAlias "cfgscan"
-            keyPassword "wpnfa2026"
+            keyPassword ksPass
         }
     }
 
     buildTypes {
         debug {
             minifyEnabled false
-            signingConfig signingConfigs.stable
+            signingConfig ksPass ? signingConfigs.stable : signingConfigs.debug
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.stable
+            signingConfig ksPass ? signingConfigs.stable : signingConfigs.debug
         }
     }
 

@@ -275,13 +275,18 @@ public class ServerSpec {
             s.password = userinfo.substring(ci + 1);
         } else {
             // legacy form: base64(method:password:address:port)
+            // The password itself may contain ':', so parse from BOTH ends:
+            // first segment = method, last = port, second-to-last = host,
+            // everything in between (rejoined) = password.
             String decoded = b64decode(body);
             String[] parts = decoded.split(":");
             if (parts.length < 4) return null;
             s.method = parts[0];
-            s.password = parts[1];
-            s.host = parts[2];
-            try { s.port = Integer.parseInt(parts[3]); } catch (Exception e) { return null; }
+            StringBuilder pw = new StringBuilder(parts[1]);
+            for (int i = 2; i < parts.length - 2; i++) pw.append(':').append(parts[i]);
+            s.password = pw.toString();
+            s.host = parts[parts.length - 2];
+            try { s.port = Integer.parseInt(parts[parts.length - 1]); } catch (Exception e) { return null; }
         }
         if (s.host.isEmpty() || s.method.isEmpty()) return null;
         return s;

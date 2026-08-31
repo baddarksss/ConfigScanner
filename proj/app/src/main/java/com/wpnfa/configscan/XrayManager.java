@@ -31,8 +31,21 @@ public class XrayManager {
         return new File(ctx.getFilesDir(), "core");
     }
 
+    /**
+     * The active xray binary. An in-app-updated copy living in the writable
+     * core dir (filesDir/core) wins; otherwise the jniLibs copy extracted by
+     * the OS at install time (read-only, always exec-allowed) is used.
+     */
     public static File binary(Context ctx) {
+        File updated = new File(coreDir(ctx), "xray");
+        if (updated.exists() && updated.canExecute()) return updated;
         return new File(ctx.getApplicationInfo().nativeLibraryDir, BIN_NAME);
+    }
+
+    /** True if a binary updated in-app (in the writable core dir) exists. */
+    public static boolean hasUpdatedBinary(Context ctx) {
+        File updated = new File(coreDir(ctx), "xray");
+        return updated.exists() && updated.canExecute();
     }
 
     /** Logs device + binary state. Called once at app start. */
@@ -216,17 +229,29 @@ public class XrayManager {
         return first;
     }
 
+    /** Thrown when the device's SELinux refuses to exec the updated core. */
+    public static class CoreExecBlockedException extends Exception {
+        public CoreExecBlockedException(String msg) { super(msg); }
+    }
+
     /**
-     * Installs a new core binary into the read-only native library directory.
-     * Strategy: stage as a temp file in the same dir, verify it by exec,
-     * then rename over the old one. If anything fails the working core
-     * stays untouched.
+     * Installs a new core binary into the WRITABLE core dir
+     * (filesDir/core) — the read-only native library dir can never be
+     * updated from the app. Strategy: stage as a temp file, verify it by
+     * exec, then move it over coreDir/xray (which binary() prefers from
+     * then on). If anything fails the working core stays untouched.
+     *
+     * On stock Android 10+ devices SELinux may refuse to exec binaries from
+     * the app's data dir (WX rule). In that case the staged file is
+     * removed and a CoreExecBlockedException is thrown; the caller should
+     * then direct the user to install a newer APK instead.
      *
      * @return the verified first line of `xray version`
      */
     public static String installNewBinary(Context ctx, InputStream xrayStream) throws Exception {
-        File libDir = binary(ctx).getParentFile();
-        File newBin = new File(libDir, "libxray_new.so");
+        File dir = coreDir(ctx);
+        if (!dir.exists()) dir.mkdirs();
+        File newBin = new File(dir, "xray_new");
         try { newBin.delete(); } catch (Exception ignored) { }
         FileOutputStream out = new FileOutputStream(newBin);
         byte[] buf = new byte[16384];
@@ -241,20 +266,29 @@ public class XrayManager {
             tryChmod(newBin);
         }
 
-        String vline = verify(newBin);
+        String vline;
+        try {
+            vline = verify(newBin);
+        } catch (Exception ve) {
+            try { newBin.delete(); } catch (Exception ignored) { }
+            AppLog.e("update", "verify failed: " + ve.getMessage());
+            throw new CoreExecBlockedException(
+                    "this device blocks running an updated core from the app storage ("
+                    + ve.getMessage() + ") — a newer APK is required");
+        }
         AppLog.i("update", "verified staged binary: " + vline);
 
-        File old = binary(ctx);
-        boolean renamed = newBin.renameTo(old);
+        File target = new File(dir, "xray");
+        boolean renamed = newBin.renameTo(target);
         if (!renamed) {
-            try { old.delete(); } catch (Exception ignored) { }
-            renamed = newBin.renameTo(old);
+            try { target.delete(); } catch (Exception ignored) { }
+            renamed = newBin.renameTo(target);
         }
         if (!renamed) {
             try { newBin.delete(); } catch (Exception ignored) { }
-            throw new Exception("could not replace core binary (lib dir not writable)");
+            throw new Exception("could not move updated core into " + dir);
         }
-        AppLog.i("update", "core replaced OK");
+        AppLog.i("update", "core updated OK -> " + target.getAbsolutePath());
         return vline;
     }
 

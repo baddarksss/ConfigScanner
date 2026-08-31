@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final List<String> outputLines = Collections.synchronizedList(new ArrayList<>());
     private int basePort = 21000;
-    private volatile int doneCount = 0;
+    private final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
     private int totalCount = 0;
     private final AtomicBoolean runFinished = new AtomicBoolean(false);
 
@@ -435,6 +435,8 @@ public class MainActivity extends AppCompatActivity {
                     toast(getString(R.string.toast_core_updated, vl));
                     refreshCoreStatus(true);
                 });
+            } catch (XrayManager.CoreExecBlockedException ex) {
+                main.post(() -> coreBlocked(ex.getMessage()));
             } catch (Exception ex) {
                 final String m = ex.getMessage();
                 main.post(() -> toast(getString(R.string.toast_update_file_failed, String.valueOf(m))));
@@ -491,7 +493,7 @@ public class MainActivity extends AppCompatActivity {
         }
         running = true;
         runFinished.set(false);
-        doneCount = 0;
+        doneCount.set(0);
         totalCount = servers.size();
         basePort = 21000 + (int) (Math.random() * 500);
         AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
@@ -522,10 +524,11 @@ public class MainActivity extends AppCompatActivity {
 
     /** Returns the first TCP port not already listening, starting at `start`. */
     private int findFreePort(int start) {
-        for (int p = start; p < start + 50; p++) {
+        for (int p = start; p < start + 500; p++) {
             if (!XrayManager.portInUse(p)) return p;
         }
-        return start + 50;
+        AppLog.w("run", "no free port found in [" + start + "," + (start + 500) + ")");
+        return start + 500;
     }
 
     private void stopRun() {
@@ -542,14 +545,14 @@ public class MainActivity extends AppCompatActivity {
     private void testOne(ServerSpec s, int port, int timeoutSec) {
         String hostport = s.host + ":" + s.port;
         AppLog.d("test", ">> " + s.protocol + " " + hostport);
-        status(String.format("[%d/%d] %s %s", doneCount + 1, totalCount, s.protocol, hostport));
+        status(String.format("[%d/%d] %s %s", doneCount.get() + 1, totalCount, s.protocol, hostport));
 
         // obfs type without a password: cannot be tested at all
         if ("hysteria2".equals(s.protocol)
                 && s.obfs != null && !s.obfs.isEmpty()
                 && !"plain".equalsIgnoreCase(s.obfs)
                 && (s.obfsParam == null || s.obfsParam.isEmpty())) {
-            doneCount++;
+            doneCount.incrementAndGet();
             String base = s.name.isEmpty() ? hostport : s.name;
             outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
             AppLog.w("test", "SKIP " + hostport + " (hysteria2 obfs without password)");
@@ -630,19 +633,19 @@ public class MainActivity extends AppCompatActivity {
                 String renamed = flag + " " + countryName + suffix;
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
-                doneCount++;
-                status(String.format("✓ [%d/%d] %s = %s", doneCount, totalCount,
+                doneCount.incrementAndGet();
+                status(String.format("✓ [%d/%d] %s = %s", doneCount.get(), totalCount,
                         hostport, geo.code));
                 success(renamedRaw);
             } else {
-                doneCount++;
+                doneCount.incrementAndGet();
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
                         + AppLog.fileTail(engineLog, 8) + "]");
                 fail(s, getString(R.string.res_country_unknown));
             }
         } catch (Exception e) {
             AppLog.e("test", "error " + hostport + " " + e.getMessage());
-            doneCount++;
+            doneCount.incrementAndGet();
             fail(s, String.valueOf(e.getMessage()));
         } finally {
             if (engine != null) {
@@ -652,7 +655,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             updateProgress();
-            if (doneCount >= totalCount) {
+            if (doneCount.get() >= totalCount) {
                 finishRun();
             }
         }
@@ -697,7 +700,7 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------- ui
 
     private void updateProgress() {
-        final int done = doneCount;
+        final int done = doneCount.get();
         final int total = totalCount;
         main.post(() -> {
             int pct = total == 0 ? 0 : (int) (100.0 * done / total);
@@ -857,11 +860,27 @@ public class MainActivity extends AppCompatActivity {
                         refreshCoreStatus(true);
                     });
                 }
+            } catch (XrayManager.CoreExecBlockedException e) {
+                main.post(() -> coreBlocked(e.getMessage()));
             } catch (Exception e) {
                 final String m = e.getMessage();
                 main.post(() -> toast(getString(R.string.toast_update_failed, String.valueOf(m))));
             }
         }).start();
+    }
+
+    /**
+     * The device's SELinux refused to exec an updated core. Direct the user
+     * to the releases page — installing a newer APK is the only way to get
+     * a newer Xray on this device.
+     */
+    private void coreBlocked(String reason) {
+        toast(getString(R.string.toast_core_blocked));
+        AppLog.w("update", "core update blocked: " + reason);
+        try {
+            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://github.com/baddarksss/ConfigScanner/releases")));
+        } catch (Exception ignored) { }
     }
 
     // ------------------------------------------------------------------- dialogs
