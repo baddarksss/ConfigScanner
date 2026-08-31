@@ -1,4 +1,4 @@
-package com.wpnfa.configscan;
+package com.configscanner;
 
 import android.content.Context;
 

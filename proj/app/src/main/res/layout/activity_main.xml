@@ -86,7 +86,7 @@
                         android:orientation="vertical"
                         android:padding="18dp">
 
-                        <com.wpnfa.configscan.WaterCircleView
+                        <com.configscanner.WaterCircleView
                             android:id="@+id/waterCircle"
                             android:layout_width="172dp"
                             android:layout_height="172dp" />
@@ -785,7 +785,8 @@
                                 android:id="@+id/themeValue"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
+                                android:layout_marginStart="10dp"
+                                android:layout_marginEnd="6dp"
                                 android:text=""
                                 android:textColor="@color/accent"
                                 android:textSize="12.5sp"
@@ -793,8 +794,9 @@
 
                             <TextView
                                 android:id="@+id/themeChevron"
-                                android:layout_width="wrap_content"
+                                android:layout_width="22dp"
                                 android:layout_height="wrap_content"
+                                android:gravity="center"
                                 android:text="⌄"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="15sp" />
@@ -879,7 +881,8 @@
                                 android:id="@+id/langValue"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
+                                android:layout_marginStart="10dp"
+                                android:layout_marginEnd="6dp"
                                 android:text=""
                                 android:textColor="@color/accent"
                                 android:textSize="12.5sp"
@@ -887,8 +890,9 @@
 
                             <TextView
                                 android:id="@+id/langChevron"
-                                android:layout_width="wrap_content"
+                                android:layout_width="22dp"
                                 android:layout_height="wrap_content"
+                                android:gravity="center"
                                 android:text="⌄"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="15sp" />

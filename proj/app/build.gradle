@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
 }
 
-def keystoreFile = file("${rootDir}/../cfgscan.keystore")
+def keystoreFile = file("${rootDir}/../cfgscan-v2.keystore")
 
 // Signing password is NOT stored in the repo. Provide it via the
 // CFGSCAN_KEY_PASS environment variable or -PcfgscanKeyPass=... at build time.
@@ -10,7 +10,7 @@ def keystoreFile = file("${rootDir}/../cfgscan.keystore")
 def ksPass = System.getenv("CFGSCAN_KEY_PASS") ?: project.findProperty("cfgscanKeyPass")
 
 android {
-    namespace 'com.wpnfa.configscan'
+    namespace 'com.configscanner'
     compileSdk 34
 
     buildFeatures {
@@ -18,11 +18,11 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.wpnfa.configscan"
+        applicationId "com.configscanner"
         minSdk 26
         targetSdk 34
-        versionCode 15
-        versionName "1.0.13"
+        versionCode 16
+        versionName "1.0.14"
     }
 
     signingConfigs {

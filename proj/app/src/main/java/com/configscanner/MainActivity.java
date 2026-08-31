@@ -1,4 +1,4 @@
-package com.wpnfa.configscan;
+package com.configscanner;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -99,6 +99,9 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton btnThemeSystem, btnThemeDark, btnThemeLight;
     private MaterialButton btnLangSystem, btnLangFa, btnLangEn;
 
+    /** Last selected bottom-nav tab; static so it survives activity recreation. */
+    private static int sLastNav = 0; // 0=test 1=settings
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
     private int themeMode = 0; // 0=system 1=dark 2=light
@@ -123,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        installCrashLogger();
         prefs = getSharedPreferences("cfg", MODE_PRIVATE);
         themeMode = prefs.getInt("theme_mode", 0);
         applyTheme();
@@ -403,10 +407,13 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNav.setOnItemSelectedListener(item -> {
             boolean test = item.getItemId() == R.id.navTest;
-            pageTest.setVisibility(test ? android.view.View.VISIBLE : android.view.View.GONE);
-            pageSettings.setVisibility(test ? android.view.View.GONE : android.view.View.VISIBLE);
+            sLastNav = test ? 0 : 1;
+            applyNavPage(test);
             return true;
         });
+        // restore the tab the user was on (language/theme switches recreate the
+        // activity and would otherwise drop back to the test page)
+        if (sLastNav == 1) bottomNav.getMenu().findItem(R.id.navSettings).setChecked(true);
 
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override
@@ -517,6 +524,25 @@ public class MainActivity extends AppCompatActivity {
         if (input != null) {
             btnStart.setEnabled(!input.getText().toString().trim().isEmpty() || running);
         }
+    }
+
+    private void applyNavPage(boolean test) {
+        pageTest.setVisibility(test ? View.VISIBLE : View.GONE);
+        pageSettings.setVisibility(test ? View.GONE : View.VISIBLE);
+    }
+
+    /** Crashes are written to the in-app log so a bug report is one tap away. */
+    private void installCrashLogger() {
+        Thread.UncaughtExceptionHandler defaultH = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                java.io.StringWriter sw = new java.io.StringWriter();
+                e.printStackTrace(new java.io.PrintWriter(sw));
+                AppLog.e("crash", "thread=" + t.getName() + "\n" + sw.toString());
+                android.util.Log.e("ConfigScanner", "uncaught", e);
+            } catch (Exception ignored) { }
+            if (defaultH != null) defaultH.uncaughtException(t, e);
+        });
     }
 
     private void startRun() {
@@ -1248,13 +1274,51 @@ public class MainActivity extends AppCompatActivity {
         try {
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
                     this, getPackageName() + ".fileprovider", apk);
+            if (isFinishing()) return;
             android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
             i.setDataAndType(uri, "application/vnd.android.package-archive");
             i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(i);
         } catch (Exception e) {
-            AppLog.e("appupdate", "install intent failed: " + e.getMessage());
-            appUpdateStatus.setText(getString(R.string.app_update_failed, String.valueOf(e.getMessage())));
+            AppLog.e("appupdate", "fileprovider install failed (" + e.getMessage()
+                    + ") — falling back to public Downloads");
+            tryFallbackInstall(apk, e.getMessage());
+        }
+    }
+
+    /**
+     * Fallback: copy the APK to the public Downloads folder and hand that URI
+     * to the installer. Works even when the FileProvider route misbehaves.
+     */
+    private void tryFallbackInstall(File apk, String why) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, apk.getName());
+                v.put(android.provider.MediaStore.Downloads.MIME_TYPE,
+                        "application/vnd.android.package-archive");
+                v.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download");
+                android.net.Uri pub = getContentResolver().insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (pub == null) throw new Exception("no media uri");
+                try (java.io.OutputStream os = getContentResolver().openOutputStream(pub);
+                     java.io.InputStream is = new FileInputStream(apk)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                }
+                if (isFinishing()) return;
+                android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                i.setDataAndType(pub, "application/vnd.android.package-archive");
+                startActivity(i);
+                AppLog.i("appupdate", "fallback install via Downloads OK (why: " + why + ")");
+            } else {
+                throw new Exception("fallback needs Android 10+ (why: " + why + ")");
+            }
+        } catch (Exception e2) {
+            AppLog.e("appupdate", "fallback install failed: " + e2.getMessage());
+            appUpdateStatus.setText(getString(R.string.app_update_failed,
+                    String.valueOf(e2.getMessage())));
         }
     }
 

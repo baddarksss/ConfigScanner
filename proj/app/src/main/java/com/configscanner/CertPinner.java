@@ -1,4 +1,4 @@
-package com.wpnfa.configscan;
+package com.configscanner;
 
 import java.net.InetSocketAddress;
 import java.security.MessageDigest;
