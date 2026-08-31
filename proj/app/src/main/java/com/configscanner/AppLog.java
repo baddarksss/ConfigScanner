@@ -25,6 +25,23 @@ public class AppLog {
 
     public static void init(Context ctx) {
         logFile = new File(ctx.getFilesDir(), "app.log");
+        // Reload the previous session so a crash logged before a restart is
+        // still visible in the Log dialog (memory is fresh on every start).
+        try {
+            if (logFile.exists() && logFile.length() > 0) {
+                BufferedReader br = new BufferedReader(new java.io.FileReader(logFile));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line).append("\n");
+                br.close();
+                synchronized (LOCK) {
+                    if (BUF.length() == 0) {
+                        if (sb.length() > MAX) sb.delete(0, sb.length() - MAX);
+                        BUF.append(sb);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
     }
 
     public static void d(String tag, String msg) { write("D", tag, msg); }

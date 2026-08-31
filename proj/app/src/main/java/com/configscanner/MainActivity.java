@@ -126,12 +126,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AppLog.init(this);
         installCrashLogger();
         prefs = getSharedPreferences("cfg", MODE_PRIVATE);
         themeMode = prefs.getInt("theme_mode", 0);
         applyTheme();
         setContentView(R.layout.activity_main);
-        AppLog.init(this);
 
         fileImportLauncher = registerForActivityResult(
                 new ActivityResultContracts.OpenDocument(), this::onImportFile);
@@ -413,7 +413,11 @@ public class MainActivity extends AppCompatActivity {
         });
         // restore the tab the user was on (language/theme switches recreate the
         // activity and would otherwise drop back to the test page)
-        if (sLastNav == 1) bottomNav.getMenu().findItem(R.id.navSettings).setChecked(true);
+        if (sLastNav == 1) {
+            pageTest.setVisibility(View.GONE);
+            pageSettings.setVisibility(View.VISIBLE);
+            bottomNav.getMenu().findItem(R.id.navSettings).setChecked(true);
+        }
 
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override
@@ -538,7 +542,14 @@ public class MainActivity extends AppCompatActivity {
             try {
                 java.io.StringWriter sw = new java.io.StringWriter();
                 e.printStackTrace(new java.io.PrintWriter(sw));
-                AppLog.e("crash", "thread=" + t.getName() + "\n" + sw.toString());
+                String trace = "v" + VERSION + " thread=" + t.getName() + "\n" + sw.toString();
+                AppLog.e("crash", trace);
+                // belt & braces: direct append so a crash is never lost
+                java.io.File f = new java.io.File(getFilesDir(), "app.log");
+                java.io.FileWriter fw = new java.io.FileWriter(f, true);
+                fw.write(new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                        .format(new java.util.Date()) + " E crash: " + trace + "\n");
+                fw.close();
                 android.util.Log.e("ConfigScanner", "uncaught", e);
             } catch (Exception ignored) { }
             if (defaultH != null) defaultH.uncaughtException(t, e);
@@ -1159,7 +1170,8 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                     if (apkUrl == null) throw new Exception("no apk asset");
-                    File dir = new File(getExternalFilesDir(null), "updates");
+                    File ext = getExternalFilesDir(null);
+                    File dir = new File(ext != null ? ext : getFilesDir(), "updates");
                     if (!dir.exists()) dir.mkdirs();
                     File apk = new File(dir, "ConfigScanner-v" + latest + ".apk");
                     if (apk.exists() && apk.length() > 0) {
