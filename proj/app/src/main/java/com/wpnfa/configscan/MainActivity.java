@@ -76,7 +76,6 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView pageTest;
     private ScrollView pageSettings;
     private BottomNavigationView bottomNav;
-    private MaterialButton btnTheme;
     private ScrollView outputScroll;
     private TextView outputView;
     private TextView outCount;
@@ -92,7 +91,13 @@ public class MainActivity extends AppCompatActivity {
     private TextView appVersionLabel;
     private MaterialButton btnAbout;
     private MaterialButton btnLog;
-    private MaterialButton btnLanguage;
+    private android.widget.ProgressBar coreProgressBar;
+    private android.widget.ProgressBar appProgressBar;
+    private TextView flagStrip;
+    private android.view.View themeHeader, themeOptions, langHeader, langOptions;
+    private TextView themeValue, themeChevron, langValue, langChevron;
+    private MaterialButton btnThemeSystem, btnThemeDark, btnThemeLight;
+    private MaterialButton btnLangSystem, btnLangFa, btnLangEn;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
@@ -102,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean running = false;
 
     private final List<String> outputLines = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> flagList = new ArrayList<>();
     private int basePort = 21000;
     private final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
     private int totalCount = 0;
@@ -155,7 +161,6 @@ public class MainActivity extends AppCompatActivity {
         pageTest = findViewById(R.id.pageTest);
         pageSettings = findViewById(R.id.pageSettings);
         bottomNav = findViewById(R.id.bottomNav);
-        btnTheme = findViewById(R.id.btnTheme);
         outputScroll = findViewById(R.id.outputScroll);
         outputView = findViewById(R.id.outputView);
         outCount = findViewById(R.id.outCount);
@@ -171,10 +176,63 @@ public class MainActivity extends AppCompatActivity {
         appVersionLabel = findViewById(R.id.appVersionLabel);
         btnAbout = findViewById(R.id.btnAbout);
         btnLog = findViewById(R.id.btnLog);
-        btnLanguage = findViewById(R.id.btnLanguage);
+        coreProgressBar = findViewById(R.id.coreProgressBar);
+        appProgressBar = findViewById(R.id.appProgressBar);
+        flagStrip = findViewById(R.id.flagStrip);
+        themeHeader = findViewById(R.id.themeHeader);
+        themeOptions = findViewById(R.id.themeOptions);
+        langHeader = findViewById(R.id.langHeader);
+        langOptions = findViewById(R.id.langOptions);
+        themeValue = findViewById(R.id.themeValue);
+        themeChevron = findViewById(R.id.themeChevron);
+        langValue = findViewById(R.id.langValue);
+        langChevron = findViewById(R.id.langChevron);
+        btnThemeSystem = findViewById(R.id.btnThemeSystem);
+        btnThemeDark = findViewById(R.id.btnThemeDark);
+        btnThemeLight = findViewById(R.id.btnThemeLight);
+        btnLangSystem = findViewById(R.id.btnLangSystem);
+        btnLangFa = findViewById(R.id.btnLangFa);
+        btnLangEn = findViewById(R.id.btnLangEn);
         headerChip.setText("App v" + VERSION);
         appVersionLabel.setText("v" + VERSION);
-        btnTheme.setText(themeLabel());
+        themeValue.setText(themeLabel());
+        updateLangHeader();
+    }
+
+    private void updateLangHeader() {
+        int i = currentLangIndex();
+        langValue.setText(i == 1 ? getString(R.string.lang_fa)
+                : i == 2 ? getString(R.string.lang_en)
+                : getString(R.string.lang_system));
+    }
+
+    private void setThemeOpen(boolean open) {
+        themeOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+        themeChevron.setText(open ? "⌃" : "⌄");
+    }
+
+    private void setLangOpen(boolean open) {
+        langOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+        langChevron.setText(open ? "⌃" : "⌄");
+    }
+
+    private void applyThemeMode(int which) {
+        themeMode = which;
+        prefs.edit().putInt("theme_mode", themeMode).apply();
+        applyTheme(); // triggers activity recreate
+        setThemeOpen(false);
+    }
+
+    /** Remove the APK copy of the version we are currently running (already installed). */
+    private void cleanupStaleApks() {
+        try {
+            File dir = new File(getExternalFilesDir(null), "updates");
+            if (dir == null || !dir.exists()) return;
+            File stale = new File(dir, "ConfigScanner-v" + VERSION + ".apk");
+            if (stale.exists() && stale.delete()) {
+                AppLog.i("appupdate", "removed installed apk copy (now running v" + VERSION + ")");
+            }
+        } catch (Exception ignored) { }
     }
 
     private void applyTheme() {
@@ -188,23 +246,6 @@ public class MainActivity extends AppCompatActivity {
         return getString(themeMode == 1 ? R.string.theme_dark
                 : themeMode == 2 ? R.string.theme_light
                 : R.string.theme_system);
-    }
-
-    private void showThemeDialog() {
-        String[] options = {
-                getString(R.string.theme_system),
-                getString(R.string.theme_dark),
-                getString(R.string.theme_light)
-        };
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.theme_title)
-                .setSingleChoiceItems(options, themeMode, (d, which) -> {
-                    d.dismiss();
-                    themeMode = which;
-                    prefs.edit().putInt("theme_mode", themeMode).apply();
-                    applyTheme(); // triggers activity recreate
-                })
-                .show();
     }
 
     private void restorePrefs() {
@@ -235,21 +276,6 @@ public class MainActivity extends AppCompatActivity {
         if ("fa".equals(t)) return 1;
         if ("en".equals(t)) return 2;
         return 0;
-    }
-
-    private void showLanguageDialog() {
-        String[] options = {
-                getString(R.string.lang_system),
-                getString(R.string.lang_fa),
-                getString(R.string.lang_en)
-        };
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.lang_title)
-                .setSingleChoiceItems(options, currentLangIndex(), (d, which) -> {
-                    applyLanguage(which);
-                    d.dismiss();
-                })
-                .show();
     }
 
     private void applyLanguage(int idx) {
@@ -346,8 +372,34 @@ public class MainActivity extends AppCompatActivity {
 
         btnAbout.setOnClickListener(v -> showAbout());
         btnLog.setOnClickListener(v -> showLog());
-        btnLanguage.setOnClickListener(v -> showLanguageDialog());
-        btnTheme.setOnClickListener(v -> showThemeDialog());
+        flagStrip.setOnClickListener(v -> {
+            synchronized (flagList) {
+                if (flagList.isEmpty()) { toast(getString(R.string.toast_no_flags)); return; }
+                String all = String.join("  ", flagList);
+                android.content.ClipboardManager cm =
+                        (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("flags", all));
+                toast(getString(R.string.toast_flags_copied));
+            }
+        });
+
+        themeHeader.setOnClickListener(v -> {
+            boolean open = themeOptions.getVisibility() != View.VISIBLE;
+            setThemeOpen(open);
+            if (open) setLangOpen(false);
+        });
+        langHeader.setOnClickListener(v -> {
+            boolean open = langOptions.getVisibility() != View.VISIBLE;
+            setLangOpen(open);
+            if (open) setThemeOpen(false);
+        });
+        btnThemeSystem.setOnClickListener(v -> applyThemeMode(0));
+        btnThemeDark.setOnClickListener(v -> applyThemeMode(1));
+        btnThemeLight.setOnClickListener(v -> applyThemeMode(2));
+        btnLangSystem.setOnClickListener(v -> { applyLanguage(0); setLangOpen(false); });
+        btnLangFa.setOnClickListener(v -> { applyLanguage(1); setLangOpen(false); });
+        btnLangEn.setOnClickListener(v -> { applyLanguage(2); setLangOpen(false); });
+        cleanupStaleApks();
 
         bottomNav.setOnItemSelectedListener(item -> {
             boolean test = item.getItemId() == R.id.navTest;
@@ -487,6 +539,9 @@ public class MainActivity extends AppCompatActivity {
             toast(getString(R.string.toast_no_config));
             return;
         }
+
+        synchronized (flagList) { flagList.clear(); }
+        flagStrip.setText("");
 
         File dir = XrayManager.coreDir(this);
         if (!dir.exists()) dir.mkdirs();
@@ -662,7 +717,7 @@ public class MainActivity extends AppCompatActivity {
                 doneCount.incrementAndGet();
                 status(String.format("✓ [%d/%d] %s = %s", doneCount.get(), totalCount,
                         hostport, geo.code));
-                success(renamedRaw);
+                success(renamedRaw, flag);
             } else {
                 doneCount.incrementAndGet();
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
@@ -706,8 +761,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void success(String renamedLine) {
+    private void success(String renamedLine, String flag) {
         outputLines.add(renamedLine);
+        if (flag != null && !flag.isEmpty()) {
+            flagList.add(flag);
+            final List<String> copy;
+            synchronized (flagList) { copy = new ArrayList<>(flagList); }
+            main.post(() -> flagStrip.setText(String.join("  ", copy)));
+        }
         refreshOutput();
         autoScroll();
     }
@@ -834,17 +895,22 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    /** One button: beta tick on → latest release including pre-releases, off → latest stable. */
+    /** One button: beta tick on -> newest release incl. pre-release, off -> newest stable.
+     *  The downloaded zip is kept in filesDir/core_updates, so a failed install
+     *  is retried from the cache (no re-download). On success the zip is deleted. */
     private void updateFromGithub() {
         final boolean pre = coreBetaCheck.isChecked();
+        coreProgressBar.setVisibility(View.VISIBLE);
+        coreProgressBar.setIndeterminate(false);
+        coreProgressBar.setProgress(0);
         toast(getString(R.string.toast_core_searching));
         new Thread(() -> {
             try {
                 OkHttpClient client = new OkHttpClient.Builder()
-                        .connectTimeout(15, TimeUnit.SECONDS)
-                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(20, TimeUnit.SECONDS)
+                        .readTimeout(10, TimeUnit.MINUTES)
+                        .writeTimeout(10, TimeUnit.MINUTES)
                         .build();
-                // beta tick: first release in the list (pre-releases included)
                 String tag = null;
                 String zipUrl = null;
                 if (pre) {
@@ -878,58 +944,81 @@ public class MainActivity extends AppCompatActivity {
                                 + tag + "/Xray-android-arm64-v8a.zip";
                     }
                 }
+                AppLog.i("update", "candidate " + tag + " from " + zipUrl);
 
-                AppLog.i("update", "downloading " + tag + " from " + zipUrl);
-                final String ftag = tag;
-                main.post(() -> coreStatus.setText(getString(R.string.core_update_dl, ftag)));
+                // never downgrade the running core
+                String cand = tag.startsWith("v") ? tag.substring(1) : tag;
+                String cur = currentCoreVersion();
+                if (cur != null && !isNewer(cand, cur)) {
+                    AppLog.i("update", "skip: candidate " + cand + " not newer than current " + cur);
+                    main.post(() -> {
+                        coreStatus.setText(getString(R.string.core_update_up_to_date, cur));
+                        coreProgressBar.setVisibility(View.GONE);
+                    });
+                    return;
+                }
 
-                // 1) download the release zip (progress + one retry on network hiccup)
-                File zipFile = new File(getCacheDir(), "xray_update.zip");
-                for (int attempt = 1; attempt <= 2; attempt++) {
-                    boolean ok = false;
-                    try {
-                        Request dz = new Request.Builder().url(zipUrl).get().build();
-                        try (Response resp = client.newCall(dz).execute()) {
-                            if (!resp.isSuccessful() || resp.body() == null)
-                                throw new Exception("download failed: HTTP " + resp.code());
-                            long total = resp.body().contentLength();
-                            AppLog.i("update", "zip download start, total=" + total
-                                    + " bytes (attempt " + attempt + ")");
-                            long got = 0;
-                            int lastStep = -1;
-                            try (InputStream zin = resp.body().byteStream();
-                                 FileOutputStream out = new FileOutputStream(zipFile)) {
-                                byte[] buf = new byte[32768];
-                                int n;
-                                while ((n = zin.read(buf)) > 0) {
-                                    out.write(buf, 0, n);
-                                    got += n;
-                                    int step = total > 0 ? (int) (got * 20 / total) : 0;
-                                    if (step > lastStep) {
-                                        lastStep = step;
-                                        final long fg = got;
-                                        final long ft = total;
-                                        main.post(() -> coreStatus.setText(
-                                                getString(R.string.core_update_prog,
-                                                        ft > 0 ? (int) (fg * 100 / ft) : 0,
-                                                        mb(fg))));
+                File updDir = new File(getFilesDir(), "core_updates");
+                if (!updDir.exists()) updDir.mkdirs();
+                File zipFile = new File(updDir, "xray-" + cand + ".zip");
+
+                if (zipFile.exists() && zipFile.length() > 0 && zipHasXray(zipFile)) {
+                    AppLog.i("update", "using cached zip " + zipFile.getName()
+                            + " (" + zipFile.length() + " bytes) — no download");
+                    main.post(() -> coreStatus.setText(R.string.core_update_cached));
+                } else {
+                    zipFile.delete();
+                    for (int attempt = 1; attempt <= 2; attempt++) {
+                        boolean ok = false;
+                        try {
+                            Request dz = new Request.Builder().url(zipUrl).get().build();
+                            try (Response resp = client.newCall(dz).execute()) {
+                                if (!resp.isSuccessful() || resp.body() == null)
+                                    throw new Exception("download failed: HTTP " + resp.code());
+                                long total = resp.body().contentLength();
+                                AppLog.i("update", "zip download start, total=" + total
+                                        + " bytes (attempt " + attempt + ")");
+                                long got = 0;
+                                int lastStep = -1;
+                                try (InputStream zin = resp.body().byteStream();
+                                     FileOutputStream out = new FileOutputStream(zipFile)) {
+                                    byte[] buf = new byte[32768];
+                                    int n;
+                                    while ((n = zin.read(buf)) > 0) {
+                                        out.write(buf, 0, n);
+                                        got += n;
+                                        int step = total > 0 ? (int) (got * 1000 / total) : 0;
+                                        if (step > lastStep) {
+                                            lastStep = step;
+                                            final int p = step;
+                                            final long fg = got;
+                                            final long ft = total;
+                                            main.post(() -> {
+                                                coreProgressBar.setProgress(p);
+                                                coreStatus.setText(getString(R.string.core_update_prog,
+                                                        ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg)));
+                                            });
+                                        }
                                     }
                                 }
+                                AppLog.i("update", "zip download complete: " + zipFile.length() + " bytes");
+                                ok = true;
                             }
-                            AppLog.i("update", "zip download complete: " + zipFile.length() + " bytes");
-                            ok = true;
+                        } catch (IOException ioe) {
+                            AppLog.e("update", "download attempt " + attempt + " failed: " + ioe.getMessage());
+                            zipFile.delete();
+                            if (attempt == 2) throw ioe;
                         }
-                    } catch (IOException ioe) {
-                        AppLog.e("update", "download attempt " + attempt + " failed: " + ioe.getMessage());
-                        if (attempt == 2) throw ioe;
+                        if (ok) break;
                     }
-                    if (ok) break;
+                    if (!zipFile.exists() || zipFile.length() == 0)
+                        throw new Exception("empty download");
                 }
-                if (!zipFile.exists() || zipFile.length() == 0)
-                    throw new Exception("empty download");
 
-                // 2) extract the "xray" binary out of the zip and install it
-                main.post(() -> coreStatus.setText(R.string.core_update_installing));
+                main.post(() -> {
+                    coreStatus.setText(R.string.core_update_installing);
+                    coreProgressBar.setIndeterminate(true);
+                });
                 boolean installed = false;
                 try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
                     ZipEntry ze;
@@ -939,8 +1028,11 @@ public class MainActivity extends AppCompatActivity {
                             AppLog.i("update", "extracting entry: " + name);
                             String vline = XrayManager.installNewBinary(this, zis);
                             final String vl = vline;
+                            boolean deleted = zipFile.delete();
+                            AppLog.i("update", "install OK — cached zip removed=" + deleted);
                             main.post(() -> {
                                 toast(getString(R.string.toast_core_updated, vl));
+                                coreProgressBar.setVisibility(View.GONE);
                                 refreshCoreStatus(true);
                             });
                             installed = true;
@@ -948,15 +1040,48 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 }
-                zipFile.delete();
-                if (!installed) throw new Exception("zip had no xray entry");
+                if (!installed) {
+                    AppLog.e("update", "zip had no xray entry — keeping zip for manual check");
+                    throw new Exception("zip had no xray entry");
+                }
             } catch (XrayManager.CoreExecBlockedException e) {
-                main.post(() -> coreBlocked(e.getMessage()));
+                main.post(() -> {
+                    coreProgressBar.setVisibility(View.GONE);
+                    coreBlocked(e.getMessage());
+                });
             } catch (Exception e) {
                 final String m = e.getMessage();
-                main.post(() -> toast(getString(R.string.toast_update_failed, String.valueOf(m))));
+                AppLog.e("update", "update failed (will keep cache, no re-download): " + m);
+                main.post(() -> {
+                    coreProgressBar.setVisibility(View.GONE);
+                    coreStatus.setText("");
+                    toast(getString(R.string.toast_update_failed, String.valueOf(m)));
+                });
             }
         }).start();
+    }
+
+    /** Numeric version of the currently active core binary, e.g. "26.7.28". */
+    private String currentCoreVersion() {
+        try {
+            File bin = XrayManager.binary(this);
+            String v = XrayManager.version(bin); // e.g. "26.7.28"
+            return (v != null && v.matches("\\d+(\\.\\d+)*")) ? v : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Quick check that a cached zip really contains an xray entry. */
+    private static boolean zipHasXray(File zip) {
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zip))) {
+            ZipEntry ze;
+            while ((ze = zis.getNextEntry()) != null) {
+                String n = ze.getName();
+                if (n.equalsIgnoreCase("xray") || n.endsWith("/xray")) return true;
+            }
+        } catch (Exception ignored) { }
+        return false;
     }
 
     // ------------------------------------------------------------------- app update
@@ -1008,23 +1133,59 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                     if (apkUrl == null) throw new Exception("no apk asset");
+                    File dir = new File(getExternalFilesDir(null), "updates");
+                    if (!dir.exists()) dir.mkdirs();
+                    File apk = new File(dir, "ConfigScanner-v" + latest + ".apk");
+                    if (apk.exists() && apk.length() > 0) {
+                        AppLog.i("appupdate", "using cached apk " + apk.getName()
+                                + " (" + apk.length() + " bytes) — no download");
+                        final File f = apk;
+                        main.post(() -> {
+                            appUpdateStatus.setText(getString(R.string.app_update_cached, latest));
+                            btnAppUpdate.setEnabled(true);
+                            installApk(f);
+                        });
+                        return;
+                    }
                     AppLog.i("appupdate", "downloading v" + latest + " from " + apkUrl);
-                    main.post(() -> appUpdateStatus.setText(getString(R.string.app_update_download, latest)));
+                    main.post(() -> {
+                        appUpdateStatus.setText(getString(R.string.app_update_download, latest));
+                        appProgressBar.setVisibility(View.VISIBLE);
+                        appProgressBar.setIndeterminate(false);
+                        appProgressBar.setProgress(0);
+                    });
                     Request dz = new Request.Builder().url(apkUrl).get().build();
                     try (Response dr = client.newCall(dz).execute()) {
                         if (!dr.isSuccessful() || dr.body() == null)
                             throw new Exception("download HTTP " + dr.code());
-                        File dir = new File(getExternalFilesDir(null), "updates");
-                        if (!dir.exists()) dir.mkdirs();
-                        File apk = new File(dir, "ConfigScanner-v" + latest + ".apk");
+                        long total = dr.body().contentLength();
+                        long got = 0;
+                        int lastStep = -1;
                         try (FileOutputStream fos = new FileOutputStream(apk);
                              InputStream is = dr.body().byteStream()) {
                             byte[] buf = new byte[65536];
                             int n;
-                            while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+                            while ((n = is.read(buf)) > 0) {
+                                fos.write(buf, 0, n);
+                                got += n;
+                                int step = total > 0 ? (int) (got * 1000 / total) : 0;
+                                if (step > lastStep) {
+                                    lastStep = step;
+                                    final int p = step;
+                                    final long fg = got;
+                                    final long ft = total;
+                                    main.post(() -> {
+                                        appProgressBar.setProgress(p);
+                                        appUpdateStatus.setText(getString(R.string.app_update_prog,
+                                                ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg), mb(ft)));
+                                    });
+                                }
+                            }
                         }
+                        AppLog.i("appupdate", "apk download complete: " + apk.length() + " bytes");
                         final File f = apk;
                         main.post(() -> {
+                            appProgressBar.setVisibility(View.GONE);
                             appUpdateStatus.setText(getString(R.string.app_update_ready, latest));
                             btnAppUpdate.setEnabled(true);
                             installApk(f);
@@ -1037,6 +1198,7 @@ public class MainActivity extends AppCompatActivity {
             }
             final String ff = fail;
             main.post(() -> {
+                appProgressBar.setVisibility(View.GONE);
                 if (ff != null) {
                     appUpdateStatus.setText(getString(R.string.app_update_failed, ff));
                     btnAppUpdate.setEnabled(true);
@@ -1124,12 +1286,14 @@ public class MainActivity extends AppCompatActivity {
      * a newer Xray on this device.
      */
     private void coreBlocked(String reason) {
-        toast(getString(R.string.toast_core_blocked));
         AppLog.w("update", "core update blocked: " + reason);
-        try {
-            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://github.com/baddarksss/ConfigScanner/releases")));
-        } catch (Exception ignored) { }
+        coreStatus.setText(R.string.core_update_blocked_status);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.core_blocked_title)
+                .setMessage(getString(R.string.core_blocked_msg, String.valueOf(reason)))
+                .setPositiveButton(R.string.core_blocked_btn_app, (d, w) -> checkForAppUpdate())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     // ------------------------------------------------------------------- dialogs

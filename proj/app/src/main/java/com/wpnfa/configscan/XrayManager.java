@@ -229,6 +229,37 @@ public class XrayManager {
         return first;
     }
 
+    /**
+     * Second chance: run the binary through /system/bin/sh. On some devices
+     * the app process itself is denied a direct exec of files in its data
+     * dir, while the shell route is still allowed.
+     */
+    public static String verifyViaShell(File bin) throws Exception {
+        File dir = bin.getParentFile();
+        ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
+                "cd " + shellQuote(dir.getAbsolutePath())
+                        + " && " + shellQuote(bin.getAbsolutePath()) + " version");
+        Process p = pb.start();
+        String out = readAll(p);
+        if (out.trim().isEmpty()) out = readError(p);
+        int rc = -1;
+        try {
+            if (p.waitFor(6, TimeUnit.SECONDS)) rc = p.exitValue();
+        } catch (Exception ignored) { }
+        p.destroy();
+        String first = out.trim();
+        if (first.length() > 150) first = first.substring(0, 150);
+        AppLog.i("update", "shell-verify rc=" + rc + " out=" + first.replace("\n", " / "));
+        if (first.isEmpty() || rc != 0) {
+            throw new Exception("shell verify failed rc=" + rc + " out=" + first);
+        }
+        return first;
+    }
+
+    private static String shellQuote(String v) {
+        return "'" + v.replace("'", "'\''") + "'";
+    }
+
     /** Thrown when the device's SELinux refuses to exec the updated core. */
     public static class CoreExecBlockedException extends Exception {
         public CoreExecBlockedException(String msg) { super(msg); }
@@ -269,12 +300,19 @@ public class XrayManager {
         String vline;
         try {
             vline = verify(newBin);
-        } catch (Exception ve) {
-            try { newBin.delete(); } catch (Exception ignored) { }
-            AppLog.e("update", "verify failed: " + ve.getMessage());
-            throw new CoreExecBlockedException(
-                    "this device blocks running an updated core from the app storage ("
-                    + ve.getMessage() + ") — a newer APK is required");
+        } catch (Exception ve1) {
+            AppLog.w("update", "direct verify failed: " + ve1.getMessage()
+                    + " — retrying via /system/bin/sh");
+            try {
+                vline = verifyViaShell(newBin);
+            } catch (Exception ve2) {
+                try { newBin.delete(); } catch (Exception ignored) { }
+                AppLog.e("update", "verify failed (direct: " + ve1.getMessage()
+                        + " | shell: " + ve2.getMessage() + ")");
+                throw new CoreExecBlockedException(
+                        "this device blocks running an updated core from the app storage "
+                        + "(direct: " + ve1.getMessage() + " | shell: " + ve2.getMessage() + ")");
+            }
         }
         AppLog.i("update", "verified staged binary: " + vline);
 

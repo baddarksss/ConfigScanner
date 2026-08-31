@@ -335,6 +335,22 @@
                                 android:textIsSelectable="true"
                                 android:textSize="11.5sp" />
                         </ScrollView>
+
+                        <TextView
+                            android:id="@+id/flagStrip"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_input"
+                            android:gravity="center_vertical"
+                            android:letterSpacing="0.45"
+                            android:minHeight="40dp"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:textColor="@color/text_bright"
+                            android:textSize="17sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -572,6 +588,19 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
+                        <ProgressBar
+                            android:id="@+id/coreProgressBar"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="6dp"
+                            android:layout_marginTop="8dp"
+                            android:indeterminateTint="@color/accent"
+                            android:max="1000"
+                            android:progress="0"
+                            android:progressBackgroundTint="@color/input_bg"
+                            android:progressTint="@color/accent"
+                            android:visibility="gone" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -684,6 +713,19 @@
                             app:cornerRadius="12dp"
                             app:strokeColor="@color/stroke" />
 
+                        <ProgressBar
+                            android:id="@+id/appProgressBar"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="6dp"
+                            android:layout_marginTop="8dp"
+                            android:indeterminateTint="@color/accent"
+                            android:max="1000"
+                            android:progress="0"
+                            android:progressBackgroundTint="@color/input_bg"
+                            android:progressTint="@color/accent"
+                            android:visibility="gone" />
+
                         <TextView
                             android:id="@+id/appUpdateStatus"
                             android:layout_width="match_parent"
@@ -717,12 +759,19 @@
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
+                        <!-- Theme: tap to expand options -->
                         <LinearLayout
+                            android:id="@+id/themeHeader"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp">
 
                             <TextView
                                 android:layout_width="0dp"
@@ -732,21 +781,91 @@
                                 android:textColor="@color/text_primary"
                                 android:textSize="13sp" />
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnTheme"
-                                style="@style/Widget.Material3.Button.TextButton"
+                            <TextView
+                                android:id="@+id/themeValue"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/theme_system"
-                                android:textSize="13sp" />
+                                android:layout_marginEnd="8dp"
+                                android:text=""
+                                android:textColor="@color/accent"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/themeChevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
                         </LinearLayout>
 
                         <LinearLayout
+                            android:id="@+id/themeOptions"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="2dp"
+                            android:orientation="horizontal"
+                            android:visibility="gone">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnThemeSystem"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:layout_weight="1"
+                                android:text="@string/theme_system"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnThemeDark"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:layout_weight="1"
+                                android:text="@string/theme_dark"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnThemeLight"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/theme_light"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="4dp"
+                            android:background="@color/glass_stroke" />
+
+                        <!-- Language: tap to expand options -->
+                        <LinearLayout
+                            android:id="@+id/langHeader"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp">
 
                             <TextView
                                 android:layout_width="0dp"
@@ -756,13 +875,70 @@
                                 android:textColor="@color/text_primary"
                                 android:textSize="13sp" />
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnLanguage"
-                                style="@style/Widget.Material3.Button.TextButton"
+                            <TextView
+                                android:id="@+id/langValue"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/language_btn"
-                                android:textSize="13sp" />
+                                android:layout_marginEnd="8dp"
+                                android:text=""
+                                android:textColor="@color/accent"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/langChevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/langOptions"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:orientation="horizontal"
+                            android:visibility="gone">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnLangSystem"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:layout_weight="1"
+                                android:text="@string/lang_system"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnLangFa"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:layout_weight="1"
+                                android:text="@string/lang_fa"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnLangEn"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/lang_en"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
                         </LinearLayout>
 
                         <TextView

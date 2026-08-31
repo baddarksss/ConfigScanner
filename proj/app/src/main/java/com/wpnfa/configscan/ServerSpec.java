@@ -611,12 +611,24 @@ public class ServerSpec {
             JSONObject x = new JSONObject();
             if (path != null && !path.isEmpty()) x.put("path", path);
             if (hostHeader != null && !hostHeader.isEmpty()) x.put("host", hostHeader);
-            if (xPaddingBytes != null && !xPaddingBytes.isEmpty()) {
-                x.put("xPaddingBytes", xPaddingBytes);
-            }
+            String pad = sanitizePadding(xPaddingBytes);
+            if (pad != null) x.put("xPaddingBytes", pad);
             st.put("xhttpSettings", x);
         }
         return st;
+    }
+
+    /** Xray rejects a padding range whose minimum is 0 ("cannot be disabled"). */
+    static String sanitizePadding(String v) {
+        if (v == null || v.isEmpty()) return null;
+        int i = v.indexOf('-');
+        if (i > 0) {
+            try {
+                int min = Integer.parseInt(v.substring(0, i).trim());
+                if (min <= 0) return "1" + v.substring(i);
+            } catch (NumberFormatException ignored) { }
+        }
+        return v;
     }
 
     public String buildOutbound() throws Exception {
