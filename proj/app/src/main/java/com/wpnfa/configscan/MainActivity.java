@@ -52,7 +52,8 @@ import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String VERSION = "1.0.8";
+    /** Kept in sync with versionName in build.gradle (single source of truth). */
+    public static final String VERSION = BuildConfig.VERSION_NAME;
 
     // ---------------------------------------------------------------- fields
     private EditText input;
