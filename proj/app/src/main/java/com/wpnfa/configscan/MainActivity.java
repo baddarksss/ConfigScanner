@@ -81,8 +81,11 @@ public class MainActivity extends AppCompatActivity {
     private TextView coreVersionLabel;
     private MaterialButton btnCoreTest;
     private MaterialButton btnUpdateFile;
-    private MaterialButton btnUpdateStable;
-    private MaterialButton btnUpdatePre;
+    private MaterialButton btnCoreUpdate;
+    private com.google.android.material.checkbox.MaterialCheckBox coreBetaCheck;
+    private MaterialButton btnAppUpdate;
+    private TextView appUpdateStatus;
+    private TextView appVersionLabel;
     private MaterialButton btnAbout;
     private MaterialButton btnLog;
     private MaterialButton btnLanguage;
@@ -157,12 +160,16 @@ public class MainActivity extends AppCompatActivity {
         coreVersionLabel = findViewById(R.id.coreVersionLabel);
         btnCoreTest = findViewById(R.id.btnCoreTest);
         btnUpdateFile = findViewById(R.id.btnUpdateFile);
-        btnUpdateStable = findViewById(R.id.btnUpdateStable);
-        btnUpdatePre = findViewById(R.id.btnUpdatePre);
+        btnCoreUpdate = findViewById(R.id.btnCoreUpdate);
+        coreBetaCheck = findViewById(R.id.coreBetaCheck);
+        btnAppUpdate = findViewById(R.id.btnAppUpdate);
+        appUpdateStatus = findViewById(R.id.appUpdateStatus);
+        appVersionLabel = findViewById(R.id.appVersionLabel);
         btnAbout = findViewById(R.id.btnAbout);
         btnLog = findViewById(R.id.btnLog);
         btnLanguage = findViewById(R.id.btnLanguage);
         headerChip.setText("App v" + VERSION);
+        appVersionLabel.setText("v" + VERSION);
         btnTheme.setText(themeLabel());
     }
 
@@ -327,8 +334,11 @@ public class MainActivity extends AppCompatActivity {
 
         btnCoreTest.setOnClickListener(v -> testCore());
         btnUpdateFile.setOnClickListener(v -> coreFileLauncher.launch(new String[]{"application/zip", "application/octet-stream", "*/*"}));
-        btnUpdateStable.setOnClickListener(v -> updateFromGithub(false));
-        btnUpdatePre.setOnClickListener(v -> updateFromGithub(true));
+        coreBetaCheck.setChecked(prefs.getBoolean("core_beta", false));
+        coreBetaCheck.setOnCheckedChangeListener((b, checked) ->
+                prefs.edit().putBoolean("core_beta", checked).apply());
+        btnCoreUpdate.setOnClickListener(v -> updateFromGithub());
+        btnAppUpdate.setOnClickListener(v -> checkForAppUpdate());
 
         btnAbout.setOnClickListener(v -> showAbout());
         btnLog.setOnClickListener(v -> showLog());
@@ -504,8 +514,9 @@ public class MainActivity extends AppCompatActivity {
         refreshOutput();
         btnStart.setText(R.string.btn_stop);
 
-        // Progress card (big water circle) is always visible at the top,
-        // so nothing shifts in the layout while the run starts.
+        // The progress card (big water circle) is only visible while a run
+        // is active — hidden again is handled when the run finishes/stops.
+        progressCard.setVisibility(View.VISIBLE);
         waterCircle.setProgress(0f);
         waterCircle.setRunning(true);
         updateProgress();
@@ -540,6 +551,9 @@ public class MainActivity extends AppCompatActivity {
             waterCircle.setRunning(false);
             progressStatus.setText(R.string.progress_stopped);
             toast(getString(R.string.toast_stopped));
+            main.postDelayed(() -> {
+                if (!running) progressCard.setVisibility(View.GONE);
+            }, 2500);
         });
     }
 
@@ -597,8 +611,15 @@ public class MainActivity extends AppCompatActivity {
 
             Thread.sleep(300);
             if (!engine.isAlive()) {
+                String earlyTail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "engine exited early rc=" + engine.exitValue()
-                        + " log=[" + AppLog.fileTail(engineLog, 8) + "]");
+                        + " log=[" + earlyTail + "]");
+                // The official Xray core no longer ships some protocols
+                // (ssr, tuic, shadowtls, anytls, snici) — surface that clearly
+                if (earlyTail.contains("unknown config id")) {
+                    fail(s, getString(R.string.res_core_unsupported, s.protocol));
+                    return;
+                }
                 fail(s, getString(R.string.res_engine_error));
                 return;
             }
@@ -673,6 +694,10 @@ public class MainActivity extends AppCompatActivity {
                 waterCircle.setProgress(totalCount == 0 ? 0 : 100f);
                 progressLabel.setText(R.string.progress_done);
                 progressStatus.setText(R.string.progress_finished);
+                // back to idle: hide the circle a few seconds after finishing
+                main.postDelayed(() -> {
+                    if (!running) progressCard.setVisibility(View.GONE);
+                }, 2500);
             });
         }
     }
@@ -805,7 +830,9 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void updateFromGithub(boolean pre) {
+    /** One button: beta tick on → latest release including pre-releases, off → latest stable. */
+    private void updateFromGithub() {
+        final boolean pre = coreBetaCheck.isChecked();
         toast(getString(R.string.toast_core_searching));
         new Thread(() -> {
             try {
@@ -813,7 +840,7 @@ public class MainActivity extends AppCompatActivity {
                         .connectTimeout(15, TimeUnit.SECONDS)
                         .readTimeout(30, TimeUnit.SECONDS)
                         .build();
-                // try pre-release if requested, else latest stable
+                // beta tick: first release in the list (pre-releases included)
                 String tag = null;
                 String zipUrl = null;
                 if (pre) {
@@ -868,6 +895,130 @@ public class MainActivity extends AppCompatActivity {
                 main.post(() -> toast(getString(R.string.toast_update_failed, String.valueOf(m))));
             }
         }).start();
+    }
+
+    // ------------------------------------------------------------------- app update
+
+    private static final String OUR_REPO = "baddarksss/ConfigScanner";
+
+    /**
+     * In-app self update: checks the GitHub releases for a newer version
+     * and, if found, downloads the APK and hands it to the system installer
+     * (the user grants "install unknown apps" once on first use).
+     */
+    private void checkForAppUpdate() {
+        appUpdateStatus.setText(getString(R.string.app_update_checking));
+        btnAppUpdate.setEnabled(false);
+        new Thread(() -> {
+            String fail = null;
+            try {
+                OkHttpClient client = new OkHttpClient.Builder()
+                        .connectTimeout(15, TimeUnit.SECONDS)
+                        .readTimeout(60, TimeUnit.SECONDS)
+                        .build();
+                Request req = new Request.Builder()
+                        .url("https://api.github.com/repos/" + OUR_REPO + "/releases/latest")
+                        .get().build();
+                try (Response resp = client.newCall(req).execute()) {
+                    if (!resp.isSuccessful() || resp.body() == null)
+                        throw new Exception("GitHub HTTP " + resp.code());
+                    JSONObject rel = new JSONObject(resp.body().string());
+                    String tag = rel.optString("tag_name", ""); // e.g. v1.0.11
+                    String latest = tag.startsWith("v") ? tag.substring(1) : tag;
+                    if (latest.isEmpty()) throw new Exception("no version");
+                    if (!isNewer(latest, VERSION)) {
+                        main.post(() -> {
+                            appUpdateStatus.setText(getString(R.string.app_update_latest, VERSION));
+                            btnAppUpdate.setEnabled(true);
+                        });
+                        return;
+                    }
+                    // find the apk asset
+                    String apkUrl = null;
+                    JSONArray assets = rel.optJSONArray("assets");
+                    if (assets != null) {
+                        for (int i = 0; i < assets.length(); i++) {
+                            JSONObject a = assets.optJSONObject(i);
+                            if (a != null && a.optString("name", "").endsWith(".apk")) {
+                                apkUrl = a.optString("browser_download_url");
+                                break;
+                            }
+                        }
+                    }
+                    if (apkUrl == null) throw new Exception("no apk asset");
+                    AppLog.i("appupdate", "downloading v" + latest + " from " + apkUrl);
+                    main.post(() -> appUpdateStatus.setText(getString(R.string.app_update_download, latest)));
+                    Request dz = new Request.Builder().url(apkUrl).get().build();
+                    try (Response dr = client.newCall(dz).execute()) {
+                        if (!dr.isSuccessful() || dr.body() == null)
+                            throw new Exception("download HTTP " + dr.code());
+                        File dir = new File(getExternalFilesDir(null), "updates");
+                        if (!dir.exists()) dir.mkdirs();
+                        File apk = new File(dir, "ConfigScanner-v" + latest + ".apk");
+                        try (FileOutputStream fos = new FileOutputStream(apk);
+                             InputStream is = dr.body().byteStream()) {
+                            byte[] buf = new byte[65536];
+                            int n;
+                            while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+                        }
+                        final File f = apk;
+                        main.post(() -> {
+                            appUpdateStatus.setText(getString(R.string.app_update_ready, latest));
+                            btnAppUpdate.setEnabled(true);
+                            installApk(f);
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                fail = e.getClass().getSimpleName() + ": " + e.getMessage();
+                AppLog.e("appupdate", fail);
+            }
+            final String ff = fail;
+            main.post(() -> {
+                if (ff != null) {
+                    appUpdateStatus.setText(getString(R.string.app_update_failed, ff));
+                    btnAppUpdate.setEnabled(true);
+                }
+            });
+        }).start();
+    }
+
+    private void installApk(File apk) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 26
+                    && !getPackageManager().canRequestPackageInstalls()) {
+                startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        android.net.Uri.fromParts("package", getPackageName(), null)));
+                return; // user comes back and presses the button again
+            }
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", apk);
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(i);
+        } catch (Exception e) {
+            AppLog.e("appupdate", "install intent failed: " + e.getMessage());
+            appUpdateStatus.setText(getString(R.string.app_update_failed, String.valueOf(e.getMessage())));
+        }
+    }
+
+    /** Simple dotted version comparison (works for x.y.z). */
+    private static boolean isNewer(String a, String b) {
+        String[] pa = a.split("\\.");
+        String[] pb = b.split("\\.");
+        int n = Math.max(pa.length, pb.length);
+        for (int i = 0; i < n; i++) {
+            int x = i < pa.length ? parseIntSafe(pa[i]) : 0;
+            int y = i < pb.length ? parseIntSafe(pb[i]) : 0;
+            if (x != y) return x > y;
+        }
+        return false;
+    }
+
+    private static int parseIntSafe(String s) {
+        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return 0; }
     }
 
     /**

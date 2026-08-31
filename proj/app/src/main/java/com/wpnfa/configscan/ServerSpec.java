@@ -42,6 +42,14 @@ public class ServerSpec {
     public String password = "";
     public String method = "";
 
+    // ssr
+    public String ssrObfs = "plain";
+    public String ssrObfsParam = "";
+
+    // shadowtls
+    public int stlsVersion = 3;
+    public String stlsPublic = "";
+
     // hysteria2 obfs (salamander)
     public String obfs = "";
     public String obfsParam = "";
@@ -122,6 +130,11 @@ public class ServerSpec {
         if (l.startsWith("trojan://")) return parseTrojan(line);
         if (l.startsWith("hysteria2://") || l.startsWith("hysteria://")) return parseHysteria(line);
         if (l.startsWith("ss://")) return parseSS(line);
+        if (l.startsWith("ssr://")) return parseSSR(line);
+        if (l.startsWith("tuic://")) return parseTUIC(line);
+        if (l.startsWith("shadowtls://")) return parseShadowTLS(line);
+        if (l.startsWith("anytls://")) return parseAnyTLS(line);
+        if (l.startsWith("snic://")) return parseSNIc(line);
         return null;
     }
 
@@ -299,6 +312,194 @@ public class ServerSpec {
             try { s.port = Integer.parseInt(parts[parts.length - 1]); } catch (Exception e) { return null; }
         }
         if (s.host.isEmpty() || s.method.isEmpty()) return null;
+        return s;
+    }
+
+    // ------------------------------------------------------------------
+    // SSR / TUIC / ShadowTLS / AnyTLS / SNIc
+    // Note: the current official Xray-core release does not ship these
+    // outbounds; the app still parses them and reports a clear
+    // "not in core" message at test time (see MainActivity).
+    // ------------------------------------------------------------------
+
+    private static ServerSpec parseSSR(String line) {
+        ServerSpec s = new ServerSpec();
+        s.raw = line;
+        s.protocol = "ssr";
+        String body = line.substring(6);
+        int fi = body.lastIndexOf('#');
+        if (fi >= 0) {
+            s.name = urlDecode(body.substring(fi + 1));
+            body = body.substring(0, fi);
+        }
+        int at = body.lastIndexOf('@');
+        if (at >= 0) {
+            // ssr://method:password@host:port?obfs=...
+            int ci = body.indexOf(':');
+            if (ci <= 0) return null;
+            s.method = urlDecode(body.substring(0, ci));
+            String rest = body.substring(ci + 1);
+            int at2 = rest.indexOf('@');
+            if (at2 < 0) return null;
+            s.password = urlDecode(rest.substring(0, at2));
+            String hostport = rest.substring(at2 + 1);
+            int qi = hostport.indexOf('?');
+            Map<String, String> q = new HashMap<>();
+            if (qi >= 0) {
+                q = parseQuery(hostport.substring(qi + 1));
+                hostport = hostport.substring(0, qi);
+            }
+            String[] hp = splitHostPort(hostport);
+            s.host = hp[0];
+            try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
+            s.ssrObfs = firstNonEmpty(q.get("obfs"), "plain");
+            s.ssrObfsParam = firstNonEmpty(q.get("obfsparam"), q.get("protoparam"));
+        } else {
+            // legacy: base64(method:password:server:port[:obfs[:obfsparam]])
+            // password may contain ':', so pin the tail (host:port[:obfs[:obfsparam]])
+            // and treat everything between method and host as the password.
+            String decoded = b64decode(body);
+            String[] parts = decoded.split(":");
+            int n = parts.length;
+            if (n < 4) return null;
+            int hostIdx;
+            if (n >= 6) {
+                s.ssrObfsParam = parts[n - 1];
+                s.ssrObfs = parts[n - 2];
+                hostIdx = n - 4;
+            } else if (n == 5) {
+                s.ssrObfs = parts[n - 1];
+                hostIdx = n - 3;
+            } else {
+                hostIdx = n - 2;
+            }
+            s.method = parts[0];
+            s.host = parts[hostIdx];
+            try { s.port = Integer.parseInt(parts[hostIdx + 1]); } catch (Exception e) { return null; }
+            StringBuilder pw = new StringBuilder(parts[1]);
+            for (int i = 2; i < hostIdx; i++) pw.append(':').append(parts[i]);
+            s.password = pw.toString();
+            if (s.ssrObfs.isEmpty()) s.ssrObfs = "plain";
+        }
+        if (s.host.isEmpty() || s.method.isEmpty()) return null;
+        return s;
+    }
+
+    private static ServerSpec parseTUIC(String line) {
+        ServerSpec s = new ServerSpec();
+        s.raw = line;
+        s.protocol = "tuic";
+        String body = line.substring(7);
+        int fi = body.lastIndexOf('#');
+        if (fi >= 0) {
+            s.name = urlDecode(body.substring(fi + 1));
+            body = body.substring(0, fi);
+        }
+        int qi = body.indexOf('?');
+        Map<String, String> q = new HashMap<>();
+        String hostport = body;
+        if (qi >= 0) {
+            hostport = body.substring(0, qi);
+            q = parseQuery(body.substring(qi + 1));
+        }
+        String[] hp = splitHostPort(hostport);
+        s.host = hp[0];
+        try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
+        s.uuid = q.get("uuid");
+        s.password = q.get("password");
+        s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
+        if ("true".equals(q.get("allowinsecure")) || "1".equals(q.get("allowinsecure"))
+                || "true".equals(q.get("insecure")) || "1".equals(q.get("insecure")))
+            s.allowInsecure = true;
+        if (s.host.isEmpty() || s.uuid == null) return null;
+        return s;
+    }
+
+    private static ServerSpec parseShadowTLS(String line) {
+        ServerSpec s = new ServerSpec();
+        s.raw = line;
+        s.protocol = "shadowtls";
+        String body = line.substring(12);
+        int fi = body.lastIndexOf('#');
+        if (fi >= 0) {
+            s.name = urlDecode(body.substring(fi + 1));
+            body = body.substring(0, fi);
+        }
+        int qi = body.indexOf('?');
+        Map<String, String> q = new HashMap<>();
+        String hostport = body;
+        if (qi >= 0) {
+            hostport = body.substring(0, qi);
+            q = parseQuery(body.substring(qi + 1));
+        }
+        String[] hp = splitHostPort(hostport);
+        s.host = hp[0];
+        try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
+        s.password = firstNonEmpty(q.get("private"), q.get("password"));
+        s.stlsPublic = firstNonEmpty(q.get("public"), q.get("sni"));
+        String v = q.get("v");
+        if ("v2".equalsIgnoreCase(v)) s.stlsVersion = 2;
+        else if ("v3".equalsIgnoreCase(v)) s.stlsVersion = 3;
+        s.network = firstNonEmpty(q.get("type"), "tcp");
+        s.path = q.get("path");
+        s.hostHeader = q.get("host");
+        if (s.host.isEmpty() || s.password.isEmpty()) return null;
+        return s;
+    }
+
+    private static ServerSpec parseAnyTLS(String line) {
+        ServerSpec s = new ServerSpec();
+        s.raw = line;
+        s.protocol = "anytls";
+        String body = line.substring(9);
+        int fi = body.lastIndexOf('#');
+        if (fi >= 0) {
+            s.name = urlDecode(body.substring(fi + 1));
+            body = body.substring(0, fi);
+        }
+        int at = body.lastIndexOf('@');
+        if (at >= 0) {
+            s.uuid = urlDecode(body.substring(0, at));
+            body = body.substring(at + 1);
+        }
+        int qi = body.indexOf('?');
+        Map<String, String> q = new HashMap<>();
+        String hostport = body;
+        if (qi >= 0) {
+            hostport = body.substring(0, qi);
+            q = parseQuery(body.substring(qi + 1));
+        }
+        String[] hp = splitHostPort(hostport);
+        s.host = hp[0];
+        try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
+        s.password = q.get("password");
+        s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
+        if (s.host.isEmpty()) return null;
+        return s;
+    }
+
+    private static ServerSpec parseSNIc(String line) {
+        ServerSpec s = new ServerSpec();
+        s.raw = line;
+        s.protocol = "snic";
+        String body = line.substring(7);
+        int fi = body.lastIndexOf('#');
+        if (fi >= 0) {
+            s.name = urlDecode(body.substring(fi + 1));
+            body = body.substring(0, fi);
+        }
+        int qi = body.indexOf('?');
+        Map<String, String> q = new HashMap<>();
+        String hostport = body;
+        if (qi >= 0) {
+            hostport = body.substring(0, qi);
+            q = parseQuery(body.substring(qi + 1));
+        }
+        String[] hp = splitHostPort(hostport);
+        s.host = hp[0];
+        try { s.port = Integer.parseInt(hp[1]); } catch (Exception e) { return null; }
+        s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
+        if (s.host.isEmpty()) return null;
         return s;
     }
 
@@ -534,6 +735,105 @@ public class ServerSpec {
                     mask.put("settings", new JSONObject().put("password", obfsParam));
                     st.put("udpmasks", new JSONArray().put(mask));
                 }
+                o.put("streamSettings", st);
+                break;
+            }
+            case "ssr": {
+                o.put("protocol", "ssr");
+                JSONObject srv = new JSONObject();
+                srv.put("address", host);
+                srv.put("port", port);
+                srv.put("method", method);
+                srv.put("password", password);
+                srv.put("obfs", ssrObfs == null || ssrObfs.isEmpty() ? "plain" : ssrObfs);
+                srv.put("obfsparam", ssrObfsParam == null ? "" : ssrObfsParam);
+                srv.put("level", 0);
+                serversArr.put(srv);
+                JSONObject settings = new JSONObject();
+                settings.put("servers", serversArr);
+                o.put("settings", settings);
+                break;
+            }
+            case "tuic": {
+                o.put("protocol", "tuic");
+                JSONObject settings = new JSONObject();
+                settings.put("address", host);
+                settings.put("port", port);
+                settings.put("uuid", uuid);
+                if (password != null && !password.isEmpty()) settings.put("password", password);
+                o.put("settings", settings);
+                JSONObject st = new JSONObject();
+                st.put("security", "tls");
+                JSONObject t = new JSONObject();
+                String tSni = (sni != null && !sni.isEmpty()) ? sni : host;
+                t.put("serverName", tSni);
+                t.put("alpn", new JSONArray().put("h2"));
+                if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                if (allowInsecure) {
+                    if (pinnedCertHash != null && !pinnedCertHash.isEmpty()) {
+                        t.put("pinnedPeerCertSha256", pinnedCertHash);
+                    } else {
+                        t.put("verifyPeerCertByName", tSni);
+                    }
+                }
+                st.put("tlsSettings", t);
+                st.put("quicSettings", new JSONObject().put("congestionControl", "bbr"));
+                o.put("streamSettings", st);
+                break;
+            }
+            case "shadowtls": {
+                o.put("protocol", "shadowtls");
+                JSONObject settings = new JSONObject();
+                settings.put("version", stlsVersion);
+                // v3: server = the real (public) SNI; v2: server = host
+                settings.put("server", stlsPublic != null && !stlsPublic.isEmpty() && stlsVersion == 3
+                        ? stlsPublic : host);
+                settings.put("password", password);
+                o.put("settings", settings);
+                JSONObject st = new JSONObject();
+                if (network != null && !network.isEmpty() && !network.equals("tcp")) {
+                    st.put("network", network);
+                }
+                o.put("streamSettings", st);
+                break;
+            }
+            case "anytls": {
+                o.put("protocol", "anytls");
+                JSONObject user = new JSONObject();
+                if (uuid != null && !uuid.isEmpty()) user.put("uuid", uuid);
+                if (password != null) user.put("password", password);
+                JSONArray users = new JSONArray();
+                users.put(user);
+                JSONObject settings = new JSONObject();
+                settings.put("users", users);
+                o.put("settings", settings);
+                JSONObject st = new JSONObject();
+                st.put("security", "tls");
+                JSONObject t = new JSONObject();
+                String aSni = (sni != null && !sni.isEmpty()) ? sni : host;
+                t.put("serverName", aSni);
+                if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                if (allowInsecure) {
+                    if (pinnedCertHash != null && !pinnedCertHash.isEmpty()) {
+                        t.put("pinnedPeerCertSha256", pinnedCertHash);
+                    } else {
+                        t.put("verifyPeerCertByName", aSni);
+                    }
+                }
+                st.put("tlsSettings", t);
+                o.put("streamSettings", st);
+                break;
+            }
+            case "snic": {
+                o.put("protocol", "snici");
+                o.put("settings", new JSONObject());
+                JSONObject st = new JSONObject();
+                st.put("security", "tls");
+                JSONObject t = new JSONObject();
+                String sSni = (sni != null && !sni.isEmpty()) ? sni : host;
+                t.put("serverName", sSni);
+                if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                st.put("tlsSettings", t);
                 o.put("streamSettings", st);
                 break;
             }

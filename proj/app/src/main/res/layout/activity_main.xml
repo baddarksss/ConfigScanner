@@ -72,6 +72,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:visibility="gone"
                     app:cardBackgroundColor="@color/glass_card"
                     app:cardCornerRadius="22dp"
                     app:cardElevation="0dp"
@@ -337,123 +338,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 5: Xray -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    app:cardBackgroundColor="@color/glass_card"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="0dp">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="14dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/xray_title"
-                                android:textColor="@color/text_bright"
-                                android:textSize="15sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/coreStatus"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text=""
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/coreVersionLabel"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:layoutDirection="ltr"
-                            android:gravity="end"
-                            android:text=""
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:orientation="horizontal">
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnCoreTest"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_core_test"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnUpdateFile"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_update_file"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:orientation="horizontal">
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnUpdateStable"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_update_stable"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnUpdatePre"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_update_pre"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
 
                 <!-- About + Log -->
                 <LinearLayout
@@ -633,6 +518,179 @@
                             android:text="@string/timeout_caption"
                             android:textColor="@color/text_secondary"
                             android:textSize="10.5sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Xray core (moved here) -->
+                <!-- 5: Xray -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="@color/glass_card"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/xray_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/coreStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/coreVersionLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:layoutDirection="ltr"
+                            android:gravity="end"
+                            android:text=""
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCoreTest"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/btn_core_test"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="12dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnUpdateFile"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="@string/btn_update_file"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="12dp"
+                                app:strokeColor="@color/stroke" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCoreUpdate"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/btn_core_update"
+                            android:textSize="13sp" />
+
+                        <com.google.android.material.checkbox.MaterialCheckBox
+                            android:id="@+id/coreBetaCheck"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="@string/core_beta"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12.5sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/core_update_caption"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10.5sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+                <!-- App update -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="@color/glass_card"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/glass_stroke"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/app_update_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/appVersionLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layoutDirection="ltr"
+                                android:text="v"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnAppUpdate"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/btn_app_update"
+                            android:textColor="@color/btn_text"
+                            android:textSize="13sp"
+                            app:cornerRadius="12dp"
+                            app:strokeColor="@color/stroke" />
+
+                        <TextView
+                            android:id="@+id/appUpdateStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
