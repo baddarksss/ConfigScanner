@@ -24,6 +24,8 @@ public class ServerSpec {
     // vless / shared
     public String uuid = "";
     public String flow = "";
+    public String vlessEncryption = "";  // e.g. mlkem768x25519plus.native.0rtt.<key>
+    public String xPaddingBytes = "";    // xhttp padding, e.g. "100-1000"
     public String security = "";      // none | tls | reality
     public String sni = "";
     public String fingerprint = "";
@@ -152,6 +154,14 @@ public class ServerSpec {
         if (s.network.equals("h2") || s.network.equals("http")) s.network = "tcp";
         s.security = firstNonEmpty(q.get("security"), "none");
         s.flow = q.get("flow");
+        // VLESS user-level encryption: modern panels emit post-quantum
+        // hybrid key exchange like
+        // "mlkem768x25519plus.native.0rtt.<base64-key>" — pass it through,
+        // "none" (the classic default) when absent.
+        s.vlessEncryption = q.get("encryption");
+        // xhttp transport options
+        s.xPaddingBytes = firstNonEmpty(q.get("x_padding_bytes"),
+                q.get("xpaddingbytes"));
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"), q.get("peer"));
         s.pbk = q.get("pbk");
         s.sid = q.get("sid");
@@ -396,6 +406,15 @@ public class ServerSpec {
             g.put("multiMode", false);
             st.put("grpcSettings", g);
         }
+        if ("xhttp".equals(network)) {
+            JSONObject x = new JSONObject();
+            if (path != null && !path.isEmpty()) x.put("path", path);
+            if (hostHeader != null && !hostHeader.isEmpty()) x.put("host", hostHeader);
+            if (xPaddingBytes != null && !xPaddingBytes.isEmpty()) {
+                x.put("xPaddingBytes", xPaddingBytes);
+            }
+            st.put("xhttpSettings", x);
+        }
         return st;
     }
 
@@ -407,7 +426,11 @@ public class ServerSpec {
                 o.put("protocol", "vless");
                 JSONObject user = new JSONObject();
                 user.put("id", uuid);
-                user.put("encryption", "none");
+                // classic default is "none"; newer panels may require the
+                // post-quantum hybrid exchange (mlkem768x25519plus…)
+                user.put("encryption",
+                        vlessEncryption == null || vlessEncryption.isEmpty()
+                                ? "none" : vlessEncryption);
                 if (flow != null && !flow.isEmpty()) user.put("flow", flow);
                 JSONArray vnext = new JSONArray();
                 JSONObject vObj = new JSONObject();
