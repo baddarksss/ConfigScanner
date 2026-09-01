@@ -719,6 +719,7 @@ public class MainActivity extends AppCompatActivity {
         }
         running = true;
         runFinished.set(false);
+        assignedPorts.clear();
         okCount.set(0);
         noCountryCount.set(0);
         unreachableCount.set(0);
@@ -728,9 +729,6 @@ public class MainActivity extends AppCompatActivity {
         doneCount.set(0);
         totalCount = servers.size();
         basePort = 21000 + (int) (Math.random() * 500);
-        AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
-                + " xray=" + XrayManager.version(bin)
-                + (hasHy2 ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
         outputLines.clear();
         refreshOutput();
         btnStart.setText(R.string.btn_stop);
@@ -742,14 +740,25 @@ public class MainActivity extends AppCompatActivity {
         waterCircle.setRunning(true);
         updateProgress();
 
-        pool = Executors.newFixedThreadPool(Math.max(1, parallelBar.getProgress() + 1));
+        // Read UI controls on the UI thread; everything heavy below
+        // (engine version exec, per-server port probing) runs on a worker
+        // thread so a big list can never ANR the click.
+        final int parallelN = Math.max(1, parallelBar.getProgress() + 1);
         final int timeoutSec = timeoutBar.getProgress() + 5;
-        // pool.submit only enqueues — no extra thread needed
-        for (int i = 0; i < servers.size(); i++) {
-            final ServerSpec s = servers.get(i);
-            final int port = findFreePort(basePort + i);
-            pool.submit(() -> testOne(s, port, timeoutSec));
-        }
+        final boolean hasHy2F = hasHy2;
+        final File binF = bin;
+        new Thread(() -> {
+            AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
+                    + " xray=" + XrayManager.version(binF)
+                    + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
+            pool = Executors.newFixedThreadPool(parallelN);
+            // pool.submit only enqueues — no extra thread needed
+            for (int i = 0; i < servers.size(); i++) {
+                final ServerSpec s = servers.get(i);
+                final int port = findFreePort(basePort + i);
+                pool.submit(() -> testOne(s, port, timeoutSec));
+            }
+        }, "run-prep").start();
     }
 
     /** Keep at most the 24 most recent engine log/config files. */
@@ -765,9 +774,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Returns the first TCP port not already listening, starting at `start`. */
+    /** Ports handed out for the current run — xray is not listening yet at
+     *  allocation time, so "is it in use?" alone lets two servers pick the
+     *  same port and one of them fails to bind. */
+    private final java.util.Set<Integer> assignedPorts =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<Integer>());
+
     private int findFreePort(int start) {
         for (int p = start; p < start + 500; p++) {
-            if (!XrayManager.portInUse(p)) return p;
+            if (assignedPorts.contains(p)) continue;
+            if (!XrayManager.portInUse(p)) {
+                assignedPorts.add(p);
+                return p;
+            }
         }
         AppLog.w("run", "no free port found in [" + start + "," + (start + 500) + ")");
         return start + 500;
@@ -814,6 +833,16 @@ public class MainActivity extends AppCompatActivity {
             // obfs type without a password: cannot be tested at all.
             // (inside the try so the finally below still counts the server and
             //  finishes the run when every server takes this path)
+            if ("hysteria1".equals(s.protocol)) {
+                doneCount.incrementAndGet();
+                skipCount.incrementAndGet();
+                String base = s.name.isEmpty() ? "hysteria v1" : s.name;
+                outputLines.add("⚠️ " + base + " — " + getString(R.string.res_hysteria1_unsupported));
+                AppLog.w("test", "SKIP " + base + " (hysteria v1 not supported by the core)");
+                refreshOutput();
+                autoScroll();
+                return;
+            }
             if ("hysteria2".equals(s.protocol)
                     && s.obfs != null && !s.obfs.isEmpty()
                     && !"plain".equalsIgnoreCase(s.obfs)
@@ -969,6 +998,7 @@ public class MainActivity extends AppCompatActivity {
     private void finishRun() {
         if (runStopped) return; // a stopped run never "finishes"
         if (runFinished.compareAndSet(false, true)) {
+            if (pool != null) pool.shutdownNow(); // no leaked idle threads per run
             cancelScanNotification();
             final String summary = buildRunSummary();
             AppLog.i("run", "finished: " + summary);
@@ -1435,18 +1465,29 @@ public class MainActivity extends AppCompatActivity {
         postUi(() -> progressStatus.setText(s));
     }
 
-    private void refreshOutput() {
-        final int n;
-        StringBuilder sb = new StringBuilder();
-        synchronized (outputLines) {
-            n = outputLines.size();
-            for (String l : outputLines) sb.append(l).append("\n");
+    /** Debounced output flush — long runs used to rebuild the whole box per
+     *  result (O(n^2)); now at most one rebuild per 250ms. */
+    private final Runnable outputFlusher = new Runnable() {
+        @Override public void run() {
+            final int n;
+            StringBuilder sb = new StringBuilder();
+            synchronized (outputLines) {
+                n = outputLines.size();
+                for (String l : outputLines) sb.append(l).append("\n");
+            }
+            // Never scroll programmatically while a run is in progress — the
+            // ScrollView keeps the user's viewport where they left it.
+            postUi(() -> {
+                outputView.setText(sb.toString());
+                outCount.setText(getString(R.string.lines_count, n));
+            });
         }
-        // Never scroll programmatically while a run is in progress — the
-        // ScrollView keeps the user's viewport where they left it.
+    };
+
+    private void refreshOutput() {
         postUi(() -> {
-            outputView.setText(sb.toString());
-            outCount.setText(getString(R.string.lines_count, n));
+            main.removeCallbacks(outputFlusher);
+            main.postDelayed(outputFlusher, 250);
         });
     }
 
@@ -1469,7 +1510,9 @@ public class MainActivity extends AppCompatActivity {
         for (String line : outputLines) {
             String t = line.trim();
             if (t.startsWith("vless://") || t.startsWith("vmess://") || t.startsWith("trojan://")
-                    || t.startsWith("ss://") || t.startsWith("socks://")
+                    || t.startsWith("ss://") || t.startsWith("socks://") || t.startsWith("ssr://")
+                    || t.startsWith("tuic://") || t.startsWith("shadowtls://")
+                    || t.startsWith("anytls://") || t.startsWith("snic://")
                     || t.startsWith("hysteria2://") || t.startsWith("hy2://")) {
                 links.add(t);
             }

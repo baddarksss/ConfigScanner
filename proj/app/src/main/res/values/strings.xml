@@ -130,6 +130,7 @@
     <!-- Result line reasons -->
     <string name="res_xray_error">Xray error — invalid config</string>
     <string name="res_connect_failed">Could not connect to server</string>
+    <string name="res_hysteria1_unsupported">Hysteria v1 is not supported by the Xray core</string>
     <string name="res_tunnel_dead">Connected, but the exit does not pass traffic</string>
     <string name="res_country_unknown">Connected but country unknown</string>
     <string name="res_obfs_nopass">obfs without password — cannot test</string>
@@ -193,7 +194,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.30
+<string name="changelog">v1.0.31
+• Fixed: port collisions between servers in the same run (two servers could grab the same port and one failed to bind, showing a false “unreachable”)
+• Fixed: starting a run with a big list could freeze the screen (ANR) — engine version checks and port probing now run in the background
+• Fixed: vmess+gRPC links where the panel puts the service name in “path” now work
+• Fixed: leaked worker threads after each finished run
+• New: Hysteria v1 links are reported with a clear message instead of being mis-parsed; unbracketed IPv6 addresses no longer break host/port parsing
+• Cleaner: dead geo sources removed, country.is now part of the second wave; results box updates are debounced
+
+v1.0.30
 • New: TCP fragment support — the fm= field (tlshello, lengths, delays) is now applied to the dial; servers that dropped TLS hellos (mostly the 188.114.97.x cloudflare-style ones) should now connect
 • New: ECH support for links with ech= (xray force-query)
 • New: a fast lone-request probe before the geo check — an exit that instantly resets the traffic is now reported as “unreachable” instead of burning the whole geo budget as “country unknown”

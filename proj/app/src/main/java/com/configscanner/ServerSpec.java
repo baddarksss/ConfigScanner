@@ -128,6 +128,9 @@ public class ServerSpec {
         }
         int c = hp.lastIndexOf(':');
         if (c < 0) return new String[]{hp, ""};
+        // unbracketed IPv6 ("2001:db8::1" has no port) — the last colon is
+        // part of the address, not a port separator
+        if (hp.substring(0, c).indexOf(':') >= 0) return new String[]{hp, ""};
         String maybePort = hp.substring(c + 1);
         if (isPort(maybePort)) return new String[]{hp.substring(0, c), maybePort};
         return new String[]{hp, ""};
@@ -163,7 +166,17 @@ public class ServerSpec {
         if (l.startsWith("vless://")) return parseVless(line);
         if (l.startsWith("vmess://")) return parseVmess(line);
         if (l.startsWith("trojan://")) return parseTrojan(line);
-        if (l.startsWith("hysteria2://") || l.startsWith("hysteria://")) return parseHysteria(line);
+        if (l.startsWith("hysteria2://")) return parseHysteria(line);
+        if (l.startsWith("hysteria://")) {
+            // hysteria v1: different auth, not supported by the core — surface
+            // it as an explicit skip instead of mis-parsing it as v2
+            ServerSpec h1 = new ServerSpec();
+            h1.raw = line;
+            h1.protocol = "hysteria1";
+            int fi = line.lastIndexOf('#');
+            h1.name = fi >= 0 ? urlDecode(line.substring(fi + 1)) : "hysteria v1";
+            return h1;
+        }
         if (l.startsWith("ss://")) return parseSS(line);
         if (l.startsWith("ssr://")) return parseSSR(line);
         if (l.startsWith("tuic://")) return parseTUIC(line);
@@ -277,6 +290,11 @@ public class ServerSpec {
             s.path = o.optString("path", "");
             s.hostHeader = o.optString("host", "");
             s.flow = o.optString("flow", "");
+            // vmess panels put the gRPC service name in "path"
+            s.serviceName = o.optString("servicename", "");
+            if (s.serviceName.isEmpty() && "grpc".equals(s.network) && !s.path.isEmpty()) {
+                s.serviceName = s.path.startsWith("/") ? s.path.substring(1) : s.path;
+            }
             if (s.host.isEmpty() || s.uuid.isEmpty()) return null;
         } catch (Exception e) {
             return null;

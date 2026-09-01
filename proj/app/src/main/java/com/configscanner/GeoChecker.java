@@ -48,15 +48,15 @@ public class GeoChecker {
 
     /** {url, countryField, codeField, successField (nullable)}
      *  Order = preference; all run in parallel and the first answers win. */
+    // Only services that actually answer through proxy exits (measured over
+    // several runs). ipapi.co / ifconfig.co / ip-api.com were dead 100% of the
+    // time (ip-api has no HTTPS on its free plan) so they were dropped.
     private static final String[][] SERVICES = {
             {"https://ipwho.is/", "country", "country_code", "success"},
             {"https://api.country.is/", "country", "country_code", null},
             {"https://api.ip.sb/geoip", "country", "country_code", null},
             {"https://ipinfo.io/json", "", "country", null},
             {"https://www.cloudflare.com/cdn-cgi/trace", "@@trace", "loc", null},
-            {"https://ipapi.co/json/", "country_name", "country_code", "success"},
-            {"https://ifconfig.co/json", "country_name", "country_code", null},
-            {"https://ip-api.com/json/", "country", "country_code", null},
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
@@ -76,7 +76,7 @@ public class GeoChecker {
         //   wave 3: 1 sequential single
         //   wave 4: 1 sequential single
         String[][] wave1 = {SERVICES[4], SERVICES[2]}; // cloudflare, ip.sb
-        String[][] wave2 = {SERVICES[0], SERVICES[3]}; // ipwho.is, ipinfo
+        String[][] wave2 = {SERVICES[0], SERVICES[3], SERVICES[1]}; // ipwho.is, ipinfo, country.is
         String[][] wave3 = {SERVICES[4]};              // lone cloudflare
         String[][] wave4 = {SERVICES[2]};              // lone ip.sb
 
