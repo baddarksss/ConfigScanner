@@ -130,6 +130,7 @@
     <!-- Result line reasons -->
     <string name="res_xray_error">Xray error — invalid config</string>
     <string name="res_connect_failed">Could not connect to server</string>
+    <string name="res_tunnel_dead">Connected, but the exit does not pass traffic</string>
     <string name="res_country_unknown">Connected but country unknown</string>
     <string name="res_obfs_nopass">obfs without password — cannot test</string>
     <string name="res_engine_error">Engine error — invalid config</string>
@@ -192,7 +193,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.29
+<string name="changelog">v1.0.30
+• New: TCP fragment support — the fm= field (tlshello, lengths, delays) is now applied to the dial; servers that dropped TLS hellos (mostly the 188.114.97.x cloudflare-style ones) should now connect
+• New: ECH support for links with ech= (xray force-query)
+• New: a fast lone-request probe before the geo check — an exit that instantly resets the traffic is now reported as “unreachable” instead of burning the whole geo budget as “country unknown”
+
+v1.0.29
 • Full advanced-xhttp support: mode (auto / stream-one), ALPN, and the panel extra JSON (headers, xmux, xPadding obfuscation) are now mapped into the Xray config — servers that previously only half-connected (e.g. b2n.ir) now connect fully
 • New: a connected server whose country could not be detected is no longer a hard fail — it stays in the results with a ⚠️ mark (link is copyable, country unknown)
 

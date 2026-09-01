@@ -43,12 +43,33 @@ public class XrayConfig {
         ins.put(in);
         c.put("inbounds", ins);
 
+        JSONObject proxyOut = new JSONObject(s.buildOutbound());
+        JSONObject fragOut = null;
+        JSONObject fragSet = ServerSpec.fragmentSettings(s.fragmentRaw);
+        if (fragSet != null) {
+            // v2rayNG-style fragment: the dial to the server goes through a
+            // freedom outbound that applies the TCP fragment settings
+            proxyOut.put("tag", "proxy");
+            JSONObject st = proxyOut.optJSONObject("streamSettings");
+            if (st == null) { st = new JSONObject(); proxyOut.put("streamSettings", st); }
+            JSONObject so = st.optJSONObject("sockopt");
+            if (so == null) { so = new JSONObject(); st.put("sockopt", so); }
+            so.put("dialerProxy", "fragment");
+            so.put("tcpNoDelay", true);
+            fragOut = new JSONObject();
+            fragOut.put("tag", "fragment");
+            fragOut.put("protocol", "freedom");
+            fragOut.put("settings", fragSet);
+            fragOut.put("streamSettings", new JSONObject()
+                    .put("sockopt", new JSONObject().put("tcpNoDelay", true)));
+        }
         JSONArray outs = new JSONArray();
-        outs.put(new JSONObject(s.buildOutbound()));
+        outs.put(proxyOut);
         JSONObject bh = new JSONObject();
         bh.put("protocol", "blackhole");
         bh.put("tag", "block");
         outs.put(bh);
+        if (fragOut != null) outs.put(fragOut);
         c.put("outbounds", outs);
 
         return c.toString();

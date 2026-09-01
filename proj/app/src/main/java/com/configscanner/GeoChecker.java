@@ -39,6 +39,9 @@ public class GeoChecker {
         public String ip = "";
         public int votes = 0;
         public int answered = 0;
+        /** tunnel is up but an immediate single-request probe was reset —
+         *  the exit does not pass traffic for this client. */
+        public boolean deadTunnel = false;
         /** true when exactly ONE service answered — treat as low confidence */
         public boolean singleVote = false;
     }
@@ -78,6 +81,16 @@ public class GeoChecker {
         String[][] wave4 = {SERVICES[2]};              // lone ip.sb
 
         List<String[]> votes = new ArrayList<>();
+        // Fast lone-request probe first: an exit that resets single requests
+        // will not carry the bursts either — report it as a dead tunnel
+        // instead of burning the whole geo budget on a ⚠️ result.
+        Probe pr = probeTunnel(proxyPort, connectTimeoutSec);
+        if (pr.kind == PKind.DEAD) {
+            Result dead = new Result();
+            dead.deadTunnel = true;
+            return dead;
+        }
+        if (pr.vote != null) votes.add(pr.vote);
         collectWave(wave1, proxyPort, connectTimeoutSec, deadline, votes);
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
@@ -92,6 +105,63 @@ public class GeoChecker {
     }
 
     /** ~1s pause between waves so a rate-limiting/throttling exit recovers. */
+    private enum PKind { OK, DEAD, SLOW }
+
+    private static final class Probe {
+        final PKind kind;
+        final String[] vote;
+        Probe(PKind k, String[] v) { kind = k; vote = v; }
+    }
+
+    /** Two lone requests (cloudflare, then ip.sb on immediate reset).
+     *  OK = a vote is ready; SLOW = slow exit, let the waves try;
+     *  DEAD = the tunnel does not pass traffic at all. */
+    private static Probe probeTunnel(int proxyPort, int connectTimeoutSec) {
+        OkHttpClient client = newProxyClient(proxyPort, connectTimeoutSec);
+        try {
+            Request req = new Request.Builder().url(SERVICES[4][0]).get().build();
+            try (Response resp = client.newCall(req).execute()) {
+                if (resp.isSuccessful() && resp.body() != null) {
+                    for (String line : resp.body().string().split("\n")) {
+                        if (line.startsWith("loc=")) {
+                            String code = line.substring(4).trim().toUpperCase();
+                            if (code.length() == 2) return new Probe(PKind.OK, countryVote(code));
+                        }
+                    }
+                }
+                return new Probe(PKind.SLOW, null);
+            }
+        } catch (java.net.SocketTimeoutException e) {
+            return new Probe(PKind.SLOW, null);
+        } catch (Exception e) {
+            AppLog.d("geo", "probe reset: " + e.getClass().getSimpleName());
+        }
+        try {
+            Request req = new Request.Builder().url(SERVICES[2][0]).get().build();
+            try (Response resp = client.newCall(req).execute()) {
+                if (resp.isSuccessful() && resp.body() != null) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("\"country_code\"\\s*:\\s*\"([A-Za-z]{2})\"")
+                            .matcher(resp.body().string());
+                    if (m.find()) return new Probe(PKind.OK, countryVote(m.group(1).toUpperCase()));
+                }
+                return new Probe(PKind.SLOW, null);
+            }
+        } catch (java.net.SocketTimeoutException e) {
+            return new Probe(PKind.SLOW, null);
+        } catch (Exception e) {
+            AppLog.d("geo", "probe2 reset: " + e.getClass().getSimpleName());
+        }
+        return new Probe(PKind.DEAD, null);
+    }
+
+    private static String[] countryVote(String code) {
+        String name = "";
+        CountryData.C c = CountryData.byCode(code);
+        if (c != null) name = c.en;
+        return new String[]{code, name, ""};
+    }
+
     private static void cooldown(long deadline) {
         long left = deadline - System.currentTimeMillis() - 1200;
         if (left <= 0) return;

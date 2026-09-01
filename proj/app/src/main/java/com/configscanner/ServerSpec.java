@@ -29,6 +29,8 @@ public class ServerSpec {
     public String xhttpMode = "";        // xhttp mode: auto | stream-one (xray 26.x)
     public String extraRaw = "";         // raw JSON from ?extra=... (headers, xmux, xPadding*)
     public String alpn = "";             // e.g. h2,http/1.1
+    public String fragmentRaw = "";      // raw JSON from ?fm= (tcp fragment)
+    public String ech = "";              // ECH hint, e.g. "ip.gs+udp://8.8.8.8"
     public String security = "";      // none | tls | reality
     public String sni = "";
     public String fingerprint = "";
@@ -214,6 +216,8 @@ public class ServerSpec {
         if (m != null && (m.equals("auto") || m.equals("stream-one"))) s.xhttpMode = m;
         s.extraRaw = q.get("extra");
         s.alpn = q.get("alpn");
+        s.fragmentRaw = firstNonEmpty(q.get("fm"), q.get("fragment"));
+        s.ech = q.get("ech");
         // padding may live inside ?extra= instead of a top-level parameter
         if ((s.xPaddingBytes == null || s.xPaddingBytes.isEmpty())
                 && s.extraRaw != null && !s.extraRaw.isEmpty()) {
@@ -309,6 +313,8 @@ public class ServerSpec {
         if (s.network.equals("h2") || s.network.equals("http")) s.network = "tcp";
         s.security = firstNonEmpty(q.get("security"), "tls");
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
+        s.fragmentRaw = firstNonEmpty(q.get("fm"), q.get("fragment"));
+        s.ech = q.get("ech");
         s.fingerprint = firstNonEmpty(q.get("fp"), "chrome");
         s.path = q.get("path");
         s.hostHeader = q.get("host");
@@ -673,6 +679,9 @@ public class ServerSpec {
                     }
                     if (a.length() > 0) t.put("alpn", a);
                 }
+                // ECH: panels send a resolver hint (ip.gs+udp://…); xray 26.x
+                // takes "half" = resolve the ECH config itself when advertised
+                if (ech != null && !ech.isEmpty()) t.put("echForceQuery", "half");
                 st.put("tlsSettings", t);
             }
         }
@@ -715,6 +724,41 @@ public class ServerSpec {
             st.put("xhttpSettings", x);
         }
         return st;
+    }
+
+    /** Parse the panel ?fm= JSON ({"tcp":[{"type":"fragment","settings":{...}}]})
+     *  into xray freedom fragment settings, or null when nothing usable. */
+    static JSONObject fragmentSettings(String raw) {
+        try {
+            JSONObject fm = new JSONObject(raw);
+            JSONArray arr = fm.optJSONArray("tcp");
+            if (arr == null) return null;
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject e = arr.optJSONObject(i);
+                if (e == null || !"fragment".equals(e.optString("type"))) continue;
+                JSONObject st = e.optJSONObject("settings");
+                if (st == null) continue;
+                JSONObject f = new JSONObject();
+                f.put("packets", st.optString("packets", "tlshello"));
+                f.put("length", fragRange(st.optJSONArray("lengths"), "50-100"));
+                f.put("interval", fragRange(st.optJSONArray("delays"), "10-20"));
+                return f;
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    private static String fragRange(JSONArray a, String dflt) {
+        if (a != null) {
+            try {
+                if (a.length() >= 2) return a.getInt(0) + "-" + a.getInt(1);
+                if (a.length() == 1) {
+                    int v = a.getInt(0);
+                    return v + "-" + v;
+                }
+            } catch (Exception ignored) { }
+        }
+        return dflt;
     }
 
     /** Xray rejects a padding range whose minimum is 0 ("cannot be disabled"). */

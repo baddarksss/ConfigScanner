@@ -130,6 +130,7 @@
     <!-- Result line reasons -->
     <string name="res_xray_error">Xray خطا داد — پیکربندی نامعتبر</string>
     <string name="res_connect_failed">اتصال به سرور برقرار نشد</string>
+    <string name="res_tunnel_dead">وصل شد ولی خروجی ترافیک رو رد نمی‌کنه</string>
     <string name="res_country_unknown">وصل شد · کشور ناشناخته</string>
     <string name="res_obfs_nopass">obfs بدون پسورد — قابل تست نیست</string>
     <string name="res_engine_error">هسته خطا داد — پیکربندی نامعتبر</string>
@@ -192,7 +193,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.29
+<string name="changelog">v1.0.30
+• جدید: پشتیبانی TCP fragment — فیلد fm= (tlshello، lengths، delays) حالا روی دیال اعمال می‌شه؛ سرورهایی که TLS hello رو می‌انداختن (عمدتاً سری 188.114.97.x) باید حالا وصل بشن
+• جدید: پشتیبانی ECH برای لینک‌هایی که ech= دارن
+• جدید: یه پروف تکی و سریع قبل از چک جیو — خروجی که ترافیک رو بلافاصله ریست می‌کنه حالا «غیرقابل دسترس» گزارش می‌شه به‌جای سوزوندن کل بودجه جیو به‌عنوان «بدون شناسایی کشور»
+
+v1.0.29
 • پشتیبانی کامل xhttp پیشرفته: mode (auto / stream-one)، ALPN و JSONِ extra پنل‌ها (headers، xmux، xPadding obfuscation) حالا به کانفیگ Xray می‌رسن — سرورهایی که قبلاً فقط نیمه وصل می‌شدن (مثل b2n.ir) حالا کامل وصل می‌شن
 • جدید: سروری که وصل شده ولی کشورش شناسایی نشده دیگه ❌ کامل نیست — با علامت ⚠️ توی نتایج می‌مونه (لینکش قابل کپی‌ه، کشورش نامشخص)
 
