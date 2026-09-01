@@ -388,6 +388,7 @@ public class MainActivity extends AppCompatActivity {
             updateStartState();
         });
         ((MaterialButton) findViewById(R.id.btnCopy)).setOnClickListener(v -> copyAll());
+        ((MaterialButton) findViewById(R.id.btnCopyLinks)).setOnClickListener(v -> copyLinksOnly());
         ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
             if (outputLines.isEmpty()) {
                 toast(getString(R.string.toast_output_empty));
@@ -1435,6 +1436,28 @@ public class MainActivity extends AppCompatActivity {
     /** Kept as a no-op on purpose: the run must never move the user's scroll
      *  position (the ScrollView preserves it when content grows). */
     private void autoScroll() {
+    }
+
+    /** Copy ONLY the working config links (one per unique URI) to the clipboard —
+     *  failed lines (❌ …) are not links and are skipped. */
+    private void copyLinksOnly() {
+        java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
+        for (String line : outputLines) {
+            String t = line.trim();
+            if (t.startsWith("vless://") || t.startsWith("vmess://") || t.startsWith("trojan://")
+                    || t.startsWith("ss://") || t.startsWith("socks://")
+                    || t.startsWith("hysteria2://") || t.startsWith("hy2://")) {
+                links.add(t);
+            }
+        }
+        if (links.isEmpty()) {
+            toast(getString(R.string.toast_output_empty));
+            return;
+        }
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("configs",
+                String.join("\n", links)));
+        toast(getString(R.string.toast_links_copied, links.size()));
     }
 
     private void copyAll() {

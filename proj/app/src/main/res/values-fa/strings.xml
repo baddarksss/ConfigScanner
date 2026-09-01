@@ -39,6 +39,7 @@
     <!-- Output card -->
     <string name="results_title">📤 نتیجه</string>
     <string name="lines_count">%1$d خط</string>
+    <string name="btn_copy_links">فقط لینک‌ها</string>
     <string name="btn_copy">📋 کپی همه</string>
     <string name="btn_save">💾 ذخیره فایل</string>
 
@@ -113,6 +114,7 @@
     <string name="toast_saved">ذخیره شد ✓</string>
     <string name="toast_save_error">خطا در ذخیره: %1$s</string>
     <string name="toast_copy_done">کپی شد ✓</string>
+    <string name="toast_links_copied">%1$d لینک کپی شد</string>
     <string name="toast_output_empty">اول نتیجه باید باشد</string>
     <string name="toast_core_missing">هسته پیدا نشد</string>
     <string name="toast_core_ok">هسته سالم است: %1$s</string>
@@ -188,7 +190,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.25
+<string name="changelog">v1.0.26
+• جدید: دکمه‌ی «فقط لینک‌ها» — فقط لینک‌های سالم (و بدون تکرار) رو کپی می‌کنه تا وقتی تو کلاینت پیست می‌کنی دقیقاً سرورهای سالم وارد بشن. خط‌های ❌ لینک نیستن (گزارشِ سرورهای ناکارآمدن)؛ به‌همین دلیل قبل از این کلاینت کمتر سرور می‌گرفت
+
+v1.0.25
 • اصلاح: سرورهایی که پروف جیوی اول رو می‌انداختن (خروجی‌های ناپایدار) حالا در ۳ دور بازمی‌شن — «بدون شناسایی کشور» خیلی کمتر می‌شه
 • جدید: اگه لاگ موتور خطای واقعی داشته باشه، سرور به‌جای «بدون شناسایی کشور» به‌عنوان «غیرقابل دسترس» گزارش می‌شه
 • نکته: بعضی سرورها کانکت رو قبول می‌کنن ولی فقط ترافیک IPهای خاص (عمدتاً غیرایرانی) رو فوروارد می‌کنن — اینا روی گوشیت باز هم «بدون شناسایی کشور» می‌مونن چون خروجی IP گوشیت رو مسدود کرده؛ فقط برای کاربرای دیگه کار می‌کنن

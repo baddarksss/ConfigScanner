@@ -39,6 +39,7 @@
     <!-- Output card -->
     <string name="results_title">📤 Results</string>
     <string name="lines_count">%1$d line(s)</string>
+    <string name="btn_copy_links">Copy links only</string>
     <string name="btn_copy">📋 Copy all</string>
     <string name="btn_save">💾 Save file</string>
 
@@ -113,6 +114,7 @@
     <string name="toast_saved">Saved ✓</string>
     <string name="toast_save_error">Failed to save: %1$s</string>
     <string name="toast_copy_done">Copied ✓</string>
+    <string name="toast_links_copied">%1$d link(s) copied</string>
     <string name="toast_output_empty">Output is empty</string>
     <string name="toast_core_missing">Core binary not found</string>
     <string name="toast_core_ok">Core is OK: %1$s</string>
@@ -188,7 +190,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.25
+<string name="changelog">v1.0.26
+• New: “Copy links only” button — copies just the working config links (unique) to the clipboard, so pasting into your client imports exactly the working servers; failed lines are not links, that’s why fewer servers showed up in the client before
+
+v1.0.25
 • Fixed: servers that dropped the first geo probe are now retried in 3 rounds of geo sources — “country unknown” on flaky exits should be much rarer
 • New: if the engine log shows a real error, the server is now reported as “unreachable” instead of “country unknown”
 • Note: a few servers accept the connection but only forward traffic for certain client IPs (mostly non-Iran) — those will still show “country unknown” on your phone because the exit blocks the phone’s IP; they only work for other users
