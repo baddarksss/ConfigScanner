@@ -949,7 +949,7 @@ public class MainActivity extends AppCompatActivity {
                 // unique within the run: several servers of one channel
                 // often share the same country label, and a duplicate name
                 // gets eaten by dedupe tools on import
-                String renamed = uniqueName(flag + " " + countryName + suffix, s);
+                String renamed = uniqueName(flag + " " + countryName + suffix);
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
                 doneCount.incrementAndGet();
@@ -972,10 +972,17 @@ public class MainActivity extends AppCompatActivity {
                     // ORIGINAL name (no warning sign in the name or the flag
                     // strip) so usable-but-unlabeled servers are not lost.
                     noCountryCount.incrementAndGet();
-                    String baseName = s.name.isEmpty() ? (s.host + ":" + s.port) : s.name;
+                    // keep the original name (no warning sign); when the
+                    // config had no name at all, fall back to the channel
+                    // name so a server IP never ends up in the label
+                    String baseName = s.name;
+                    if (baseName.isEmpty()) {
+                        String ch = prefs.getString("channel", "");
+                        baseName = ch.isEmpty() ? (s.host + ":" + s.port) : ch;
+                    }
                     // uniquify: channel configs often share one name and a
                     // duplicate name gets eaten by dedupe tools on import
-                    String nm = uniqueName(baseName, s);
+                    String nm = uniqueName(baseName);
                     String line = renameUri(s.raw, nm);
                     synchronized (unknownLinks) { unknownLinks.add(line); }
                     AppLog.d("test", "PARTIAL (no country) -> " + nm);
@@ -1057,20 +1064,19 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Guarantees a name is unique within the current run. When the label
      * collides (same country for several servers, or channel configs that
-     * all carry the same original name), the server's host:port is appended
-     * — and a counter if even that collides (identical server listed twice).
-     * Without this, "duplicate client" / dedupe-by-name importers delete
-     * DIFFERENT servers that happen to share a label.
+     * all carry the same original name), a plain counter is appended —
+     * "name", "name 2", "name 3". (An address/counter keeps the name clean;
+     * embedding the server IP made every label ugly when a whole batch of
+     * one channel exits through the same country.) Without uniqueness,
+     * dedupe-by-name importers ("duplicate client") delete DIFFERENT
+     * servers that happen to share a label.
      */
-    private String uniqueName(String base, ServerSpec s) {
+    private String uniqueName(String base) {
         synchronized (usedNames) {
             String cand = base;
-            if (usedNames.contains(cand.toLowerCase())) {
-                cand = base + " " + s.host + ":" + s.port;
-                int n = 2;
-                while (usedNames.contains(cand.toLowerCase())) {
-                    cand = base + " " + s.host + ":" + s.port + " " + n++;
-                }
+            int n = 2;
+            while (usedNames.contains(cand.toLowerCase())) {
+                cand = base + " " + n++;
             }
             usedNames.add(cand.toLowerCase());
             return cand;
