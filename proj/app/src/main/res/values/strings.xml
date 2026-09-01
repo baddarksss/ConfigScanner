@@ -194,7 +194,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.35
+<string name="changelog">v1.0.36
+• Fixed: the duplicate-name counter no longer appears AFTER the channel name — it now sits on the flag/country part (e.g. “🇩🇪 Germany 2 | Wpnfa”) and nameless unknown servers get “unknown” so the channel name stays clean
+
+v1.0.35
 • Fixed: server IP (host:port) no longer appears in output names — duplicate labels now get a simple number (2, 3…) instead
 
 v1.0.34

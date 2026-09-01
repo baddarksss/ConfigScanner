@@ -948,8 +948,9 @@ public class MainActivity extends AppCompatActivity {
                         ? " | " + channel : "";
                 // unique within the run: several servers of one channel
                 // often share the same country label, and a duplicate name
-                // gets eaten by dedupe tools on import
-                String renamed = uniqueName(flag + " " + countryName + suffix);
+                // gets eaten by dedupe tools on import. The counter goes on
+                // the country part — NEVER after the channel suffix.
+                String renamed = uniqueName(flag + " " + countryName) + suffix;
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
                 doneCount.incrementAndGet();
@@ -972,17 +973,20 @@ public class MainActivity extends AppCompatActivity {
                     // ORIGINAL name (no warning sign in the name or the flag
                     // strip) so usable-but-unlabeled servers are not lost.
                     noCountryCount.incrementAndGet();
-                    // keep the original name (no warning sign); when the
-                    // config had no name at all, fall back to the channel
-                    // name so a server IP never ends up in the label
+                    String channel2 = prefs.getString("channel", "");
+                    boolean incCh2 = prefs.getBoolean("include_channel", true);
+                    String nmSuffix = (incCh2 && !channel2.isEmpty()) ? " | " + channel2 : "";
+                    // when the config had no name at all, use a neutral word
+                    // so the dedupe counter lands before the channel suffix,
+                    // never after it ("unknown 2 | Wpnfa", not "Wpnfa 2")
                     String baseName = s.name;
                     if (baseName.isEmpty()) {
-                        String ch = prefs.getString("channel", "");
-                        baseName = ch.isEmpty() ? (s.host + ":" + s.port) : ch;
+                        baseName = "fa".equals(prefs.getString("out_lang", "en"))
+                                ? "\u0646\u0627\u0634\u0646\u0627\u0633" : "unknown";
                     }
                     // uniquify: channel configs often share one name and a
                     // duplicate name gets eaten by dedupe tools on import
-                    String nm = uniqueName(baseName);
+                    String nm = uniqueName(baseName) + nmSuffix;
                     String line = renameUri(s.raw, nm);
                     synchronized (unknownLinks) { unknownLinks.add(line); }
                     AppLog.d("test", "PARTIAL (no country) -> " + nm);
