@@ -188,7 +188,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.24
+<string name="changelog">v1.0.25
+• Fixed: servers that dropped the first geo probe are now retried in 3 rounds of geo sources — “country unknown” on flaky exits should be much rarer
+• New: if the engine log shows a real error, the server is now reported as “unreachable” instead of “country unknown”
+• Note: a few servers accept the connection but only forward traffic for certain client IPs (mostly non-Iran) — those will still show “country unknown” on your phone because the exit blocks the phone’s IP; they only work for other users
+
+v1.0.24
 • New: end-of-run report in the results — ok / no country / unreachable / skipped counts
 • Hardened country detection: 2 more robust geo sources (Cloudflare trace + ipinfo), and the geo time budget is now at least 30s — slow exits that showed "country unknown" before should now resolve
 • New: a short light vibration when the run reaches 100%

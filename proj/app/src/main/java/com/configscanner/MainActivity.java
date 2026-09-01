@@ -908,10 +908,17 @@ public class MainActivity extends AppCompatActivity {
                 noteCountry(geo.code);
             } else {
                 doneCount.incrementAndGet();
+                String tail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
-                        + AppLog.fileTail(engineLog, 8) + "]");
-                noCountryCount.incrementAndGet();
-                fail(s, getString(R.string.res_country_unknown));
+                        + tail + "]");
+                if (looksLikeEngineError(tail)) {
+                    // the tunnel itself is broken — report it as unreachable
+                    unreachableCount.incrementAndGet();
+                    fail(s, getString(R.string.res_engine_error));
+                } else {
+                    noCountryCount.incrementAndGet();
+                    fail(s, getString(R.string.res_country_unknown));
+                }
             }
         } catch (Exception e) {
             AppLog.e("test", "error " + hostport + " " + e.getMessage());
@@ -1314,6 +1321,16 @@ public class MainActivity extends AppCompatActivity {
     private String buildRunSummary() {
         return getString(R.string.run_summary, okCount.get(), noCountryCount.get(),
                 unreachableCount.get(), skipCount.get());
+    }
+
+    /** True when the engine log tail contains a real error (a broken handshake
+     *  means the tunnel never really came up, not that the country is unknown). */
+    private static boolean looksLikeEngineError(String tail) {
+        if (tail == null || tail.isEmpty()) return false;
+        String t = tail.toLowerCase();
+        return t.contains("handshake") || t.contains("refused") || t.contains("panic")
+                || t.contains("reject") || t.contains("failed") || t.contains("error")
+                || t.contains("timeout") || t.contains("reset") || t.contains("denied");
     }
 
     /** One short, light vibration when a run reaches 100%. */

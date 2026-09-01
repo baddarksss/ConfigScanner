@@ -63,17 +63,33 @@ public class GeoChecker {
         long deadline = System.currentTimeMillis()
                 + Math.max(30, Math.min(connectTimeoutSec, 40)) * 1000L;
 
+        // Wave 1: the fastest, most robust sources. Wave 2: the rest. Wave 3: a
+        // retry of the robust sources — flaky exits often drop the FIRST parallel
+        // burst entirely (all 8 requests die together) but answer the next attempt.
+        String[][] wave1 = {SERVICES[4], SERVICES[2], SERVICES[0]}; // cloudflare, ip.sb, ipwho.is
+        String[][] wave2 = {SERVICES[1], SERVICES[3], SERVICES[5], SERVICES[6], SERVICES[7]};
+        String[][] wave3 = {SERVICES[4], SERVICES[3], SERVICES[2]}; // retry
+
         List<String[]> votes = new ArrayList<>();
-        ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
-        // CompletionService: the FIRST service to answer is used immediately —
-        // a slow service can no longer hold the shared deadline hostage.
+        collectWave(wave1, proxyPort, connectTimeoutSec, deadline, votes);
+        if (topVote(votes) >= 2) return makeResult(votes);
+        collectWave(wave2, proxyPort, connectTimeoutSec, deadline, votes);
+        if (topVote(votes) >= 2) return makeResult(votes);
+        collectWave(wave3, proxyPort, connectTimeoutSec, deadline, votes);
+        return makeResult(votes);
+    }
+
+    private static void collectWave(String[][] wave, int proxyPort, int connectTimeoutSec,
+                                    long deadline, List<String[]> votes) {
+        if (System.currentTimeMillis() >= deadline) return;
+        ExecutorService ex = Executors.newFixedThreadPool(wave.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
         try {
-            for (final String[] svc : SERVICES) {
+            for (final String[] svc : wave) {
                 cs.submit(() ->
                         query(newProxyClient(proxyPort, connectTimeoutSec), svc));
             }
-            for (int i = 0; i < SERVICES.length; i++) {
+            for (int i = 0; i < wave.length; i++) {
                 long left = deadline - System.currentTimeMillis();
                 if (left <= 0) break;
                 Future<String[]> f;
@@ -92,7 +108,21 @@ public class GeoChecker {
         } finally {
             ex.shutdownNow();
         }
+    }
 
+    /** Highest number of votes for a single country code (0 when none). */
+    private static int topVote(List<String[]> votes) {
+        Map<String, Integer> count = new HashMap<>();
+        for (String[] v : votes) {
+            if (v == null || v[0] == null || v[0].isEmpty()) continue;
+            count.merge(v[0].toUpperCase(), 1, Integer::sum);
+        }
+        int top = 0;
+        for (int n : count.values()) top = Math.max(top, n);
+        return top;
+    }
+
+    private static Result makeResult(List<String[]> votes) {
         Map<String, Integer> count = new HashMap<>();
         int answered = 0;
         for (String[] v : votes) {
