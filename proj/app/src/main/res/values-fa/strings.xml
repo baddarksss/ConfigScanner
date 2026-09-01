@@ -130,7 +130,7 @@
     <!-- Result line reasons -->
     <string name="res_xray_error">Xray خطا داد — پیکربندی نامعتبر</string>
     <string name="res_connect_failed">اتصال به سرور برقرار نشد</string>
-    <string name="res_country_unknown">وصل شد ولی کشور ناشناخته</string>
+    <string name="res_country_unknown">وصل شد · کشور ناشناخته</string>
     <string name="res_obfs_nopass">obfs بدون پسورد — قابل تست نیست</string>
     <string name="res_engine_error">هسته خطا داد — پیکربندی نامعتبر</string>
 
@@ -192,7 +192,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.28
+<string name="changelog">v1.0.29
+• پشتیبانی کامل xhttp پیشرفته: mode (auto / stream-one)، ALPN و JSONِ extra پنل‌ها (headers، xmux، xPadding obfuscation) حالا به کانفیگ Xray می‌رسن — سرورهایی که قبلاً فقط نیمه وصل می‌شدن (مثل b2n.ir) حالا کامل وصل می‌شن
+• جدید: سروری که وصل شده ولی کشورش شناسایی نشده دیگه ❌ کامل نیست — با علامت ⚠️ توی نتایج می‌مونه (لینکش قابل کپی‌ه، کشورش نامشخص)
+
+v1.0.28
 • تقویت بیشتر تشخیص کشور: پروف‌های جیو حالا به‌صورت برش‌های کوچیک با مکث کوتاه فرستاده می‌شن و با ۲ درخواست تکیِ پشت‌سرهم تموم می‌شن — دقیقاً الگویی که خروجی‌های ناپایدار ازش رد می‌شن؛ «بدون شناسایی کشور» باید خیلی کمتر بشه
 
 v1.0.27

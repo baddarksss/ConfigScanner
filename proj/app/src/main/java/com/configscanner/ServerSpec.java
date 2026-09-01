@@ -26,6 +26,9 @@ public class ServerSpec {
     public String flow = "";
     public String vlessEncryption = "";  // e.g. mlkem768x25519plus.native.0rtt.<key>
     public String xPaddingBytes = "";    // xhttp padding, e.g. "100-1000"
+    public String xhttpMode = "";        // xhttp mode: auto | stream-one (xray 26.x)
+    public String extraRaw = "";         // raw JSON from ?extra=... (headers, xmux, xPadding*)
+    public String alpn = "";             // e.g. h2,http/1.1
     public String security = "";      // none | tls | reality
     public String sni = "";
     public String fingerprint = "";
@@ -205,6 +208,21 @@ public class ServerSpec {
         // xhttp transport options
         s.xPaddingBytes = firstNonEmpty(q.get("x_padding_bytes"),
                 q.get("xpaddingbytes"));
+        // xray 26.x only understands "auto" and "stream-one" — other panel
+        // spellings are dropped so the config still loads
+        String m = q.get("mode");
+        if (m != null && (m.equals("auto") || m.equals("stream-one"))) s.xhttpMode = m;
+        s.extraRaw = q.get("extra");
+        s.alpn = q.get("alpn");
+        // padding may live inside ?extra= instead of a top-level parameter
+        if ((s.xPaddingBytes == null || s.xPaddingBytes.isEmpty())
+                && s.extraRaw != null && !s.extraRaw.isEmpty()) {
+            try {
+                JSONObject ex = new JSONObject(s.extraRaw);
+                s.xPaddingBytes = ex.optString("xPaddingBytes",
+                        ex.optString("x_padding_bytes", ""));
+            } catch (Exception ignored) { }
+        }
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"), q.get("peer"));
         s.pbk = q.get("pbk");
         s.sid = q.get("sid");
@@ -645,6 +663,16 @@ public class ServerSpec {
                     }
                 }
                 if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                // ALPN from the link (e.g. h2,http/1.1,h3) — some exits pick a
+                // different protocol (or drop the connection) without it
+                if (alpn != null && !alpn.isEmpty()) {
+                    JSONArray a = new JSONArray();
+                    for (String p : alpn.split(",")) {
+                        String t1 = p.trim();
+                        if (!t1.isEmpty()) a.put(t1);
+                    }
+                    if (a.length() > 0) t.put("alpn", a);
+                }
                 st.put("tlsSettings", t);
             }
         }
@@ -668,8 +696,22 @@ public class ServerSpec {
             JSONObject x = new JSONObject();
             if (path != null && !path.isEmpty()) x.put("path", path);
             if (hostHeader != null && !hostHeader.isEmpty()) x.put("host", hostHeader);
+            if (xhttpMode != null && !xhttpMode.isEmpty()) x.put("mode", xhttpMode);
             String pad = sanitizePadding(xPaddingBytes);
             if (pad != null) x.put("xPaddingBytes", pad);
+            // merge panel "extra" JSON — xray 26.x silently ignores the keys it
+            // does not know (headers, xmux, noGRPCHeader are panel extras), and
+            // the xPadding* obfuscation options are real xhttpSettings fields
+            if (extraRaw != null && !extraRaw.isEmpty()) {
+                try {
+                    JSONObject ex = new JSONObject(extraRaw);
+                    for (String k : new String[]{"headers", "xmux", "noGRPCHeader",
+                            "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
+                            "xPaddingMethod"}) {
+                        if (ex.has(k) && !x.has(k)) x.put(k, ex.get(k));
+                    }
+                } catch (Exception ignored) { }
+            }
             st.put("xhttpSettings", x);
         }
         return st;

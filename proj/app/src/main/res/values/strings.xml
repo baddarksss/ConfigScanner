@@ -192,7 +192,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.28
+<string name="changelog">v1.0.29
+• Full advanced-xhttp support: mode (auto / stream-one), ALPN, and the panel extra JSON (headers, xmux, xPadding obfuscation) are now mapped into the Xray config — servers that previously only half-connected (e.g. b2n.ir) now connect fully
+• New: a connected server whose country could not be detected is no longer a hard fail — it stays in the results with a ⚠️ mark (link is copyable, country unknown)
+
+v1.0.28
 • Hardened country detection even more: geo probes are now sent as small bursts with short pauses, ending with two single sequential requests — the pattern flaky exits tolerate, so far more “country unknown” servers should now get labeled
 
 v1.0.27

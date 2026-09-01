@@ -925,9 +925,19 @@ public class MainActivity extends AppCompatActivity {
                     unreachableCount.incrementAndGet();
                     fail(s, getString(R.string.res_engine_error));
                 } else {
+                    // tunnel is up, only geo failed — keep the link as a
+                    // partial success (⚠️) so usable-but-unlabeled servers
+                    // are not lost from the results
                     noCountryCount.incrementAndGet();
                     synchronized (unknownLinks) { unknownLinks.add(s.raw); }
-                    fail(s, getString(R.string.res_country_unknown));
+                    String channel = prefs.getString("channel", "");
+                    boolean incCh = prefs.getBoolean("include_channel", true);
+                    String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
+                    String label = "\u26a0\ufe0f " + getString(R.string.res_country_unknown) + suffix;
+                    AppLog.d("test", "PARTIAL (no country) -> " + label);
+                    status(String.format("\u26a0 [%d/%d] %s = ? country",
+                            doneCount.get(), totalCount, hostport));
+                    success(renameUri(s.raw, label), "\u26a0\ufe0f");
                 }
             }
         } catch (Exception e) {
