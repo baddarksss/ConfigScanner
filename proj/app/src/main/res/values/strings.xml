@@ -141,6 +141,8 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
     <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
+    <string name="include_unknown_title">Include "country unknown" servers in Copy links only</string>
+    <string name="include_unknown_caption">These servers connected, but their country could not be detected. They usually still work — this keeps their links copyable so you don’t lose them.</string>
     <string name="out_lang_title">Country name in output</string>
     <string name="out_lang_fa">Persian</string>
     <string name="out_lang_en">English</string>
@@ -190,7 +192,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.26
+<string name="changelog">v1.0.27
+• New option in the Caption tab: include “country unknown” servers in Copy links only — a server that connected but couldn’t be labeled is usually still a working proxy, so its link is no longer lost
+
+v1.0.26
 • New: “Copy links only” button — copies just the working config links (unique) to the clipboard, so pasting into your client imports exactly the working servers; failed lines are not links, that’s why fewer servers showed up in the client before
 
 v1.0.25

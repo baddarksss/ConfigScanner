@@ -141,6 +141,8 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d از %2$d سرور — %3$d٪</string>
     <string name="run_summary">%1$d موفق · %2$d بدون شناسایی کشور · %3$d غیرقابل دسترس · %4$d ردشده</string>
+    <string name="include_unknown_title">سرورهای «بدون شناسایی کشور» رو هم توی «فقط لینک‌ها» بذار</string>
+    <string name="include_unknown_caption">این سرورها وصل شدن ولی کشورشون شناسایی نشد؛ معمولاً سالم‌ن و با این گزینه لینکشون هم کپی می‌شه که گم نشن.</string>
     <string name="out_lang_title">زبان اسم کشور توی خروجی</string>
     <string name="out_lang_fa">فارسی</string>
     <string name="out_lang_en">انگلیسی</string>
@@ -190,7 +192,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.26
+<string name="changelog">v1.0.27
+• گزینه‌ی جدید توی تب Caption: «سرورهای بدون شناسایی کشور رو هم توی فقط لینک‌ها بذار» — سروری که وصل شده ولی کشورش نشناسیده شده معمولاً باز هم پروکسی سالمه؛ لینکش دیگه گم نمی‌شه
+
+v1.0.26
 • جدید: دکمه‌ی «فقط لینک‌ها» — فقط لینک‌های سالم (و بدون تکرار) رو کپی می‌کنه تا وقتی تو کلاینت پیست می‌کنی دقیقاً سرورهای سالم وارد بشن. خط‌های ❌ لینک نیستن (گزارشِ سرورهای ناکارآمدن)؛ به‌همین دلیل قبل از این کلاینت کمتر سرور می‌گرفت
 
 v1.0.25

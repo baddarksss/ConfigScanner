@@ -137,6 +137,8 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger noCountryCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger unreachableCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
+    /** Raw URIs of servers that connected but whose country could not be detected. */
+    private final List<String> unknownLinks = new ArrayList<>();
     private volatile boolean destroyed = false;
     private final java.util.Set<Process> activeEngines = java.util.Collections
             .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -389,6 +391,11 @@ public class MainActivity extends AppCompatActivity {
         });
         ((MaterialButton) findViewById(R.id.btnCopy)).setOnClickListener(v -> copyAll());
         ((MaterialButton) findViewById(R.id.btnCopyLinks)).setOnClickListener(v -> copyLinksOnly());
+        ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
+                .setChecked(prefs.getBoolean("include_unknown_in_links", false));
+        ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
+                .setOnCheckedChangeListener((b, checked) ->
+                        prefs.edit().putBoolean("include_unknown_in_links", checked).apply());
         ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
             if (outputLines.isEmpty()) {
                 toast(getString(R.string.toast_output_empty));
@@ -716,6 +723,7 @@ public class MainActivity extends AppCompatActivity {
         noCountryCount.set(0);
         unreachableCount.set(0);
         skipCount.set(0);
+        synchronized (unknownLinks) { unknownLinks.clear(); }
         syncCoreButtons();
         doneCount.set(0);
         totalCount = servers.size();
@@ -918,6 +926,7 @@ public class MainActivity extends AppCompatActivity {
                     fail(s, getString(R.string.res_engine_error));
                 } else {
                     noCountryCount.incrementAndGet();
+                    synchronized (unknownLinks) { unknownLinks.add(s.raw); }
                     fail(s, getString(R.string.res_country_unknown));
                 }
             }
@@ -1448,6 +1457,14 @@ public class MainActivity extends AppCompatActivity {
                     || t.startsWith("ss://") || t.startsWith("socks://")
                     || t.startsWith("hysteria2://") || t.startsWith("hy2://")) {
                 links.add(t);
+            }
+        }
+        if (prefs.getBoolean("include_unknown_in_links", false)) {
+            synchronized (unknownLinks) {
+                for (String u : unknownLinks) {
+                    String t = u.trim();
+                    if (!t.isEmpty()) links.add(t); // LinkedHashSet dedupes
+                }
             }
         }
         if (links.isEmpty()) {
