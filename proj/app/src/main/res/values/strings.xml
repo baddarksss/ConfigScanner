@@ -133,7 +133,6 @@
     <string name="res_connect_failed">Could not connect to server</string>
     <string name="res_hysteria1_unsupported">Hysteria v1 is not supported by the Xray core</string>
     <string name="res_tunnel_dead">Connected, but the exit does not pass traffic</string>
-    <string name="res_country_unknown">Connected but country unknown</string>
     <string name="res_obfs_nopass">obfs without password — cannot test</string>
     <string name="res_engine_error">Engine error — invalid config</string>
 
@@ -195,7 +194,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.33
+<string name="changelog">v1.0.34
+• Servers without a detected country keep their ORIGINAL name — no more ⚠ warning in the name or the flag strip
+• Output names are now unique within a run (colliding labels get the server’s host:port), so “duplicate client” importers can no longer delete different servers that share a label
+• Slow exits that answered nothing within the 30s budget (pure timeouts, no resets) get one final 20s geo attempt — fewer false “country unknown” results
+
+v1.0.33
 • Fixed: the plain-HTTP geo fallback (ip-api) was blocked by Android’s cleartext policy on every request — cleartext is now permitted for that single domain only, so the fallback actually works on device
 
 v1.0.31

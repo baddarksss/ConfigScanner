@@ -133,7 +133,6 @@
     <string name="res_connect_failed">اتصال به سرور برقرار نشد</string>
     <string name="res_hysteria1_unsupported">هستریا نسخه‌ی ۱ رو کور Xray نمی‌شناسه</string>
     <string name="res_tunnel_dead">وصل شد ولی خروجی ترافیک رو رد نمی‌کنه</string>
-    <string name="res_country_unknown">وصل شد · کشور ناشناخته</string>
     <string name="res_obfs_nopass">obfs بدون پسورد — قابل تست نیست</string>
     <string name="res_engine_error">هسته خطا داد — پیکربندی نامعتبر</string>
 
@@ -195,7 +194,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.33
+<string name="changelog">v1.0.34
+• سرورهای بدون کشور شناسایی، اسم خودشان رو نگه می‌دارن — دیگه علامت ⚠ توی اسم و نوار پرچم نمیاد
+• اسم خروجی هر سرور توی هر ران یکتا می‌شه (برچسب تکراری، host:port سرور رو می‌گیره) تا dedup ابزارهای واردات دیگه سرورهای مختلف هم‌نام رو حذف نکنن
+• خروجی‌های کندی که توی بودجه ۳۰ ثانیه هیچ جوابی ندادن (فقط timeout، بدون reset) یک تلاش جیو نهایی ۲۰ ثانیه‌ای می‌گیرن — «کشور ناشناخته» کاذب کمتر
+
+v1.0.33
 • اصلاح: fallback جیو با HTTP ساده (ip-api) توی اندروید به‌خاطر سیاست cleartext با هر درخواست بلاک می‌شد — حالا cleartext فقط برای همون دامنه‌ی تکی مجاز شده و فallback واقعاً روی گوشی کار می‌کنه
 
 v1.0.31

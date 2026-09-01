@@ -47,7 +47,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -139,6 +141,10 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
     private final List<String> unknownLinks = new ArrayList<>();
+    /** Names already used in the current run — output names must stay
+     *  unique so dedupe-by-name tools (panel import, "duplicate client")
+     *  never drop a different server that shares a label. */
+    private final Set<String> usedNames = Collections.synchronizedSet(new HashSet<String>());
     private volatile boolean destroyed = false;
     private final java.util.Set<Process> activeEngines = java.util.Collections
             .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -724,6 +730,7 @@ public class MainActivity extends AppCompatActivity {
         unreachableCount.set(0);
         skipCount.set(0);
         synchronized (unknownLinks) { unknownLinks.clear(); }
+        usedNames.clear();
         syncCoreButtons();
         doneCount.set(0);
         totalCount = servers.size();
@@ -939,7 +946,10 @@ public class MainActivity extends AppCompatActivity {
                 boolean incCh = prefs.getBoolean("include_channel", true);
                 String suffix = (incCh && !channel.isEmpty())
                         ? " | " + channel : "";
-                String renamed = flag + " " + countryName + suffix;
+                // unique within the run: several servers of one channel
+                // often share the same country label, and a duplicate name
+                // gets eaten by dedupe tools on import
+                String renamed = uniqueName(flag + " " + countryName + suffix, s);
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
                 doneCount.incrementAndGet();
@@ -958,19 +968,20 @@ public class MainActivity extends AppCompatActivity {
                     unreachableCount.incrementAndGet();
                     fail(s, getString(R.string.res_engine_error));
                 } else {
-                    // tunnel is up, only geo failed — keep the link as a
-                    // partial success (⚠️) so usable-but-unlabeled servers
-                    // are not lost from the results
+                    // tunnel is up, only geo failed — keep the link with its
+                    // ORIGINAL name (no warning sign in the name or the flag
+                    // strip) so usable-but-unlabeled servers are not lost.
                     noCountryCount.incrementAndGet();
-                    synchronized (unknownLinks) { unknownLinks.add(s.raw); }
-                    String channel = prefs.getString("channel", "");
-                    boolean incCh = prefs.getBoolean("include_channel", true);
-                    String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
-                    String label = "\u26a0\ufe0f " + getString(R.string.res_country_unknown) + suffix;
-                    AppLog.d("test", "PARTIAL (no country) -> " + label);
+                    String baseName = s.name.isEmpty() ? (s.host + ":" + s.port) : s.name;
+                    // uniquify: channel configs often share one name and a
+                    // duplicate name gets eaten by dedupe tools on import
+                    String nm = uniqueName(baseName, s);
+                    String line = renameUri(s.raw, nm);
+                    synchronized (unknownLinks) { unknownLinks.add(line); }
+                    AppLog.d("test", "PARTIAL (no country) -> " + nm);
                     status(String.format("\u26a0 [%d/%d] %s = ? country",
                             doneCount.get(), totalCount, hostport));
-                    success(renameUri(s.raw, label), "\u26a0\ufe0f");
+                    success(line, null);
                 }
             }
         } catch (Exception e) {
@@ -1041,6 +1052,29 @@ public class MainActivity extends AppCompatActivity {
         AppLog.e("test", "FAIL " + base + ": " + reason);
         refreshOutput();
         autoScroll();
+    }
+
+    /**
+     * Guarantees a name is unique within the current run. When the label
+     * collides (same country for several servers, or channel configs that
+     * all carry the same original name), the server's host:port is appended
+     * — and a counter if even that collides (identical server listed twice).
+     * Without this, "duplicate client" / dedupe-by-name importers delete
+     * DIFFERENT servers that happen to share a label.
+     */
+    private String uniqueName(String base, ServerSpec s) {
+        synchronized (usedNames) {
+            String cand = base;
+            if (usedNames.contains(cand.toLowerCase())) {
+                cand = base + " " + s.host + ":" + s.port;
+                int n = 2;
+                while (usedNames.contains(cand.toLowerCase())) {
+                    cand = base + " " + s.host + ":" + s.port + " " + n++;
+                }
+            }
+            usedNames.add(cand.toLowerCase());
+            return cand;
+        }
     }
 
     /** Replace the last #name segment of the raw URI */

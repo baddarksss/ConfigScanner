@@ -85,30 +85,69 @@ public class GeoChecker {
         String[][] wave5 = {SERVICES[5]};              // lone ip-api (http)
 
         List<String[]> votes = new ArrayList<>();
+        FailStats stats = new FailStats();
         // Fast lone-request probe first: an exit that resets single requests
         // will not carry the bursts either — report it as a dead tunnel
         // instead of burning the whole geo budget on a ⚠️ result.
-        Probe pr = probeTunnel(proxyPort, connectTimeoutSec);
+        Probe pr = probeTunnel(proxyPort, connectTimeoutSec, stats);
         if (pr.kind == PKind.DEAD) {
             Result dead = new Result();
             dead.deadTunnel = true;
             return dead;
         }
         if (pr.vote != null) votes.add(pr.vote);
-        collectWave(wave1, proxyPort, connectTimeoutSec, deadline, votes);
+        collectWave(wave1, proxyPort, connectTimeoutSec, deadline, votes, stats);
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
-        collectWave(wave2, proxyPort, connectTimeoutSec, deadline, votes);
+        collectWave(wave2, proxyPort, connectTimeoutSec, deadline, votes, stats);
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
-        collectWave(wave3, proxyPort, connectTimeoutSec, deadline, votes);
+        collectWave(wave3, proxyPort, connectTimeoutSec, deadline, votes, stats);
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
-        collectWave(wave4, proxyPort, connectTimeoutSec, deadline, votes);
+        collectWave(wave4, proxyPort, connectTimeoutSec, deadline, votes, stats);
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
-        collectWave(wave5, proxyPort, connectTimeoutSec, deadline, votes);
-        return makeResult(votes);
+        collectWave(wave5, proxyPort, connectTimeoutSec, deadline, votes, stats);
+        Result r = makeResult(votes);
+        if (!r.ok && stats.timeouts > 0 && stats.resets == 0) {
+            // Every single attempt timed out and nothing was reset: a slow
+            // exit that accepted the tunnel but never answered inside the
+            // budget. Real clients wait patiently for slow exits — give it
+            // one final, longer lone request before calling it unknown.
+            String[] v = slowRetry(proxyPort, stats);
+            if (v != null) {
+                votes.add(v);
+                r = makeResult(votes);
+            }
+        }
+        return r;
+    }
+
+    /** Which kind of failures happened during a check — a pure-timeout
+     *  profile means "slow exit", any reset means "blocked/dead". */
+    private static final class FailStats {
+        int timeouts = 0;
+        int resets = 0;
+    }
+
+    /** One last lone request with a long read timeout (cloudflare, then
+     *  ip.sb), only reached when everything else timed out. */
+    private static String[] slowRetry(int proxyPort, FailStats stats) {
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", proxyPort));
+        OkHttpClient client = new OkHttpClient.Builder()
+                .proxy(proxy)
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(8, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(false)
+                .build();
+        String[] v = query(client, SERVICES[4], stats);
+        if (v != null) { AppLog.d("geo", "slow retry -> " + v[0]); return v; }
+        v = query(client, SERVICES[2], stats);
+        if (v != null) { AppLog.d("geo", "slow retry -> " + v[0]); return v; }
+        AppLog.w("geo", "slow retry: no answer");
+        return null;
     }
 
     /** ~1s pause between waves so a rate-limiting/throttling exit recovers. */
@@ -123,7 +162,7 @@ public class GeoChecker {
     /** Two lone requests (cloudflare, then ip.sb on immediate reset).
      *  OK = a vote is ready; SLOW = slow exit, let the waves try;
      *  DEAD = the tunnel does not pass traffic at all. */
-    private static Probe probeTunnel(int proxyPort, int connectTimeoutSec) {
+    private static Probe probeTunnel(int proxyPort, int connectTimeoutSec, FailStats stats) {
         OkHttpClient client = newProxyClient(proxyPort, connectTimeoutSec);
         try {
             Request req = new Request.Builder().url(SERVICES[4][0]).get().build();
@@ -139,8 +178,10 @@ public class GeoChecker {
                 return new Probe(PKind.SLOW, null);
             }
         } catch (java.net.SocketTimeoutException e) {
+            stats.timeouts++;
             return new Probe(PKind.SLOW, null);
         } catch (Exception e) {
+            stats.resets++;
             AppLog.d("geo", "probe reset: " + e.getClass().getSimpleName());
         }
         try {
@@ -155,8 +196,10 @@ public class GeoChecker {
                 return new Probe(PKind.SLOW, null);
             }
         } catch (java.net.SocketTimeoutException e) {
+            stats.timeouts++;
             return new Probe(PKind.SLOW, null);
         } catch (Exception e) {
+            stats.resets++;
             AppLog.d("geo", "probe2 reset: " + e.getClass().getSimpleName());
         }
         // attempt 3 over plain HTTP: exits that reset the TLS probes but allow
@@ -173,8 +216,10 @@ public class GeoChecker {
                 return new Probe(PKind.SLOW, null);
             }
         } catch (java.net.SocketTimeoutException e) {
+            stats.timeouts++;
             return new Probe(PKind.SLOW, null);
         } catch (Exception e) {
+            stats.resets++;
             AppLog.d("geo", "probe3 reset: " + e.getClass().getSimpleName());
         }
         return new Probe(PKind.DEAD, null);
@@ -196,14 +241,14 @@ public class GeoChecker {
     }
 
     private static void collectWave(String[][] wave, int proxyPort, int connectTimeoutSec,
-                                    long deadline, List<String[]> votes) {
+                                    long deadline, List<String[]> votes, FailStats stats) {
         if (System.currentTimeMillis() >= deadline) return;
         ExecutorService ex = Executors.newFixedThreadPool(wave.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
         try {
             for (final String[] svc : wave) {
                 cs.submit(() ->
-                        query(newProxyClient(proxyPort, connectTimeoutSec), svc));
+                        query(newProxyClient(proxyPort, connectTimeoutSec), svc, stats));
             }
             for (int i = 0; i < wave.length; i++) {
                 long left = deadline - System.currentTimeMillis();
@@ -287,7 +332,7 @@ public class GeoChecker {
                 .build();
     }
 
-    private static String[] query(OkHttpClient client, String[] svc) {
+    private static String[] query(OkHttpClient client, String[] svc, FailStats stats) {
         String url = svc[0];
         try {
             Request req = new Request.Builder().url(url).get().build();
@@ -333,7 +378,19 @@ public class GeoChecker {
                 AppLog.d("geo", url + " -> " + code + " " + country);
                 return new String[]{code, country, ip};
             }
+        } catch (java.net.SocketTimeoutException e) {
+            stats.timeouts++;
+            AppLog.w("geo", url + " failed: "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return null;
+        } catch (java.io.InterruptedIOException e) {
+            // deadline interrupt while waiting — count as a timeout, not a reset
+            stats.timeouts++;
+            AppLog.w("geo", url + " failed: "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return null;
         } catch (Exception e) {
+            stats.resets++;
             AppLog.w("geo", url + " failed: "
                     + e.getClass().getSimpleName() + ": " + e.getMessage());
             return null;
