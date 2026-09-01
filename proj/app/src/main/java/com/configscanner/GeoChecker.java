@@ -63,20 +63,41 @@ public class GeoChecker {
         long deadline = System.currentTimeMillis()
                 + Math.max(30, Math.min(connectTimeoutSec, 40)) * 1000L;
 
-        // Wave 1: the fastest, most robust sources. Wave 2: the rest. Wave 3: a
-        // retry of the robust sources — flaky exits often drop the FIRST parallel
-        // burst entirely (all 8 requests die together) but answer the next attempt.
-        String[][] wave1 = {SERVICES[4], SERVICES[2], SERVICES[0]}; // cloudflare, ip.sb, ipwho.is
-        String[][] wave2 = {SERVICES[1], SERVICES[3], SERVICES[5], SERVICES[6], SERVICES[7]};
-        String[][] wave3 = {SERVICES[4], SERVICES[3], SERVICES[2]}; // retry
+        // Flaky exits tend to drop a whole PARALLEL burst at once (all requests
+        // die together) but answer a lone request moments later — so the budget
+        // is spent as small bursts with cooldowns, ending in two SEQUENTIAL
+        // single requests, which is the pattern real clients (one connection at
+        // a time) use and the one flaky exits tolerate.
+        //   wave 1: 2 in parallel (the two most robust sources)
+        //   wave 2: 2 in parallel (two more)
+        //   wave 3: 1 sequential single
+        //   wave 4: 1 sequential single
+        String[][] wave1 = {SERVICES[4], SERVICES[2]}; // cloudflare, ip.sb
+        String[][] wave2 = {SERVICES[0], SERVICES[3]}; // ipwho.is, ipinfo
+        String[][] wave3 = {SERVICES[4]};              // lone cloudflare
+        String[][] wave4 = {SERVICES[2]};              // lone ip.sb
 
         List<String[]> votes = new ArrayList<>();
         collectWave(wave1, proxyPort, connectTimeoutSec, deadline, votes);
         if (topVote(votes) >= 2) return makeResult(votes);
+        cooldown(deadline);
         collectWave(wave2, proxyPort, connectTimeoutSec, deadline, votes);
         if (topVote(votes) >= 2) return makeResult(votes);
+        cooldown(deadline);
         collectWave(wave3, proxyPort, connectTimeoutSec, deadline, votes);
+        if (topVote(votes) >= 2) return makeResult(votes);
+        cooldown(deadline);
+        collectWave(wave4, proxyPort, connectTimeoutSec, deadline, votes);
         return makeResult(votes);
+    }
+
+    /** ~1s pause between waves so a rate-limiting/throttling exit recovers. */
+    private static void cooldown(long deadline) {
+        long left = deadline - System.currentTimeMillis() - 1200;
+        if (left <= 0) return;
+        try {
+            Thread.sleep(Math.min(1000, left));
+        } catch (InterruptedException ignored) { }
     }
 
     private static void collectWave(String[][] wave, int proxyPort, int connectTimeoutSec,

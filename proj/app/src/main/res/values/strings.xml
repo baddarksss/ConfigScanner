@@ -192,7 +192,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.27
+<string name="changelog">v1.0.28
+• Hardened country detection even more: geo probes are now sent as small bursts with short pauses, ending with two single sequential requests — the pattern flaky exits tolerate, so far more “country unknown” servers should now get labeled
+
+v1.0.27
 • New option in the Caption tab: include “country unknown” servers in Copy links only — a server that connected but couldn’t be labeled is usually still a working proxy, so its link is no longer lost
 
 v1.0.26
