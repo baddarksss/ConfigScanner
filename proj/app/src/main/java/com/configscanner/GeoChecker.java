@@ -43,19 +43,25 @@ public class GeoChecker {
         public boolean singleVote = false;
     }
 
-    /** {url, countryField, codeField, successField (nullable)} */
+    /** {url, countryField, codeField, successField (nullable)}
+     *  Order = preference; all run in parallel and the first answers win. */
     private static final String[][] SERVICES = {
             {"https://ipwho.is/", "country", "country_code", "success"},
             {"https://api.country.is/", "country", "country_code", null},
-            {"https://ipapi.co/json/", "country_name", "country_code", "success"},
             {"https://api.ip.sb/geoip", "country", "country_code", null},
+            {"https://ipinfo.io/json", "", "country", null},
+            {"https://www.cloudflare.com/cdn-cgi/trace", "@@trace", "loc", null},
+            {"https://ipapi.co/json/", "country_name", "country_code", "success"},
             {"https://ifconfig.co/json", "country_name", "country_code", null},
             {"https://ip-api.com/json/", "country", "country_code", null},
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
+        // slow exits can need >10s for their first upstream connection, so the
+        // geo budget has a 30s floor (capped at 40s) independent of the user's
+        // per-server timeout
         long deadline = System.currentTimeMillis()
-                + Math.max(10, Math.min(connectTimeoutSec, 25)) * 1000L;
+                + Math.max(30, Math.min(connectTimeoutSec, 40)) * 1000L;
 
         List<String[]> votes = new ArrayList<>();
         ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
@@ -145,18 +151,39 @@ public class GeoChecker {
                     return null;
                 }
                 String body = resp.body().string();
-                JSONObject o = new JSONObject(body);
-                if (svc[3] != null && !o.optBoolean(svc[3], false)) {
-                    AppLog.w("geo", url + " failed: success=false");
-                    return null;
+                String country, code, ip;
+                if ("@@trace".equals(svc[1])) {
+                    // cloudflare trace: plain-text "loc=XX" line — works on
+                    // almost every tunnel and is rarely blocked
+                    code = "";
+                    for (String line : body.split("\\n")) {
+                        if (line.startsWith("loc=")) {
+                            code = line.substring(4).trim();
+                            break;
+                        }
+                    }
+                    country = "";
+                    ip = "";
+                } else {
+                    JSONObject o = new JSONObject(body);
+                    if (svc[3] != null && !o.optBoolean(svc[3], false)) {
+                        AppLog.w("geo", url + " failed: success=false");
+                        return null;
+                    }
+                    country = o.optString(svc[1], "");
+                    code = o.optString(svc[2], "");
+                    ip = o.optString("ip", o.optString("query", ""));
                 }
-                String country = o.optString(svc[1], "");
-                String code = o.optString(svc[2], "");
-                String ip = o.optString("ip", o.optString("query", ""));
                 if (code.isEmpty() && country.isEmpty()) {
                     AppLog.w("geo", url + " failed: no country in response");
                     return null;
                 }
+                // code-only answers (ipinfo, cloudflare): fill the name locally
+                if (!code.isEmpty() && country.isEmpty()) {
+                    CountryData.C c = CountryData.byCode(code);
+                    if (c != null) country = c.en;
+                }
+                code = code.toUpperCase();
                 AppLog.d("geo", url + " -> " + code + " " + country);
                 return new String[]{code, country, ip};
             }

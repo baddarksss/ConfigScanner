@@ -138,6 +138,7 @@
     <string name="core_update_busy">One moment — another core operation is in progress</string>
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
+    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
     <string name="out_lang_title">Country name in output</string>
     <string name="out_lang_fa">Persian</string>
     <string name="out_lang_en">English</string>
@@ -187,7 +188,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.23
+<string name="changelog">v1.0.24
+• New: end-of-run report in the results — ok / no country / unreachable / skipped counts
+• Hardened country detection: 2 more robust geo sources (Cloudflare trace + ipinfo), and the geo time budget is now at least 30s — slow exits that showed "country unknown" before should now resolve
+• New: a short light vibration when the run reaches 100%
+• Note: your country emoji codes are stored in the app data and survive updates (only uninstalling removes them — use the Backup button)
+
+v1.0.23
 • Fixed: the screen no longer jumps to a fixed position while a test run is in progress — wherever you scroll, it stays put
 • New: a progress notification with a live percentage while scanning, so you can follow the run even when the app is in the background (you are asked once for the notification permission on Android 13+)
 

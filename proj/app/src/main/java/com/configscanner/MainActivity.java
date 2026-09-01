@@ -133,6 +133,10 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
     private int totalCount = 0;
     private final AtomicBoolean runFinished = new AtomicBoolean(false);
+    private final java.util.concurrent.atomic.AtomicInteger okCount = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger noCountryCount = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger unreachableCount = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
     private volatile boolean destroyed = false;
     private final java.util.Set<Process> activeEngines = java.util.Collections
             .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -707,6 +711,10 @@ public class MainActivity extends AppCompatActivity {
         }
         running = true;
         runFinished.set(false);
+        okCount.set(0);
+        noCountryCount.set(0);
+        unreachableCount.set(0);
+        skipCount.set(0);
         syncCoreButtons();
         doneCount.set(0);
         totalCount = servers.size();
@@ -805,6 +813,7 @@ public class MainActivity extends AppCompatActivity {
                 String base = s.name.isEmpty() ? hostport : s.name;
                 outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
                 AppLog.w("test", "SKIP " + hostport + " (hysteria2 obfs without password)");
+                skipCount.incrementAndGet();
                 refreshOutput();
                 autoScroll();
                 return;
@@ -843,9 +852,11 @@ public class MainActivity extends AppCompatActivity {
                 // The official Xray core no longer ships some protocols
                 // (ssr, tuic, shadowtls, anytls, snici) — surface that clearly
                 if (earlyTail.contains("unknown config id")) {
+                    unreachableCount.incrementAndGet();
                     fail(s, getString(R.string.res_core_unsupported, s.protocol));
                     return;
                 }
+                unreachableCount.incrementAndGet();
                 fail(s, getString(R.string.res_engine_error));
                 return;
             }
@@ -857,6 +868,7 @@ public class MainActivity extends AppCompatActivity {
                 AppLog.w("test", "port " + port + " not up after " + waitMs + "ms"
                         + " engine alive=" + engine.isAlive()
                         + " log=[" + AppLog.fileTail(engineLog, 8) + "]");
+                unreachableCount.incrementAndGet();
                 fail(s, getString(R.string.res_connect_failed));
                 return;
             }
@@ -891,17 +903,20 @@ public class MainActivity extends AppCompatActivity {
                 doneCount.incrementAndGet();
                 status(String.format("✓ [%d/%d] %s = %s", doneCount.get(), totalCount,
                         hostport, geo.code));
+                okCount.incrementAndGet();
                 success(renamedRaw, flag);
                 noteCountry(geo.code);
             } else {
                 doneCount.incrementAndGet();
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
                         + AppLog.fileTail(engineLog, 8) + "]");
+                noCountryCount.incrementAndGet();
                 fail(s, getString(R.string.res_country_unknown));
             }
         } catch (Exception e) {
             AppLog.e("test", "error " + hostport + " " + e.getMessage());
             doneCount.incrementAndGet();
+            unreachableCount.incrementAndGet();
             fail(s, String.valueOf(e.getMessage()));
         } finally {
             activeEngines.remove(engine);
@@ -923,6 +938,10 @@ public class MainActivity extends AppCompatActivity {
         if (runStopped) return; // a stopped run never "finishes"
         if (runFinished.compareAndSet(false, true)) {
             cancelScanNotification();
+            final String summary = buildRunSummary();
+            AppLog.i("run", "finished: " + summary);
+            outputLines.add("\n—— " + summary + " ——");
+            refreshOutput();
             postUi(() -> {
                 running = false;
                 syncCoreButtons();
@@ -931,7 +950,8 @@ public class MainActivity extends AppCompatActivity {
                 waterCircle.setRunning(false);
                 waterCircle.setProgress(totalCount == 0 ? 0 : 100f);
                 progressLabel.setText(R.string.progress_done);
-                progressStatus.setText(R.string.progress_finished);
+                progressStatus.setText(summary);
+                vibrateOnce();
                 // back to idle: hide the circle a few seconds after finishing
                 main.postDelayed(() -> {
                     if (!running) progressCard.setVisibility(View.GONE);
@@ -1290,6 +1310,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ------------------------------------------------------------------- ui
+
+    private String buildRunSummary() {
+        return getString(R.string.run_summary, okCount.get(), noCountryCount.get(),
+                unreachableCount.get(), skipCount.get());
+    }
+
+    /** One short, light vibration when a run reaches 100%. */
+    private void vibrateOnce() {
+        try {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v == null || !v.hasVibrator()) return;
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(
+                        120, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                v.vibrate(120);
+            }
+        } catch (Exception ignored) { }
+    }
 
     private void updateProgress() {
         final int done = doneCount.get();
