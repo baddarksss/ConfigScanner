@@ -389,7 +389,6 @@ public class MainActivity extends AppCompatActivity {
             input.setText("");
             updateStartState();
         });
-        ((MaterialButton) findViewById(R.id.btnCopy)).setOnClickListener(v -> copyAll());
         ((MaterialButton) findViewById(R.id.btnCopyLinks)).setOnClickListener(v -> copyLinksOnly());
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
                 .setChecked(prefs.getBoolean("include_unknown_in_links", false));

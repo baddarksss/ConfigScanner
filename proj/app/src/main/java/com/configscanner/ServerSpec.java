@@ -274,7 +274,12 @@ public class ServerSpec {
         try {
             JSONObject o = new JSONObject(json);
             s.host = o.optString("add", "");
-            s.port = o.optInt("port", 443);
+            // panels emit the port either as a number or a string ("443")
+            s.port = 443;
+            String portStr = o.optString("port", "");
+            if (!portStr.isEmpty()) {
+                try { s.port = Integer.parseInt(portStr.trim()); } catch (Exception e) { }
+            }
             s.uuid = o.optString("id", "");
             String ps = o.optString("ps", "");
             if (s.name.isEmpty() && !ps.isEmpty()) s.name = ps;

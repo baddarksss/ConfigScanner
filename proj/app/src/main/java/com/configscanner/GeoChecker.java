@@ -57,6 +57,9 @@ public class GeoChecker {
             {"https://api.ip.sb/geoip", "country", "country_code", null},
             {"https://ipinfo.io/json", "", "country", null},
             {"https://www.cloudflare.com/cdn-cgi/trace", "@@trace", "loc", null},
+            // plain HTTP (no TLS): some exits let port-80 traffic through even
+            // when they block/reset the TLS geo probes
+            {"http://ip-api.com/json/", "country", "countryCode", null},
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
@@ -76,9 +79,10 @@ public class GeoChecker {
         //   wave 3: 1 sequential single
         //   wave 4: 1 sequential single
         String[][] wave1 = {SERVICES[4], SERVICES[2]}; // cloudflare, ip.sb
-        String[][] wave2 = {SERVICES[0], SERVICES[3], SERVICES[1]}; // ipwho.is, ipinfo, country.is
+        String[][] wave2 = {SERVICES[0], SERVICES[3], SERVICES[1], SERVICES[5]}; // + ip-api (http)
         String[][] wave3 = {SERVICES[4]};              // lone cloudflare
         String[][] wave4 = {SERVICES[2]};              // lone ip.sb
+        String[][] wave5 = {SERVICES[5]};              // lone ip-api (http)
 
         List<String[]> votes = new ArrayList<>();
         // Fast lone-request probe first: an exit that resets single requests
@@ -101,6 +105,9 @@ public class GeoChecker {
         if (topVote(votes) >= 2) return makeResult(votes);
         cooldown(deadline);
         collectWave(wave4, proxyPort, connectTimeoutSec, deadline, votes);
+        if (topVote(votes) >= 2) return makeResult(votes);
+        cooldown(deadline);
+        collectWave(wave5, proxyPort, connectTimeoutSec, deadline, votes);
         return makeResult(votes);
     }
 
@@ -151,6 +158,24 @@ public class GeoChecker {
             return new Probe(PKind.SLOW, null);
         } catch (Exception e) {
             AppLog.d("geo", "probe2 reset: " + e.getClass().getSimpleName());
+        }
+        // attempt 3 over plain HTTP: exits that reset the TLS probes but allow
+        // port-80 traffic still get labeled instead of reported as dead
+        try {
+            Request req = new Request.Builder().url(SERVICES[5][0]).get().build();
+            try (Response resp = client.newCall(req).execute()) {
+                if (resp.isSuccessful() && resp.body() != null) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("\"countryCode\"\\s*:\\s*\"([A-Za-z]{2})\"")
+                            .matcher(resp.body().string());
+                    if (m.find()) return new Probe(PKind.OK, countryVote(m.group(1).toUpperCase()));
+                }
+                return new Probe(PKind.SLOW, null);
+            }
+        } catch (java.net.SocketTimeoutException e) {
+            return new Probe(PKind.SLOW, null);
+        } catch (Exception e) {
+            AppLog.d("geo", "probe3 reset: " + e.getClass().getSimpleName());
         }
         return new Probe(PKind.DEAD, null);
     }

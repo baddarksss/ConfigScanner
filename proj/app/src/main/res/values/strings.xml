@@ -39,8 +39,9 @@
     <!-- Output card -->
     <string name="results_title">📤 Results</string>
     <string name="lines_count">%1$d line(s)</string>
-    <string name="btn_copy_links">Copy links only</string>
-    <string name="btn_copy">📋 Copy all</string>
+    <string name="btn_copy_only">Copy only</string>
+
+
     <string name="btn_save">💾 Save file</string>
 
     <!-- Xray card -->

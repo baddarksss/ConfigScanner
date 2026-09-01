@@ -282,26 +282,14 @@
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnCopy"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_copy"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-
-                            <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnCopyLinks"
                                 style="@style/Widget.Material3.Button.OutlinedButton"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="6dp"
                                 android:layout_weight="1"
-                                android:text="@string/btn_copy_links"
+                                android:maxLines="1"
+                                android:text="@string/btn_copy_only"
                                 android:textColor="@color/btn_text"
                                 android:textSize="12sp"
                                 app:cornerRadius="12dp"

@@ -39,8 +39,9 @@
     <!-- Output card -->
     <string name="results_title">📤 نتیجه</string>
     <string name="lines_count">%1$d خط</string>
-    <string name="btn_copy_links">فقط لینک‌ها</string>
-    <string name="btn_copy">📋 کپی همه</string>
+    <string name="btn_copy_only">کپی فقط</string>
+
+
     <string name="btn_save">💾 ذخیره فایل</string>
 
     <!-- Xray card -->
