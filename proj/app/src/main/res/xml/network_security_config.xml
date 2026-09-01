@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The geo fallback uses one plain-HTTP endpoint (ip-api.com has no free
+     HTTPS). Some proxy exits forward port-80 traffic even when they block
+     the TLS geo probes, so cleartext is permitted for that single domain
+     only. Everything else stays HTTPS-only. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">ip-api.com</domain>
+    </domain-config>
+</network-security-config>

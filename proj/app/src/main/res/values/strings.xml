@@ -195,7 +195,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.31
+<string name="changelog">v1.0.33
+• Fixed: the plain-HTTP geo fallback (ip-api) was blocked by Android’s cleartext policy on every request — cleartext is now permitted for that single domain only, so the fallback actually works on device
+
+v1.0.31
 • Fixed: port collisions between servers in the same run (two servers could grab the same port and one failed to bind, showing a false “unreachable”)
 • Fixed: starting a run with a big list could freeze the screen (ANR) — engine version checks and port probing now run in the background
 • Fixed: vmess+gRPC links where the panel puts the service name in “path” now work

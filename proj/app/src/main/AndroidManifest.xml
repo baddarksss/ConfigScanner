@@ -10,6 +10,7 @@
          enables the on-demand "install unknown apps" settings page. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Config Scanner"
