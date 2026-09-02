@@ -194,7 +194,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.36
+<string name="changelog">v1.0.37
+• Fixed: configs pasted from web pages / other bots with HTML entities (&amp;amp;) were mis-parsed — e.g. hy2 Salamander links lost their obfs password and failed. Entities are now unescaped before parsing
+
+v1.0.36
 • Fixed: the duplicate-name counter no longer appears AFTER the channel name — it now sits on the flag/country part (e.g. “🇩🇪 Germany 2 | Wpnfa”) and nameless unknown servers get “unknown” so the channel name stays clean
 
 v1.0.35

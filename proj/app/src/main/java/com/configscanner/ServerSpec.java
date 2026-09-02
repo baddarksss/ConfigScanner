@@ -73,6 +73,22 @@ public class ServerSpec {
         try { return URLDecoder.decode(s, "UTF-8"); } catch (Exception e) { return s; }
     }
 
+    /**
+     * Unescapes the common HTML entities that end up in configs pasted from
+     * web pages / other bots. Only entities, never angle-bracket markup, so
+     * a normal "a & b" stays untouched.
+     */
+    static String unescapeHtml(String s) {
+        if (s == null || s.indexOf('&') < 0) return s;
+        return s.replace("&amp;", "\u0001")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&apos;", "'")
+                .replace("\u0001", "&");
+    }
+
     public static String b64decode(String s) {
         if (s == null) return "";
         s = s.trim();
@@ -162,6 +178,11 @@ public class ServerSpec {
         if (line == null) return null;
         line = line.trim();
         if (line.isEmpty()) return null;
+        // configs pasted from web pages or other bots often carry HTML
+        // entities ("&amp;" instead of "&") — left alone they silently
+        // mangle the query string (e.g. hy2's obfs-password key becomes
+        // "amp;obfs-password" and the password is lost)
+        line = unescapeHtml(line);
         String l = line.toLowerCase();
         if (l.startsWith("vless://")) return parseVless(line);
         if (l.startsWith("vmess://")) return parseVmess(line);
