@@ -194,7 +194,16 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.37
+<string name="changelog">v1.0.38
+• Fixed: TCP fragmentation settings mapping for Xray freedom outbound (under fragment key) so TLS SNI bypass works properly
+• Fixed: Clean output names without duplicate counter numbers (e.g. 🇩🇪 Germany | Channel)
+• Fixed: Scan progress freeze bug on early engine exit or connection failure
+• Fixed: Option to exclude unknown country configs now properly filters copied links
+• Fixed: VMess renaming now updates the internal JSON "ps" field for full client compatibility
+• Fixed: GeoChecker reliability improvements, api.country.is parsing and browser User-Agent header
+• Improvement: Test summary report card remains visible after scan completion
+
+v1.0.37
 • Fixed: configs pasted from web pages / other bots with HTML entities (&amp;amp;) were mis-parsed — e.g. hy2 Salamander links lost their obfs password and failed. Entities are now unescaped before parsing
 
 v1.0.36

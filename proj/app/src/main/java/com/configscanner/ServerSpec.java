@@ -134,12 +134,14 @@ public class ServerSpec {
     static String[] splitHostPort(String hp) {
         if (hp == null) return new String[]{"", ""};
         hp = hp.trim();
+        while (hp.endsWith("/")) hp = hp.substring(0, hp.length() - 1).trim();
         if (hp.startsWith("[")) {
             int c = hp.indexOf(']');
             if (c < 0) return new String[]{hp, ""};
             String host = hp.substring(1, c);
             String port = (c + 2 < hp.length() && hp.charAt(c + 1) == ':')
                     ? hp.substring(c + 2) : "";
+            while (port.endsWith("/")) port = port.substring(0, port.length() - 1);
             return new String[]{host, port};
         }
         int c = hp.lastIndexOf(':');
@@ -148,6 +150,7 @@ public class ServerSpec {
         // part of the address, not a port separator
         if (hp.substring(0, c).indexOf(':') >= 0) return new String[]{hp, ""};
         String maybePort = hp.substring(c + 1);
+        while (maybePort.endsWith("/")) maybePort = maybePort.substring(0, maybePort.length() - 1);
         if (isPort(maybePort)) return new String[]{hp.substring(0, c), maybePort};
         return new String[]{hp, ""};
     }
@@ -383,7 +386,11 @@ public class ServerSpec {
         }
         int at = body.lastIndexOf('@');
         if (at >= 0) {
-            String userinfo = b64decode(body.substring(0, at));
+            String rawUserinfo = body.substring(0, at);
+            String userinfo = b64decode(rawUserinfo);
+            if (userinfo.isEmpty() || userinfo.indexOf(':') <= 0) {
+                userinfo = urlDecode(rawUserinfo);
+            }
             String rest = body.substring(at + 1);
             int qi = rest.indexOf('?');
             if (qi >= 0) {
@@ -683,10 +690,14 @@ public class ServerSpec {
         }
         if ("tls".equals(security) || "reality".equals(security)) {
             st.put("security", security);
+            String fp = fingerprint;
+            if (fp != null && (fp.equalsIgnoreCase("unsafe") || fp.equalsIgnoreCase("none") || fp.trim().isEmpty())) {
+                fp = null;
+            }
             if ("reality".equals(security)) {
                 JSONObject r = new JSONObject();
                 r.put("show", false);
-                r.put("fingerprint", fingerprint.isEmpty() ? "chrome" : fingerprint);
+                r.put("fingerprint", fp == null ? "chrome" : fp);
                 if (sni != null && !sni.isEmpty()) r.put("serverName", sni);
                 if (pbk != null && !pbk.isEmpty()) r.put("publicKey", pbk);
                 if (sid != null && !sid.isEmpty()) r.put("shortId", sid);
@@ -712,7 +723,7 @@ public class ServerSpec {
                         t.put("verifyPeerCertByName", names);
                     }
                 }
-                if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                if (fp != null) t.put("fingerprint", fp);
                 // ALPN from the link (e.g. h2,http/1.1,h3) — some exits pick a
                 // different protocol (or drop the connection) without it
                 if (alpn != null && !alpn.isEmpty()) {
@@ -793,11 +804,15 @@ public class ServerSpec {
     }
 
     private static String fragRange(JSONArray a, String dflt) {
-        if (a != null) {
+        if (a != null && a.length() > 0) {
             try {
-                if (a.length() >= 2) return a.getInt(0) + "-" + a.getInt(1);
+                if (a.length() >= 2) {
+                    String v0 = String.valueOf(a.get(0)).trim();
+                    String v1 = String.valueOf(a.get(1)).trim();
+                    return v0 + "-" + v1;
+                }
                 if (a.length() == 1) {
-                    int v = a.getInt(0);
+                    String v = String.valueOf(a.get(0)).trim();
                     return v + "-" + v;
                 }
             } catch (Exception ignored) { }

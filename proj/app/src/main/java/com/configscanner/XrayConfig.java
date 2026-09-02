@@ -59,7 +59,9 @@ public class XrayConfig {
             fragOut = new JSONObject();
             fragOut.put("tag", "fragment");
             fragOut.put("protocol", "freedom");
-            fragOut.put("settings", fragSet);
+            JSONObject fSettings = new JSONObject();
+            fSettings.put("fragment", fragSet);
+            fragOut.put("settings", fSettings);
             fragOut.put("streamSettings", new JSONObject()
                     .put("sockopt", new JSONObject().put("tcpNoDelay", true)));
         }
