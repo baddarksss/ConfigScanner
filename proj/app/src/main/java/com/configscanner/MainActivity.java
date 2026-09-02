@@ -939,12 +939,7 @@ public class MainActivity extends AppCompatActivity {
                     + (geo.singleVote ? " (single-vote, low confidence)" : "")
                     + " took=" + took + "s");
 
-            if (geo.deadTunnel) {
-                doneCount.incrementAndGet();
-                AppLog.w("test", "tunnel up but traffic does not pass — " + hostport);
-                unreachableCount.incrementAndGet();
-                fail(s, getString(R.string.res_tunnel_dead));
-            } else if (geo.ok && !geo.code.isEmpty()) {
+            if (geo.ok && !geo.code.isEmpty()) {
                 String countryName = geo.country.isEmpty()
                         ? geo.code : geo.country;
                 if ("fa".equals(prefs.getString("out_lang", "en"))) {

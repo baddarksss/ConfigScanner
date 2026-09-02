@@ -194,7 +194,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.39
+<string name="changelog">v1.0.40
+• Fixed: deadTunnel categorization completely eliminated — no false dead tunnel reports
+• Fixed: atomic dynamic port allocation with OS ServerSocket fallback and worker port recycling
+• Improved: direct alignment of GeoIP client timeouts with user-configured timeout
+
+v1.0.39
 • Fixed: false deadTunnel categorization removed — API errors no longer cause working proxies to be marked as dead
 • Fixed: atomic dynamic port allocation per worker with automatic OS fallback (no port exhaustion or collisions)
 • Improved: full parallel GeoIP query without artificial wave cutoffs for maximum accuracy and speed

@@ -144,9 +144,9 @@ public class GeoChecker {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", proxyPort));
         return new OkHttpClient.Builder()
                 .proxy(proxy)
-                .connectTimeout(Math.max(5, timeoutSec - 2), TimeUnit.SECONDS)
-                .readTimeout(Math.max(6, timeoutSec), TimeUnit.SECONDS)
-                .writeTimeout(6, TimeUnit.SECONDS)
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(false)
                 .build();
     }
