@@ -194,7 +194,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.38
+<string name="changelog">v1.0.39
+• Fixed: false deadTunnel categorization removed — API errors no longer cause working proxies to be marked as dead
+• Fixed: atomic dynamic port allocation per worker with automatic OS fallback (no port exhaustion or collisions)
+• Improved: full parallel GeoIP query without artificial wave cutoffs for maximum accuracy and speed
+
+v1.0.38
 • Fixed: TCP fragmentation settings mapping for Xray freedom outbound (under fragment key) so TLS SNI bypass works properly
 • Fixed: Clean output names without duplicate counter numbers (e.g. 🇩🇪 Germany | Channel)
 • Fixed: Scan progress freeze bug on early engine exit or connection failure

@@ -35,7 +35,6 @@ public class GeoChecker {
         public String ip = "";
         public int votes = 0;
         public int answered = 0;
-        /** tunnel is up but no service could be reached */
         public boolean deadTunnel = false;
         /** true when exactly ONE service answered */
         public boolean singleVote = false;
@@ -52,53 +51,19 @@ public class GeoChecker {
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
-        int timeout = Math.max(6, Math.min(connectTimeoutSec, 20));
+        int timeout = Math.max(8, connectTimeoutSec);
         long deadline = System.currentTimeMillis() + timeout * 1000L;
 
         List<String[]> votes = new ArrayList<>();
-        FailStats stats = new FailStats();
-
-        // Wave 1: Fast parallel check across top services
-        String[][] wave1 = {SERVICES[0], SERVICES[1], SERVICES[2], SERVICES[3]};
-        collectWave(wave1, proxyPort, timeout, deadline, votes, stats);
-
-        Result r1 = makeResult(votes);
-        if (r1.ok) return r1;
-
-        // Wave 2: Fallback services including plain HTTP
-        long left = deadline - System.currentTimeMillis();
-        if (left > 1000) {
-            String[][] wave2 = {SERVICES[4], SERVICES[5]};
-            collectWave(wave2, proxyPort, Math.max(4, (int) (left / 1000)), deadline, votes, stats);
-        }
-
-        Result r2 = makeResult(votes);
-        if (r2.ok) return r2;
-
-        if (stats.resets > 0 && votes.isEmpty()) {
-            Result dead = new Result();
-            dead.deadTunnel = true;
-            return dead;
-        }
-
-        return r2;
-    }
-
-    private static final class FailStats {
-        int timeouts = 0;
-        int resets = 0;
-    }
-
-    private static void collectWave(String[][] wave, int proxyPort, int timeoutSec,
-                                    long deadline, List<String[]> votes, FailStats stats) {
-        if (System.currentTimeMillis() >= deadline) return;
-        ExecutorService ex = Executors.newFixedThreadPool(wave.length);
+        ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
+
         try {
-            for (final String[] svc : wave) {
-                cs.submit(() -> query(newProxyClient(proxyPort, timeoutSec), svc, stats));
+            for (final String[] svc : SERVICES) {
+                cs.submit(() -> query(newProxyClient(proxyPort, timeout), svc));
             }
-            for (int i = 0; i < wave.length; i++) {
+
+            for (int i = 0; i < SERVICES.length; i++) {
                 long left = deadline - System.currentTimeMillis();
                 if (left <= 0) break;
                 Future<String[]> f;
@@ -112,7 +77,7 @@ public class GeoChecker {
                     String[] res = f.get();
                     if (res != null && res[0] != null && !res[0].isEmpty()) {
                         votes.add(res);
-                        // If we already have 2 agreeing votes, we can finish early
+                        // If 2 or more services agree on the same country, we can return early
                         if (topVote(votes) >= 2) break;
                     }
                 } catch (Exception ignored) { }
@@ -120,6 +85,8 @@ public class GeoChecker {
         } finally {
             ex.shutdownNow();
         }
+
+        return makeResult(votes);
     }
 
     private static int topVote(List<String[]> votes) {
@@ -177,14 +144,14 @@ public class GeoChecker {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", proxyPort));
         return new OkHttpClient.Builder()
                 .proxy(proxy)
-                .connectTimeout(Math.max(4, timeoutSec), TimeUnit.SECONDS)
-                .readTimeout(8, TimeUnit.SECONDS)
+                .connectTimeout(Math.max(5, timeoutSec - 2), TimeUnit.SECONDS)
+                .readTimeout(Math.max(6, timeoutSec), TimeUnit.SECONDS)
                 .writeTimeout(6, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(false)
                 .build();
     }
 
-    private static String[] query(OkHttpClient client, String[] svc, FailStats stats) {
+    private static String[] query(OkHttpClient client, String[] svc) {
         String url = svc[0];
         try {
             Request req = new Request.Builder()
@@ -231,12 +198,7 @@ public class GeoChecker {
                 AppLog.d("geo", url + " -> " + code + " " + country);
                 return new String[]{code, country, ip};
             }
-        } catch (java.io.InterruptedIOException e) {
-            stats.timeouts++;
-            AppLog.w("geo", url + " timeout: " + e.getMessage());
-            return null;
         } catch (Exception e) {
-            stats.resets++;
             AppLog.w("geo", url + " error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return null;
         }

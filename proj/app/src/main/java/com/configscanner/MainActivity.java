@@ -758,11 +758,13 @@ public class MainActivity extends AppCompatActivity {
                     + " xray=" + XrayManager.version(binF)
                     + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
             pool = Executors.newFixedThreadPool(parallelN);
-            // pool.submit only enqueues — no extra thread needed
+            // pool.submit only enqueues — port is allocated dynamically when the worker runs
             for (int i = 0; i < servers.size(); i++) {
                 final ServerSpec s = servers.get(i);
-                final int port = findFreePort(basePort + i);
-                pool.submit(() -> testOne(s, port, timeoutSec));
+                pool.submit(() -> {
+                    final int port = findFreePort();
+                    testOne(s, port, timeoutSec);
+                });
             }
         }, "run-prep").start();
     }
@@ -779,23 +781,34 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) { }
     }
 
-    /** Returns the first TCP port not already listening, starting at `start`. */
-    /** Ports handed out for the current run — xray is not listening yet at
-     *  allocation time, so "is it in use?" alone lets two servers pick the
-     *  same port and one of them fails to bind. */
-    private final java.util.Set<Integer> assignedPorts =
-            java.util.Collections.synchronizedSet(new java.util.HashSet<Integer>());
+    /** Ports currently in use by active test workers in the current run */
+    private final java.util.Set<Integer> assignedPorts = new java.util.HashSet<>();
 
-    private int findFreePort(int start) {
-        for (int p = start; p < start + 500; p++) {
-            if (assignedPorts.contains(p)) continue;
-            if (!XrayManager.portInUse(p)) {
+    private int findFreePort() {
+        synchronized (assignedPorts) {
+            int start = 20000 + (int) (Math.random() * 500);
+            for (int p = start; p < 60000; p++) {
+                if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
+                    assignedPorts.add(p);
+                    return p;
+                }
+            }
+            for (int p = 10000; p < start; p++) {
+                if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
+                    assignedPorts.add(p);
+                    return p;
+                }
+            }
+            try (java.net.ServerSocket ss = new java.net.ServerSocket(0)) {
+                int p = ss.getLocalPort();
                 assignedPorts.add(p);
                 return p;
+            } catch (Exception e) {
+                int fallback = 21000 + (int) (Math.random() * 20000);
+                assignedPorts.add(fallback);
+                return fallback;
             }
         }
-        AppLog.w("run", "no free port found in [" + start + "," + (start + 500) + ")");
-        return start + 500;
     }
 
     /** Post a UI update, skipping it if the activity is gone (rotations/
@@ -809,6 +822,7 @@ public class MainActivity extends AppCompatActivity {
         for (Process p : activeEngines) {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
+        synchronized (assignedPorts) { assignedPorts.clear(); }
         running = false;
         runStopped = true;
         cancelScanNotification();
@@ -989,6 +1003,7 @@ public class MainActivity extends AppCompatActivity {
             fail(s, String.valueOf(e.getMessage()));
         } finally {
             activeEngines.remove(engine);
+            synchronized (assignedPorts) { assignedPorts.remove(port); }
             if (engine != null) {
                 try {
                     engine.destroyForcibly();
