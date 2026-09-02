@@ -316,6 +316,9 @@ public class ServerSpec {
             s.security = (tls.equals("tls") || tls.equals("reality")) ? tls : "none";
             s.sni = o.optString("sni", "");
             s.fingerprint = firstNonEmpty(o.optString("fp", ""), "chrome");
+            s.alpn = firstNonEmpty(o.optString("alpn", ""), o.optString("alpns", ""));
+            s.fragmentRaw = firstNonEmpty(o.optString("fm", ""), o.optString("fragment", ""));
+            s.ech = o.optString("ech", "");
             s.path = o.optString("path", "");
             s.hostHeader = o.optString("host", "");
             s.flow = o.optString("flow", "");
@@ -736,7 +739,12 @@ public class ServerSpec {
                 }
                 // ECH: panels send a resolver hint (ip.gs+udp://…); xray 26.x
                 // takes "half" = resolve the ECH config itself when advertised
-                if (ech != null && !ech.isEmpty()) t.put("echForceQuery", "half");
+                if (ech != null && !ech.isEmpty()) {
+                    t.put("echForceQuery", "half");
+                    if (ech.length() > 25 && !ech.contains("/") && !ech.contains("+") && !ech.contains(":") && !ech.contains("?")) {
+                        t.put("echConfig", ech);
+                    }
+                }
                 st.put("tlsSettings", t);
             }
         }
@@ -784,38 +792,50 @@ public class ServerSpec {
     /** Parse the panel ?fm= JSON ({"tcp":[{"type":"fragment","settings":{...}}]})
      *  into xray freedom fragment settings, or null when nothing usable. */
     static JSONObject fragmentSettings(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        raw = raw.trim();
         try {
-            JSONObject fm = new JSONObject(raw);
-            JSONArray arr = fm.optJSONArray("tcp");
-            if (arr == null) return null;
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject e = arr.optJSONObject(i);
-                if (e == null || !"fragment".equals(e.optString("type"))) continue;
-                JSONObject st = e.optJSONObject("settings");
-                if (st == null) continue;
-                JSONObject f = new JSONObject();
-                f.put("packets", st.optString("packets", "tlshello"));
-                f.put("length", fragRange(st.optJSONArray("lengths"), "50-100"));
-                f.put("interval", fragRange(st.optJSONArray("delays"), "10-20"));
-                return f;
+            if (raw.startsWith("{")) {
+                JSONObject fm = new JSONObject(raw);
+                if (fm.has("tcp")) {
+                    JSONArray arr = fm.optJSONArray("tcp");
+                    if (arr != null) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject e = arr.optJSONObject(i);
+                            if (e == null || !"fragment".equals(e.optString("type"))) continue;
+                            JSONObject st = e.optJSONObject("settings");
+                            if (st == null) continue;
+                            JSONObject f = new JSONObject();
+                            f.put("packets", st.optString("packets", "tlshello"));
+                            f.put("length", fragRange(st.opt("lengths"), "50-100"));
+                            f.put("interval", fragRange(st.opt("delays"), "10-20"));
+                            return f;
+                        }
+                    }
+                } else if (fm.has("packets") || fm.has("length") || fm.has("lengths")) {
+                    JSONObject f = new JSONObject();
+                    f.put("packets", fm.optString("packets", "tlshello"));
+                    f.put("length", fragRange(fm.has("lengths") ? fm.opt("lengths") : fm.opt("length"), "50-100"));
+                    f.put("interval", fragRange(fm.has("delays") ? fm.opt("delays") : fm.opt("interval"), "10-20"));
+                    return f;
+                }
             }
         } catch (Exception ignored) { }
         return null;
     }
 
-    private static String fragRange(JSONArray a, String dflt) {
-        if (a != null && a.length() > 0) {
-            try {
-                if (a.length() >= 2) {
-                    String v0 = String.valueOf(a.get(0)).trim();
-                    String v1 = String.valueOf(a.get(1)).trim();
-                    return v0 + "-" + v1;
-                }
-                if (a.length() == 1) {
-                    String v = String.valueOf(a.get(0)).trim();
-                    return v + "-" + v;
-                }
-            } catch (Exception ignored) { }
+    private static String fragRange(Object obj, String dflt) {
+        if (obj instanceof JSONArray) {
+            JSONArray a = (JSONArray) obj;
+            if (a.length() >= 2) {
+                return String.valueOf(a.opt(0)).trim() + "-" + String.valueOf(a.opt(1)).trim();
+            } else if (a.length() == 1) {
+                String v = String.valueOf(a.opt(0)).trim();
+                return v.contains("-") ? v : v + "-" + v;
+            }
+        } else if (obj instanceof String) {
+            String s = ((String) obj).trim();
+            if (!s.isEmpty()) return s;
         }
         return dflt;
     }
@@ -831,6 +851,20 @@ public class ServerSpec {
             } catch (NumberFormatException ignored) { }
         }
         return v;
+    }
+
+    /** Extracts a DNS resolver URL/IP if specified in ech parameter (e.g. ip.gs+udp://8.8.8.8) */
+    public String getEchDnsResolver() {
+        if (ech == null || ech.isEmpty()) return null;
+        int plus = ech.indexOf('+');
+        String target = (plus >= 0) ? ech.substring(plus + 1).trim() : ech.trim();
+        if (target.startsWith("udp://") || target.startsWith("https://") || target.startsWith("tcp://") || target.startsWith("quic://")) {
+            return target;
+        }
+        if (target.matches("^[0-9]{1,3}(\\.[0-9]{1,3}){3}(:[0-9]+)?$")) {
+            return "udp://" + target + (target.contains(":") ? "" : ":53");
+        }
+        return null;
     }
 
     public String buildOutbound() throws Exception {

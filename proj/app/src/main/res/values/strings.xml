@@ -194,7 +194,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.40
+<string name="changelog">v1.0.41
+• Fixed: fragmentSettings null-safety and support for direct JSON/range settings
+• Fixed: outbound routing order aligned to proxy → fragment → blackhole
+• Added: ECH resolver extraction (domain+resolver format) and custom upstream DNS in Xray
+• Added: full parameter support (fm, fragment, alpn, ech) for VMess configs
+• Improved: prevention of false engine errors when Geo services timeout
+
+v1.0.40
 • Fixed: deadTunnel categorization completely eliminated — no false dead tunnel reports
 • Fixed: atomic dynamic port allocation with OS ServerSocket fallback and worker port recycling
 • Improved: direct alignment of GeoIP client timeouts with user-configured timeout

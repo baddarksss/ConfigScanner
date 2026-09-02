@@ -1409,14 +1409,13 @@ public class MainActivity extends AppCompatActivity {
                 unreachableCount.get(), skipCount.get());
     }
 
-    /** True when the engine log tail contains a real error (a broken handshake
-     *  means the tunnel never really came up, not that the country is unknown). */
+    /** True when the engine log tail contains a fatal engine error or crash. */
     private static boolean looksLikeEngineError(String tail) {
         if (tail == null || tail.isEmpty()) return false;
         String t = tail.toLowerCase();
-        return t.contains("handshake") || t.contains("refused") || t.contains("panic")
-                || t.contains("reject") || t.contains("failed") || t.contains("error")
-                || t.contains("timeout") || t.contains("reset") || t.contains("denied");
+        return t.contains("panic") || t.contains("fatal") || t.contains("segmentation fault")
+                || t.contains("invalid config") || t.contains("unknown config id")
+                || t.contains("bind: address already in use");
     }
 
     /** One short, light vibration when a run reaches 100%. */
