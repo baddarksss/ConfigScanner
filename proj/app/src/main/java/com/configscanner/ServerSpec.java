@@ -134,12 +134,14 @@ public class ServerSpec {
     static String[] splitHostPort(String hp) {
         if (hp == null) return new String[]{"", ""};
         hp = hp.trim();
+        while (hp.endsWith("/")) hp = hp.substring(0, hp.length() - 1).trim();
         if (hp.startsWith("[")) {
             int c = hp.indexOf(']');
             if (c < 0) return new String[]{hp, ""};
             String host = hp.substring(1, c);
             String port = (c + 2 < hp.length() && hp.charAt(c + 1) == ':')
                     ? hp.substring(c + 2) : "";
+            while (port.endsWith("/")) port = port.substring(0, port.length() - 1);
             return new String[]{host, port};
         }
         int c = hp.lastIndexOf(':');
@@ -148,6 +150,7 @@ public class ServerSpec {
         // part of the address, not a port separator
         if (hp.substring(0, c).indexOf(':') >= 0) return new String[]{hp, ""};
         String maybePort = hp.substring(c + 1);
+        while (maybePort.endsWith("/")) maybePort = maybePort.substring(0, maybePort.length() - 1);
         if (isPort(maybePort)) return new String[]{hp.substring(0, c), maybePort};
         return new String[]{hp, ""};
     }
@@ -313,6 +316,9 @@ public class ServerSpec {
             s.security = (tls.equals("tls") || tls.equals("reality")) ? tls : "none";
             s.sni = o.optString("sni", "");
             s.fingerprint = firstNonEmpty(o.optString("fp", ""), "chrome");
+            s.alpn = firstNonEmpty(o.optString("alpn", ""), o.optString("alpns", ""));
+            s.fragmentRaw = firstNonEmpty(o.optString("fm", ""), o.optString("fragment", ""));
+            s.ech = o.optString("ech", "");
             s.path = o.optString("path", "");
             s.hostHeader = o.optString("host", "");
             s.flow = o.optString("flow", "");
@@ -383,7 +389,11 @@ public class ServerSpec {
         }
         int at = body.lastIndexOf('@');
         if (at >= 0) {
-            String userinfo = b64decode(body.substring(0, at));
+            String rawUserinfo = body.substring(0, at);
+            String userinfo = b64decode(rawUserinfo);
+            if (userinfo.isEmpty() || userinfo.indexOf(':') <= 0) {
+                userinfo = urlDecode(rawUserinfo);
+            }
             String rest = body.substring(at + 1);
             int qi = rest.indexOf('?');
             if (qi >= 0) {
@@ -683,10 +693,14 @@ public class ServerSpec {
         }
         if ("tls".equals(security) || "reality".equals(security)) {
             st.put("security", security);
+            String fp = fingerprint;
+            if (fp != null && (fp.equalsIgnoreCase("unsafe") || fp.equalsIgnoreCase("none") || fp.trim().isEmpty())) {
+                fp = null;
+            }
             if ("reality".equals(security)) {
                 JSONObject r = new JSONObject();
                 r.put("show", false);
-                r.put("fingerprint", fingerprint.isEmpty() ? "chrome" : fingerprint);
+                r.put("fingerprint", fp == null ? "chrome" : fp);
                 if (sni != null && !sni.isEmpty()) r.put("serverName", sni);
                 if (pbk != null && !pbk.isEmpty()) r.put("publicKey", pbk);
                 if (sid != null && !sid.isEmpty()) r.put("shortId", sid);
@@ -712,7 +726,7 @@ public class ServerSpec {
                         t.put("verifyPeerCertByName", names);
                     }
                 }
-                if (fingerprint != null && !fingerprint.isEmpty()) t.put("fingerprint", fingerprint);
+                if (fp != null) t.put("fingerprint", fp);
                 // ALPN from the link (e.g. h2,http/1.1,h3) — some exits pick a
                 // different protocol (or drop the connection) without it
                 if (alpn != null && !alpn.isEmpty()) {
@@ -725,7 +739,12 @@ public class ServerSpec {
                 }
                 // ECH: panels send a resolver hint (ip.gs+udp://…); xray 26.x
                 // takes "half" = resolve the ECH config itself when advertised
-                if (ech != null && !ech.isEmpty()) t.put("echForceQuery", "half");
+                if (ech != null && !ech.isEmpty()) {
+                    t.put("echForceQuery", "half");
+                    if (ech.length() > 25 && !ech.contains("/") && !ech.contains("+") && !ech.contains(":") && !ech.contains("?")) {
+                        t.put("echConfig", ech);
+                    }
+                }
                 st.put("tlsSettings", t);
             }
         }
@@ -773,34 +792,50 @@ public class ServerSpec {
     /** Parse the panel ?fm= JSON ({"tcp":[{"type":"fragment","settings":{...}}]})
      *  into xray freedom fragment settings, or null when nothing usable. */
     static JSONObject fragmentSettings(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        raw = raw.trim();
         try {
-            JSONObject fm = new JSONObject(raw);
-            JSONArray arr = fm.optJSONArray("tcp");
-            if (arr == null) return null;
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject e = arr.optJSONObject(i);
-                if (e == null || !"fragment".equals(e.optString("type"))) continue;
-                JSONObject st = e.optJSONObject("settings");
-                if (st == null) continue;
-                JSONObject f = new JSONObject();
-                f.put("packets", st.optString("packets", "tlshello"));
-                f.put("length", fragRange(st.optJSONArray("lengths"), "50-100"));
-                f.put("interval", fragRange(st.optJSONArray("delays"), "10-20"));
-                return f;
+            if (raw.startsWith("{")) {
+                JSONObject fm = new JSONObject(raw);
+                if (fm.has("tcp")) {
+                    JSONArray arr = fm.optJSONArray("tcp");
+                    if (arr != null) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject e = arr.optJSONObject(i);
+                            if (e == null || !"fragment".equals(e.optString("type"))) continue;
+                            JSONObject st = e.optJSONObject("settings");
+                            if (st == null) continue;
+                            JSONObject f = new JSONObject();
+                            f.put("packets", st.optString("packets", "tlshello"));
+                            f.put("length", fragRange(st.opt("lengths"), "50-100"));
+                            f.put("interval", fragRange(st.opt("delays"), "10-20"));
+                            return f;
+                        }
+                    }
+                } else if (fm.has("packets") || fm.has("length") || fm.has("lengths")) {
+                    JSONObject f = new JSONObject();
+                    f.put("packets", fm.optString("packets", "tlshello"));
+                    f.put("length", fragRange(fm.has("lengths") ? fm.opt("lengths") : fm.opt("length"), "50-100"));
+                    f.put("interval", fragRange(fm.has("delays") ? fm.opt("delays") : fm.opt("interval"), "10-20"));
+                    return f;
+                }
             }
         } catch (Exception ignored) { }
         return null;
     }
 
-    private static String fragRange(JSONArray a, String dflt) {
-        if (a != null) {
-            try {
-                if (a.length() >= 2) return a.getInt(0) + "-" + a.getInt(1);
-                if (a.length() == 1) {
-                    int v = a.getInt(0);
-                    return v + "-" + v;
-                }
-            } catch (Exception ignored) { }
+    private static String fragRange(Object obj, String dflt) {
+        if (obj instanceof JSONArray) {
+            JSONArray a = (JSONArray) obj;
+            if (a.length() >= 2) {
+                return String.valueOf(a.opt(0)).trim() + "-" + String.valueOf(a.opt(1)).trim();
+            } else if (a.length() == 1) {
+                String v = String.valueOf(a.opt(0)).trim();
+                return v.contains("-") ? v : v + "-" + v;
+            }
+        } else if (obj instanceof String) {
+            String s = ((String) obj).trim();
+            if (!s.isEmpty()) return s;
         }
         return dflt;
     }
@@ -816,6 +851,20 @@ public class ServerSpec {
             } catch (NumberFormatException ignored) { }
         }
         return v;
+    }
+
+    /** Extracts a DNS resolver URL/IP if specified in ech parameter (e.g. ip.gs+udp://8.8.8.8) */
+    public String getEchDnsResolver() {
+        if (ech == null || ech.isEmpty()) return null;
+        int plus = ech.indexOf('+');
+        String target = (plus >= 0) ? ech.substring(plus + 1).trim() : ech.trim();
+        if (target.startsWith("udp://") || target.startsWith("https://") || target.startsWith("tcp://") || target.startsWith("quic://")) {
+            return target;
+        }
+        if (target.matches("^[0-9]{1,3}(\\.[0-9]{1,3}){3}(:[0-9]+)?$")) {
+            return "udp://" + target + (target.contains(":") ? "" : ":53");
+        }
+        return null;
     }
 
     public String buildOutbound() throws Exception {

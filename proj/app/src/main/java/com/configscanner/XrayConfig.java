@@ -59,18 +59,34 @@ public class XrayConfig {
             fragOut = new JSONObject();
             fragOut.put("tag", "fragment");
             fragOut.put("protocol", "freedom");
-            fragOut.put("settings", fragSet);
+            JSONObject fSettings = new JSONObject();
+            fSettings.put("fragment", fragSet);
+            fragOut.put("settings", fSettings);
             fragOut.put("streamSettings", new JSONObject()
                     .put("sockopt", new JSONObject().put("tcpNoDelay", true)));
         }
         JSONArray outs = new JSONArray();
         outs.put(proxyOut);
+        if (fragOut != null) outs.put(fragOut);
         JSONObject bh = new JSONObject();
         bh.put("protocol", "blackhole");
         bh.put("tag", "block");
         outs.put(bh);
-        if (fragOut != null) outs.put(fragOut);
         c.put("outbounds", outs);
+
+        // DNS servers (including ECH resolver if specified)
+        String echResolver = s.getEchDnsResolver();
+        if (echResolver != null && !echResolver.isEmpty()) {
+            JSONObject dns = new JSONObject();
+            JSONArray servers = new JSONArray();
+            servers.put(echResolver);
+            servers.put("https://1.1.1.1/dns-query");
+            servers.put("8.8.8.8");
+            servers.put("1.1.1.1");
+            servers.put("localhost");
+            dns.put("servers", servers);
+            c.put("dns", dns);
+        }
 
         return c.toString();
     }

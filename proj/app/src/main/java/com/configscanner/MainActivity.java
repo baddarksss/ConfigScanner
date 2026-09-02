@@ -436,7 +436,7 @@ public class MainActivity extends AppCompatActivity {
         flagStrip.setOnClickListener(v -> {
             synchronized (flagList) {
                 if (flagList.isEmpty()) { toast(getString(R.string.toast_no_flags)); return; }
-                String all = String.join("  ", flagList);
+                String all = String.join(" ", flagList);
                 android.content.ClipboardManager cm =
                         (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("flags", all));
@@ -758,11 +758,13 @@ public class MainActivity extends AppCompatActivity {
                     + " xray=" + XrayManager.version(binF)
                     + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
             pool = Executors.newFixedThreadPool(parallelN);
-            // pool.submit only enqueues — no extra thread needed
+            // pool.submit only enqueues — port is allocated dynamically when the worker runs
             for (int i = 0; i < servers.size(); i++) {
                 final ServerSpec s = servers.get(i);
-                final int port = findFreePort(basePort + i);
-                pool.submit(() -> testOne(s, port, timeoutSec));
+                pool.submit(() -> {
+                    final int port = findFreePort();
+                    testOne(s, port, timeoutSec);
+                });
             }
         }, "run-prep").start();
     }
@@ -779,23 +781,34 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) { }
     }
 
-    /** Returns the first TCP port not already listening, starting at `start`. */
-    /** Ports handed out for the current run — xray is not listening yet at
-     *  allocation time, so "is it in use?" alone lets two servers pick the
-     *  same port and one of them fails to bind. */
-    private final java.util.Set<Integer> assignedPorts =
-            java.util.Collections.synchronizedSet(new java.util.HashSet<Integer>());
+    /** Ports currently in use by active test workers in the current run */
+    private final java.util.Set<Integer> assignedPorts = new java.util.HashSet<>();
 
-    private int findFreePort(int start) {
-        for (int p = start; p < start + 500; p++) {
-            if (assignedPorts.contains(p)) continue;
-            if (!XrayManager.portInUse(p)) {
+    private int findFreePort() {
+        synchronized (assignedPorts) {
+            int start = 20000 + (int) (Math.random() * 500);
+            for (int p = start; p < 60000; p++) {
+                if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
+                    assignedPorts.add(p);
+                    return p;
+                }
+            }
+            for (int p = 10000; p < start; p++) {
+                if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
+                    assignedPorts.add(p);
+                    return p;
+                }
+            }
+            try (java.net.ServerSocket ss = new java.net.ServerSocket(0)) {
+                int p = ss.getLocalPort();
                 assignedPorts.add(p);
                 return p;
+            } catch (Exception e) {
+                int fallback = 21000 + (int) (Math.random() * 20000);
+                assignedPorts.add(fallback);
+                return fallback;
             }
         }
-        AppLog.w("run", "no free port found in [" + start + "," + (start + 500) + ")");
-        return start + 500;
     }
 
     /** Post a UI update, skipping it if the activity is gone (rotations/
@@ -809,6 +822,7 @@ public class MainActivity extends AppCompatActivity {
         for (Process p : activeEngines) {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
+        synchronized (assignedPorts) { assignedPorts.clear(); }
         running = false;
         runStopped = true;
         cancelScanNotification();
@@ -818,9 +832,6 @@ public class MainActivity extends AppCompatActivity {
             waterCircle.setRunning(false);
             progressStatus.setText(R.string.progress_stopped);
             toast(getString(R.string.toast_stopped));
-            main.postDelayed(() -> {
-                if (!running) progressCard.setVisibility(View.GONE);
-            }, 2500);
         });
     }
 
@@ -893,15 +904,13 @@ public class MainActivity extends AppCompatActivity {
                 String earlyTail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "engine exited early rc=" + engine.exitValue()
                         + " log=[" + earlyTail + "]");
-                // The official Xray core no longer ships some protocols
-                // (ssr, tuic, shadowtls, anytls, snici) — surface that clearly
-                if (earlyTail.contains("unknown config id")) {
-                    unreachableCount.incrementAndGet();
-                    fail(s, getString(R.string.res_core_unsupported, s.protocol));
-                    return;
-                }
+                doneCount.incrementAndGet();
                 unreachableCount.incrementAndGet();
-                fail(s, getString(R.string.res_engine_error));
+                if (earlyTail.contains("unknown config id")) {
+                    fail(s, getString(R.string.res_core_unsupported, s.protocol));
+                } else {
+                    fail(s, getString(R.string.res_engine_error));
+                }
                 return;
             }
 
@@ -912,6 +921,7 @@ public class MainActivity extends AppCompatActivity {
                 AppLog.w("test", "port " + port + " not up after " + waitMs + "ms"
                         + " engine alive=" + engine.isAlive()
                         + " log=[" + AppLog.fileTail(engineLog, 8) + "]");
+                doneCount.incrementAndGet();
                 unreachableCount.incrementAndGet();
                 fail(s, getString(R.string.res_connect_failed));
                 return;
@@ -929,12 +939,7 @@ public class MainActivity extends AppCompatActivity {
                     + (geo.singleVote ? " (single-vote, low confidence)" : "")
                     + " took=" + took + "s");
 
-            if (geo.deadTunnel) {
-                doneCount.incrementAndGet();
-                AppLog.w("test", "tunnel up but traffic does not pass — " + hostport);
-                unreachableCount.incrementAndGet();
-                fail(s, getString(R.string.res_tunnel_dead));
-            } else if (geo.ok && !geo.code.isEmpty()) {
+            if (geo.ok && !geo.code.isEmpty()) {
                 String countryName = geo.country.isEmpty()
                         ? geo.code : geo.country;
                 if ("fa".equals(prefs.getString("out_lang", "en"))) {
@@ -946,11 +951,7 @@ public class MainActivity extends AppCompatActivity {
                 boolean incCh = prefs.getBoolean("include_channel", true);
                 String suffix = (incCh && !channel.isEmpty())
                         ? " | " + channel : "";
-                // unique within the run: several servers of one channel
-                // often share the same country label, and a duplicate name
-                // gets eaten by dedupe tools on import. The counter goes on
-                // the country part — NEVER after the channel suffix.
-                String renamed = uniqueName(flag + " " + countryName) + suffix;
+                String renamed = flag + " " + countryName + suffix;
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
                 doneCount.incrementAndGet();
@@ -976,17 +977,12 @@ public class MainActivity extends AppCompatActivity {
                     String channel2 = prefs.getString("channel", "");
                     boolean incCh2 = prefs.getBoolean("include_channel", true);
                     String nmSuffix = (incCh2 && !channel2.isEmpty()) ? " | " + channel2 : "";
-                    // when the config had no name at all, use a neutral word
-                    // so the dedupe counter lands before the channel suffix,
-                    // never after it ("unknown 2 | Wpnfa", not "Wpnfa 2")
                     String baseName = s.name;
                     if (baseName.isEmpty()) {
                         baseName = "fa".equals(prefs.getString("out_lang", "en"))
                                 ? "\u0646\u0627\u0634\u0646\u0627\u0633" : "unknown";
                     }
-                    // uniquify: channel configs often share one name and a
-                    // duplicate name gets eaten by dedupe tools on import
-                    String nm = uniqueName(baseName) + nmSuffix;
+                    String nm = baseName + nmSuffix;
                     String line = renameUri(s.raw, nm);
                     synchronized (unknownLinks) { unknownLinks.add(line); }
                     AppLog.d("test", "PARTIAL (no country) -> " + nm);
@@ -1002,6 +998,7 @@ public class MainActivity extends AppCompatActivity {
             fail(s, String.valueOf(e.getMessage()));
         } finally {
             activeEngines.remove(engine);
+            synchronized (assignedPorts) { assignedPorts.remove(port); }
             if (engine != null) {
                 try {
                     engine.destroyForcibly();
@@ -1035,10 +1032,6 @@ public class MainActivity extends AppCompatActivity {
                 progressLabel.setText(R.string.progress_done);
                 progressStatus.setText(summary);
                 vibrateOnce();
-                // back to idle: hide the circle a few seconds after finishing
-                main.postDelayed(() -> {
-                    if (!running) progressCard.setVisibility(View.GONE);
-                }, 2500);
             });
         }
     }
@@ -1051,7 +1044,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!flagList.contains(flag)) flagList.add(flag); // one per country
                 copy = new ArrayList<>(flagList);
             }
-            postUi(() -> flagStrip.setText(String.join("  ", copy)));
+            postUi(() -> flagStrip.setText(String.join(" ", copy)));
         }
         refreshOutput();
         autoScroll();
@@ -1065,30 +1058,25 @@ public class MainActivity extends AppCompatActivity {
         autoScroll();
     }
 
-    /**
-     * Guarantees a name is unique within the current run. When the label
-     * collides (same country for several servers, or channel configs that
-     * all carry the same original name), a plain counter is appended —
-     * "name", "name 2", "name 3". (An address/counter keeps the name clean;
-     * embedding the server IP made every label ugly when a whole batch of
-     * one channel exits through the same country.) Without uniqueness,
-     * dedupe-by-name importers ("duplicate client") delete DIFFERENT
-     * servers that happen to share a label.
-     */
-    private String uniqueName(String base) {
-        synchronized (usedNames) {
-            String cand = base;
-            int n = 2;
-            while (usedNames.contains(cand.toLowerCase())) {
-                cand = base + " " + n++;
-            }
-            usedNames.add(cand.toLowerCase());
-            return cand;
-        }
-    }
-
-    /** Replace the last #name segment of the raw URI */
+    /** Replace the name in URI (including VMess JSON "ps" field and #fragment) */
     private String renameUri(String raw, String newName) {
+        if (raw == null || raw.isEmpty()) return raw;
+        if (raw.startsWith("vmess://")) {
+            try {
+                String body = raw.substring(8);
+                int fi = body.lastIndexOf('#');
+                if (fi >= 0) body = body.substring(0, fi);
+                String json = ServerSpec.b64decode(body.trim());
+                if (json.isEmpty()) json = ServerSpec.b64decode(ServerSpec.urlDecode(body.trim()));
+                if (!json.isEmpty()) {
+                    JSONObject o = new JSONObject(json);
+                    o.put("ps", newName);
+                    String encJson = java.util.Base64.getEncoder().encodeToString(
+                            o.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    return "vmess://" + encJson;
+                }
+            } catch (Exception ignored) { }
+        }
         String enc = encodeFragment(newName);
         int i = raw.lastIndexOf('#');
         if (i < 0) return raw + "#" + enc;
@@ -1421,14 +1409,13 @@ public class MainActivity extends AppCompatActivity {
                 unreachableCount.get(), skipCount.get());
     }
 
-    /** True when the engine log tail contains a real error (a broken handshake
-     *  means the tunnel never really came up, not that the country is unknown). */
+    /** True when the engine log tail contains a fatal engine error or crash. */
     private static boolean looksLikeEngineError(String tail) {
         if (tail == null || tail.isEmpty()) return false;
         String t = tail.toLowerCase();
-        return t.contains("handshake") || t.contains("refused") || t.contains("panic")
-                || t.contains("reject") || t.contains("failed") || t.contains("error")
-                || t.contains("timeout") || t.contains("reset") || t.contains("denied");
+        return t.contains("panic") || t.contains("fatal") || t.contains("segmentation fault")
+                || t.contains("invalid config") || t.contains("unknown config id")
+                || t.contains("bind: address already in use");
     }
 
     /** One short, light vibration when a run reaches 100%. */
@@ -1546,26 +1533,30 @@ public class MainActivity extends AppCompatActivity {
     private void autoScroll() {
     }
 
+    private boolean isProxyLink(String t) {
+        return t.startsWith("vless://") || t.startsWith("vmess://") || t.startsWith("trojan://")
+                || t.startsWith("ss://") || t.startsWith("socks://") || t.startsWith("ssr://")
+                || t.startsWith("tuic://") || t.startsWith("shadowtls://")
+                || t.startsWith("anytls://") || t.startsWith("snic://")
+                || t.startsWith("hysteria2://") || t.startsWith("hy2://");
+    }
+
     /** Copy ONLY the working config links (one per unique URI) to the clipboard —
      *  failed lines (❌ …) are not links and are skipped. */
     private void copyLinksOnly() {
         java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
+        boolean includeUnknown = prefs.getBoolean("include_unknown_in_links", false);
         for (String line : outputLines) {
             String t = line.trim();
-            if (t.startsWith("vless://") || t.startsWith("vmess://") || t.startsWith("trojan://")
-                    || t.startsWith("ss://") || t.startsWith("socks://") || t.startsWith("ssr://")
-                    || t.startsWith("tuic://") || t.startsWith("shadowtls://")
-                    || t.startsWith("anytls://") || t.startsWith("snic://")
-                    || t.startsWith("hysteria2://") || t.startsWith("hy2://")) {
-                links.add(t);
-            }
-        }
-        if (prefs.getBoolean("include_unknown_in_links", false)) {
-            synchronized (unknownLinks) {
-                for (String u : unknownLinks) {
-                    String t = u.trim();
-                    if (!t.isEmpty()) links.add(t); // LinkedHashSet dedupes
+            if (isProxyLink(t)) {
+                boolean isUnknown;
+                synchronized (unknownLinks) {
+                    isUnknown = unknownLinks.contains(t);
                 }
+                if (!includeUnknown && isUnknown) {
+                    continue;
+                }
+                links.add(t);
             }
         }
         if (links.isEmpty()) {

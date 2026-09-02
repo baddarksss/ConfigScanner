@@ -194,7 +194,33 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.37
+<string name="changelog">v1.0.41
+• Fixed: fragmentSettings null-safety and support for direct JSON/range settings
+• Fixed: outbound routing order aligned to proxy → fragment → blackhole
+• Added: ECH resolver extraction (domain+resolver format) and custom upstream DNS in Xray
+• Added: full parameter support (fm, fragment, alpn, ech) for VMess configs
+• Improved: prevention of false engine errors when Geo services timeout
+
+v1.0.40
+• Fixed: deadTunnel categorization completely eliminated — no false dead tunnel reports
+• Fixed: atomic dynamic port allocation with OS ServerSocket fallback and worker port recycling
+• Improved: direct alignment of GeoIP client timeouts with user-configured timeout
+
+v1.0.39
+• Fixed: false deadTunnel categorization removed — API errors no longer cause working proxies to be marked as dead
+• Fixed: atomic dynamic port allocation per worker with automatic OS fallback (no port exhaustion or collisions)
+• Improved: full parallel GeoIP query without artificial wave cutoffs for maximum accuracy and speed
+
+v1.0.38
+• Fixed: TCP fragmentation settings mapping for Xray freedom outbound (under fragment key) so TLS SNI bypass works properly
+• Fixed: Clean output names without duplicate counter numbers (e.g. 🇩🇪 Germany | Channel)
+• Fixed: Scan progress freeze bug on early engine exit or connection failure
+• Fixed: Option to exclude unknown country configs now properly filters copied links
+• Fixed: VMess renaming now updates the internal JSON "ps" field for full client compatibility
+• Fixed: GeoChecker reliability improvements, api.country.is parsing and browser User-Agent header
+• Improvement: Test summary report card remains visible after scan completion
+
+v1.0.37
 • Fixed: configs pasted from web pages / other bots with HTML entities (&amp;amp;) were mis-parsed — e.g. hy2 Salamander links lost their obfs password and failed. Entities are now unescaped before parsing
 
 v1.0.36
