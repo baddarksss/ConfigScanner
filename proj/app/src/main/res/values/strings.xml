@@ -166,6 +166,12 @@
     <string name="caption_set_code">Set code</string>
     <string name="caption_final_label">Final caption — copy and paste into your channel post</string>
     <string name="caption_copy_btn">Copy caption</string>
+    <string name="message_for_users_title">Message for users</string>
+    <string name="message_for_users_hint">Enter message for users (channel links, description, info)...</string>
+    <string name="message_for_users_caption">Custom message displayed to users or copied alongside caption after test.</string>
+    <string name="message_for_users_copy_btn">Copy message for users</string>
+    <string name="toast_message_for_users_copied">Message for users copied ✓</string>
+    <string name="toast_message_for_users_saved">Message for users saved ✓</string>
     <string name="caption_codes_empty">No country codes set yet</string>
     <string name="caption_template_saved">Template saved</string>
     <string name="caption_backed_up">Country codes saved</string>
@@ -194,7 +200,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.41
+<string name="changelog">v1.0.42
+• Added: \"Message for users\" custom message in the Caption tab with one-tap copy and persistent storage
+• Improved: Full sync with Telegram bot for captions, standard emojis, and user remarks
+
+v1.0.41
 • Fixed: fragmentSettings null-safety and support for direct JSON/range settings
 • Fixed: outbound routing order aligned to proxy → fragment → blackhole
 • Added: ECH resolver extraction (domain+resolver format) and custom upstream DNS in Xray

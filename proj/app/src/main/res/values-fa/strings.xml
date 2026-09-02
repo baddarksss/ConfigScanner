@@ -166,6 +166,12 @@
     <string name="caption_set_code">ثبت کد</string>
     <string name="caption_final_label">کپشن نهایی — کپی کن و توی پست کانال بچسبون</string>
     <string name="caption_copy_btn">کپی کپشن</string>
+    <string name="message_for_users_title">پیام برای کاربران | Message for users</string>
+    <string name="message_for_users_hint">متن پیام برای کاربران را اینجا وارد کنید (لینک کانال، آیدی، توضیحات)...</string>
+    <string name="message_for_users_caption">متن اختصاصی برای نمایش یا کپی همراه با کپشن پس از اتمام تست.</string>
+    <string name="message_for_users_copy_btn">کپی پیام برای کاربران</string>
+    <string name="toast_message_for_users_copied">پیام برای کاربران کپی شد ✓</string>
+    <string name="toast_message_for_users_saved">پیام برای کاربران ذخیره شد ✓</string>
     <string name="caption_codes_empty">هنوز کد کشورهایی ثبت نشده</string>
     <string name="caption_template_saved">قالب ذخیره شد</string>
     <string name="caption_backed_up">کدهای کشورها ذخیره شد</string>
@@ -194,7 +200,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.41
+<string name="changelog">v1.0.42
+• افزودن: بخش اختصاصی «پیام برای کاربران» (Message for users) در تب کپشن جهت کپی سریع و ذخیره دائمی
+• بهبود: هماهنگی و یکپارچگی کامل با ربات تلگرام در کپشن، پرچم‌های استاندارد و پیام کاربران
+
+v1.0.41
 • فیکس: بررسی ایمن null در fragmentSettings و پشتیبانی از انواع فرمت‌های فرگمنت
 • فیکس: تنظیم دقیق اولویت outbounds به صورت proxy → fragment → blackhole
 • افزودن: استخراج خودکار DNS Resolver اختصاصی برای کانفیگ‌های ECH

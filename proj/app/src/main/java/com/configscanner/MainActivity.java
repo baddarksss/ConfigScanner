@@ -106,7 +106,8 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton btnOutLangFa, btnOutLangEn;
     private EditText captionSearch;
     private android.widget.LinearLayout countryListContainer, captionMissingContainer;
-    private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox;
+    private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox, messageForUsersPreview;
+    private MaterialButton btnMessageForUsersEdit, btnCopyMessageForUsers;
     /** ISO country code -> premium emoji code, persisted in prefs */
     private final java.util.Map<String, String> emojiCodes = new java.util.HashMap<>();
     /** ISO codes of countries seen in the current run, in order of first appearance */
@@ -239,6 +240,9 @@ public class MainActivity extends AppCompatActivity {
         captionTemplatePreview = findViewById(R.id.captionTemplatePreview);
         captionFlagsBox = findViewById(R.id.captionFlagsBox);
         captionFullBox = findViewById(R.id.captionFullBox);
+        messageForUsersPreview = findViewById(R.id.messageForUsersPreview);
+        btnMessageForUsersEdit = findViewById(R.id.btnMessageForUsersEdit);
+        btnCopyMessageForUsers = findViewById(R.id.btnCopyMessageForUsers);
         themeValue = findViewById(R.id.themeValue);
         themeChevron = findViewById(R.id.themeChevron);
         langValue = findViewById(R.id.langValue);
@@ -474,6 +478,12 @@ public class MainActivity extends AppCompatActivity {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("caption", buildFullCaption()));
             toast(getString(R.string.caption_copied_post));
         });
+        if (btnMessageForUsersEdit != null) {
+            btnMessageForUsersEdit.setOnClickListener(v -> showMessageForUsersEditor());
+        }
+        if (btnCopyMessageForUsers != null) {
+            btnCopyMessageForUsers.setOnClickListener(v -> copyMessageForUsers());
+        }
         captionSearch.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence c, int a, int b, int cc) { }
             @Override public void onTextChanged(CharSequence c, int a, int b, int cc) {
@@ -1326,7 +1336,46 @@ public class MainActivity extends AppCompatActivity {
                 captionMissingContainer.addView(row);
             }
             captionFullBox.setText(full);
+            if (messageForUsersPreview != null) {
+                String msgForUsers = prefs.getString("message_for_users", "");
+                messageForUsersPreview.setText(msgForUsers.isEmpty() ? getString(R.string.message_for_users_hint) : msgForUsers);
+            }
         });
+    }
+
+    private void showMessageForUsersEditor() {
+        EditText edit = new EditText(this);
+        edit.setText(prefs.getString("message_for_users", ""));
+        edit.setHint(R.string.message_for_users_hint);
+        edit.setMinLines(6);
+        edit.setGravity(android.view.Gravity.START);
+        edit.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding(dpToPx(10), dpToPx(6), dpToPx(10), 0);
+        box.addView(edit);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.message_for_users_title)
+                .setMessage(R.string.message_for_users_caption)
+                .setView(box)
+                .setPositiveButton(R.string.caption_template_edit, (d, w) -> {
+                    String val = edit.getText().toString().trim();
+                    prefs.edit().putString("message_for_users", val).apply();
+                    refreshCaptionTab();
+                    toast(getString(R.string.toast_message_for_users_saved));
+                })
+                .setNeutralButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void copyMessageForUsers() {
+        String msg = prefs.getString("message_for_users", "");
+        if (msg.isEmpty()) {
+            toast(getString(R.string.message_for_users_hint));
+            return;
+        }
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("message_for_users", msg));
+        toast(getString(R.string.toast_message_for_users_copied));
     }
 
     private int dpToPx(float dp) {
