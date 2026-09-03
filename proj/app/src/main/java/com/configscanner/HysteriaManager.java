@@ -38,7 +38,12 @@ public class HysteriaManager {
      */
     public static Process start(Context ctx, ServerSpec s, int port, File logFile) throws Exception {
         StringBuilder y = new StringBuilder();
-        y.append("server: ").append(s.host).append(":").append(s.port).append("\n");
+        // a bare IPv6 literal ("server: 2001:db8::1:443") is invalid — the
+        // client needs brackets: [2001:db8::1]:443
+        String serverAddr = (s.host != null && s.host.contains(":") && s.host.matches("[0-9a-fA-F:]+"))
+                ? "[" + s.host + "]:" + s.port
+                : s.host + ":" + s.port;
+        y.append("server: ").append(serverAddr).append("\n");
         y.append("auth: ").append(yamlQuote(s.password)).append("\n");
         y.append("tls:\n");
         String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;

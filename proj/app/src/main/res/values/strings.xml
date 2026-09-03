@@ -23,6 +23,23 @@
     <string name="timeout_label">Per-server timeout</string>
     <string name="timeout_seconds">%1$d sec</string>
     <string name="timeout_caption">How long to wait for each server. If it does not answer in time it is marked ❌, but the rest of the test keeps running.</string>
+    <!-- Message for users (caption tab) -->
+    <string name="msg_users_title">✏️ Message for users</string>
+    <string name="msg_users_caption">Extra text sent under the caption — channel link, notes, update info. It is included in the final caption below.</string>
+    <string name="msg_users_edit">✏️ Edit</string>
+    <string name="msg_users_remove">🗑️ Remove</string>
+    <string name="msg_users_empty">(not set)</string>
+    <string name="msg_users_hint">e.g. 🎯 Made by @yourchannel\nT.me/yourchannel\n\n🌍 Daily update</string>
+    <string name="msg_users_editor_msg">This text is appended under the caption when you copy it.</string>
+    <string name="msg_users_save">Save</string>
+    <string name="msg_users_saved">Message for users saved</string>
+    <string name="msg_users_remove_title">Remove message</string>
+    <string name="msg_users_remove_msg">Delete the saved message for users?</string>
+    <string name="msg_users_removed">Message for users removed</string>
+
+    <string name="dyn_colors_label">🎨 System color palette (Material You)</string>
+    <string name="dyn_colors_caption">On Android 12+ the app follows your wallpaper colors. Turn off to keep the classic blue theme.</string>
+
     <string name="language_btn">🌐 Language / زبان</string>
 
     <!-- Start -->
@@ -194,7 +211,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.41
+<string name="changelog">v1.0.44
+• Added: Material You — the app can follow the Android 12+ wallpaper color palette (toggle in Settings)
+• New CS app icon
+• Added: Message for users — extra text under the caption (Caption tab)
+• Fixed: a cleared channel name is now saved (the suffix could not be removed before)
+• Fixed: hysteria2 links with an IPv6 server address
+• Fixed: dead code cleanup
+
+v1.0.41
 • Fixed: fragmentSettings null-safety and support for direct JSON/range settings
 • Fixed: outbound routing order aligned to proxy → fragment → blackhole
 • Added: ECH resolver extraction (domain+resolver format) and custom upstream DNS in Xray

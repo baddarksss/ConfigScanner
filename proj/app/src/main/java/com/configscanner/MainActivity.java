@@ -31,6 +31,8 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.color.DynamicColors;
+import com.google.android.material.color.MaterialColors;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,9 +49,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText input;
     private EditText channelEdit;
     private MaterialSwitch channelSwitch;
+    private MaterialSwitch dynColorsSwitch;
     private SeekBar parallelBar;
     private TextView parallelValue;
     private SeekBar timeoutBar;
@@ -105,6 +106,8 @@ public class MainActivity extends AppCompatActivity {
     private android.widget.TextView captionCountryChevron;
     private MaterialButton btnOutLangFa, btnOutLangEn;
     private EditText captionSearch;
+    private android.view.View msgUsersHeader, msgUsersOptions;
+    private android.widget.TextView msgUsersChevron, msgUsersPreview;
     private android.widget.LinearLayout countryListContainer, captionMissingContainer;
     private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox;
     /** ISO country code -> premium emoji code, persisted in prefs */
@@ -141,10 +144,6 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
     private final List<String> unknownLinks = new ArrayList<>();
-    /** Names already used in the current run — output names must stay
-     *  unique so dedupe-by-name tools (panel import, "duplicate client")
-     *  never drop a different server that shares a label. */
-    private final Set<String> usedNames = Collections.synchronizedSet(new HashSet<String>());
     private volatile boolean destroyed = false;
     private final java.util.Set<Process> activeEngines = java.util.Collections
             .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -166,6 +165,11 @@ public class MainActivity extends AppCompatActivity {
         prefs = getSharedPreferences("cfg", MODE_PRIVATE);
         themeMode = prefs.getInt("theme_mode", 0);
         applyTheme();
+        // Material You: on Android 12+ follow the wallpaper color palette
+        // (toggleable in Settings). Must run before the views inflate.
+        if (prefs.getBoolean("dynamic_colors", true)) {
+            DynamicColors.applyToActivityIfAvailable(this);
+        }
         setContentView(R.layout.activity_main);
 
         fileImportLauncher = registerForActivityResult(
@@ -191,6 +195,7 @@ public class MainActivity extends AppCompatActivity {
         input = findViewById(R.id.input);
         channelEdit = findViewById(R.id.channelEdit);
         channelSwitch = findViewById(R.id.channelSwitch);
+        dynColorsSwitch = findViewById(R.id.dynColorsSwitch);
         parallelBar = findViewById(R.id.parallelBar);
         parallelValue = findViewById(R.id.parallelValue);
         timeoutBar = findViewById(R.id.timeoutBar);
@@ -233,6 +238,10 @@ public class MainActivity extends AppCompatActivity {
         btnOutLangFa = findViewById(R.id.btnOutLangFa);
         btnOutLangEn = findViewById(R.id.btnOutLangEn);
         captionSearch = findViewById(R.id.captionSearch);
+        msgUsersHeader = findViewById(R.id.msgUsersHeader);
+        msgUsersOptions = findViewById(R.id.msgUsersOptions);
+        msgUsersChevron = findViewById(R.id.msgUsersChevron);
+        msgUsersPreview = findViewById(R.id.msgUsersPreview);
         countryListContainer = findViewById(R.id.countryListContainer);
         captionMissingContainer = findViewById(R.id.captionMissingContainer);
         countryListCount = findViewById(R.id.countryListCount);
@@ -316,9 +325,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void savePrefs() {
-        String ch = channelEdit.getText().toString().trim();
-        if (!ch.isEmpty()) prefs.edit().putString("channel", ch).apply();
-        prefs.edit()
+        // always persist — including empty. The old "only when non-empty"
+        // check made a cleared channel name stick forever (the suffix could
+        // never actually be removed).
+        prefs.edit().putString("channel", channelEdit.getText().toString().trim())
                 .putBoolean("include_channel", channelSwitch.isChecked())
                 .putInt("parallel", parallelBar.getProgress() + 1)
                 .putInt("timeout_sec", timeoutBar.getProgress() + 5)
@@ -485,6 +495,13 @@ public class MainActivity extends AppCompatActivity {
             boolean open = captionCountryOptions.getVisibility() != View.VISIBLE;
             setCountryListOpen(open);
         });
+        // message-for-users section (caption tab)
+        msgUsersHeader.setOnClickListener(v -> {
+            boolean open = msgUsersOptions.getVisibility() != View.VISIBLE;
+            setMsgUsersOpen(open);
+        });
+        findViewById(R.id.btnMsgUsersEdit).setOnClickListener(v -> showMsgUsersEditor());
+        findViewById(R.id.btnMsgUsersRemove).setOnClickListener(v -> confirmMsgUsersRemove());
         btnOutLangFa.setOnClickListener(v -> applyOutLang("fa"));
         btnOutLangEn.setOnClickListener(v -> applyOutLang("en"));
         updateOutLangStyle();
@@ -507,6 +524,13 @@ public class MainActivity extends AppCompatActivity {
         btnThemeSystem.setOnClickListener(v -> applyThemeMode(0));
         btnThemeDark.setOnClickListener(v -> applyThemeMode(1));
         btnThemeLight.setOnClickListener(v -> applyThemeMode(2));
+        dynColorsSwitch.setChecked(prefs.getBoolean("dynamic_colors", true));
+        dynColorsSwitch.setOnCheckedChangeListener((b, checked) -> {
+            boolean oldVal = prefs.getBoolean("dynamic_colors", true);
+            if (checked == oldVal) return;
+            prefs.edit().putBoolean("dynamic_colors", checked).apply();
+            recreate(); // theme overlay must be applied before views inflate
+        });
         btnLangSystem.setOnClickListener(v -> { applyLanguage(0); setLangOpen(false); });
         btnLangFa.setOnClickListener(v -> { applyLanguage(1); setLangOpen(false); });
         btnLangEn.setOnClickListener(v -> { applyLanguage(2); setLangOpen(false); });
@@ -730,7 +754,6 @@ public class MainActivity extends AppCompatActivity {
         unreachableCount.set(0);
         skipCount.set(0);
         synchronized (unknownLinks) { unknownLinks.clear(); }
-        usedNames.clear();
         syncCoreButtons();
         doneCount.set(0);
         totalCount = servers.size();
@@ -1219,7 +1242,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateOutLangStyle() {
         boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
-        int accent = getResources().getColor(R.color.accent, getTheme());
+        // resolve through the theme: follows the Material You palette when
+        // dynamic colors are active, the classic accent otherwise
+        int accent = MaterialColors.getColor(btnOutLangFa, com.google.android.material.R.attr.colorPrimary);
         int normal = getResources().getColor(R.color.btn_text, getTheme());
         btnOutLangFa.setTextColor(fa ? accent : normal);
         btnOutLangEn.setTextColor(fa ? normal : accent);
@@ -1229,6 +1254,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void buildCountryList(String filter) {
         countryListContainer.removeAllViews();
+        int accentColor = MaterialColors.getColor(countryListContainer,
+                com.google.android.material.R.attr.colorPrimary);
         String f = filter == null ? "" : filter.toLowerCase();
         for (CountryData.C c : CountryData.all()) {
             if (!f.isEmpty() && !(c.en.toLowerCase().contains(f) || c.fa.contains(f)
@@ -1255,7 +1282,8 @@ public class MainActivity extends AppCompatActivity {
             codeTv.setText(has ? emojiCodes.get(iso) : "\u2014");
             codeTv.setTextSize(10f);
             codeTv.setTypeface(android.graphics.Typeface.MONOSPACE);
-            codeTv.setTextColor(getResources().getColor(has ? R.color.accent : R.color.text_secondary, getTheme()));
+            codeTv.setTextColor(has ? accentColor
+                    : getResources().getColor(R.color.text_secondary, getTheme()));
             codeTv.setPadding(dpToPx(8), dpToPx(9), dpToPx(10), dpToPx(9));
             row.addView(flag);
             row.addView(name);
@@ -1282,8 +1310,65 @@ public class MainActivity extends AppCompatActivity {
     private String buildFullCaption() {
         String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
         String flags = buildFlagsLine();
-        if (tpl.contains("{{FLAGS}}")) return tpl.replace("{{FLAGS}}", flags);
-        return tpl + "\n" + flags;
+        String out = tpl.contains("{{FLAGS}}")
+                ? tpl.replace("{{FLAGS}}", flags)
+                : tpl + "\n" + flags;
+        // the users message rides under the caption (channel link, notes…)
+        String mu = prefs.getString("message_for_users", "");
+        if (!mu.trim().isEmpty()) out = out + "\n\n" + mu.trim();
+        return out;
+    }
+
+    /** Shows a hint instead of an empty box when no users message is set. */
+    private String msgUsersDisplayText() {
+        String mu = prefs.getString("message_for_users", "");
+        return mu.trim().isEmpty() ? getString(R.string.msg_users_empty) : mu;
+    }
+
+    private void setMsgUsersOpen(boolean open) {
+        msgUsersOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+        msgUsersChevron.setText(open ? "\u2303" : "\u2304");
+    }
+
+    private void showMsgUsersEditor() {
+        EditText edit = new EditText(this);
+        edit.setHint(R.string.msg_users_hint);
+        edit.setText(prefs.getString("message_for_users", ""));
+        edit.setMinLines(4);
+        edit.setGravity(android.view.Gravity.START);
+        edit.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding(dpToPx(10), dpToPx(6), dpToPx(10), 0);
+        box.addView(edit);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.msg_users_title)
+                .setMessage(R.string.msg_users_editor_msg)
+                .setView(box)
+                .setPositiveButton(R.string.msg_users_save, (d, w) -> {
+                    prefs.edit().putString("message_for_users",
+                            edit.getText().toString().trim()).apply();
+                    refreshCaptionTab();
+                    toast(getString(R.string.msg_users_saved));
+                })
+                .setNeutralButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void confirmMsgUsersRemove() {
+        if (prefs.getString("message_for_users", "").trim().isEmpty()) {
+            toast(getString(R.string.msg_users_empty));
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.msg_users_remove_title)
+                .setMessage(R.string.msg_users_remove_msg)
+                .setPositiveButton(R.string.msg_users_remove, (d, w) -> {
+                    prefs.edit().remove("message_for_users").apply();
+                    refreshCaptionTab();
+                    toast(getString(R.string.msg_users_removed));
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     /** Rebuild every caption-tab output from the saved state (thread-safe). */
@@ -1295,8 +1380,10 @@ public class MainActivity extends AppCompatActivity {
         synchronized (runCountryCodes) {
             missing = new ArrayList<>(runCountryCodes);
         }
+        final String msgUsers = msgUsersDisplayText();
         postUi(() -> {
             captionTemplatePreview.setText(tpl);
+            msgUsersPreview.setText(msgUsers);
             captionFlagsBox.setText(flags.isEmpty() ? getString(R.string.caption_flags_empty) : flags);
             captionMissingContainer.removeAllViews();
             for (String iso : missing) {

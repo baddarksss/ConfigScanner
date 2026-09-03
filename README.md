@@ -64,3 +64,31 @@ environment variable and the keystore from the repo parent directory
 (`cfgscan-v2.keystore`). When the variable is set, builds are signed with the
 release key so updates install over previous v1.0.14+ versions; otherwise the
 debug key is used.
+
+---
+
+## بیلد خودکار APK (GitHub Actions)
+
+با هر پوش روی `main`، اپ به‌صورت خودکار بیلد می‌شود (خروجی در تب **Actions → Artifacts**).
+
+**ریلیز:** کافیه یک تگ بزنی — اکشن APK را بیلد و در **Releases** می‌گذارد (همان جایی که آپدیت درون‌برنامه‌ای می‌خواند):
+
+```bash
+git tag v1.0.44 && git push origin v1.0.44
+```
+
+### امضای APK (برای آپدیت درجا — مهم)
+
+اندروید اجازه نمی‌دهد APK با امضای متفاوت روی نسخه نصب‌شده آپدیت شود. برای اینکه APK ساخت CI با کلید خودت امضا شود، یک‌بار این دو Secret را در ریپو اضافه کن
+(Settings → Secrets and variables → Actions):
+
+| Secret | مقدار |
+|---|---|
+| `CFGSCAN_KEYSTORE_BASE64` | خروجی `base64 -w0 cfgscan-v2.keystore` |
+| `CFGSCAN_KEY_PASS` | پسورد کی‌استور |
+
+بدون این Secrets هم بیلد انجام می‌شود ولی APK با کلید debug امضا می‌شود (فقط نصب تازه، نه آپدیت). بیلد لوکال با کلید خودت مثل قبل کار می‌کند:
+
+```bash
+cd proj && CFGSCAN_KEY_PASS=... gradle assembleRelease
+```

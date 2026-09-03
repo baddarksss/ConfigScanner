@@ -23,6 +23,23 @@
     <string name="timeout_label">محدودیت زمانی هر سرور</string>
     <string name="timeout_seconds">%1$d ثانیه</string>
     <string name="timeout_caption">تا چند ثانیه برای هر سرور صبر کنیم. اگه تا اون زمان جواب نده ❌ می‌شه، ولی بقیه تست ادامه داره.</string>
+    <!-- Message for users (caption tab) -->
+    <string name="msg_users_title">✏️ پیام برای کاربران</string>
+    <string name="msg_users_caption">متن اضافه‌ای که زیر کپشن قرار می‌گیرد — لینک کانال، توضیحات، اطلاعات آپدیت. در کپشن نهایی پایین همین بخش هم می‌آید.</string>
+    <string name="msg_users_edit">✏️ ویرایش</string>
+    <string name="msg_users_remove">🗑️ حذف</string>
+    <string name="msg_users_empty">(تنظیم نشده)</string>
+    <string name="msg_users_hint">مثلاً: 🎯 ساخته شده توسط @yourchannel\nT.me/yourchannel\n\n🌍 آپدیت روزانه</string>
+    <string name="msg_users_editor_msg">این متن هنگام کپی کردن، زیر کپشن اضافه می‌شود.</string>
+    <string name="msg_users_save">ذخیره</string>
+    <string name="msg_users_saved">پیام برای کاربران ذخیره شد</string>
+    <string name="msg_users_remove_title">حذف پیام</string>
+    <string name="msg_users_remove_msg">پیام ذخیره‌شده برای کاربران حذف شود؟</string>
+    <string name="msg_users_removed">پیام برای کاربران حذف شد</string>
+
+    <string name="dyn_colors_label">🎨 رنگ‌بندی سیستم (Material You)</string>
+    <string name="dyn_colors_caption">در اندروید ۱۲ به بالا رنگ‌های اپ از والپیپر شما پیروی می‌کنند. خاموش کنید تا تم آبی کلاسیک بماند.</string>
+
     <string name="language_btn">🌐 Language / زبان</string>
 
     <!-- Start -->
@@ -194,7 +211,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.41
+<string name="changelog">v1.0.44
+• افزودن: Material You — اپ می‌تواند از پالت رنگی والپیپر (اندروید ۱۲+) پیروی کند (کلید در تنظیمات)
+• آیکون جدید CS
+• افزودن: پیام برای کاربران — متن اضافه زیر کپشن (تب کپشن)
+• فیکس: پاک کردن اسم کانال حالا واقعاً ذخیره می‌شود (قبلاً سافیکس حذف نمی‌شد)
+• فیکس: لینک‌های hysteria2 با آدرس IPv6
+• فیکس: حذف کدهای بلااستفاده
+
+v1.0.41
 • فیکس: بررسی ایمن null در fragmentSettings و پشتیبانی از انواع فرمت‌های فرگمنت
 • فیکس: تنظیم دقیق اولویت outbounds به صورت proxy → fragment → blackhole
 • افزودن: استخراج خودکار DNS Resolver اختصاصی برای کانفیگ‌های ECH
