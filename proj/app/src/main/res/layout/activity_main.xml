@@ -1401,6 +1401,19 @@
                                 app:strokeColor="@color/stroke" />
 
                             <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnMsgUsersCopy"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:layout_weight="1"
+                                android:text="@string/msg_users_copy"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnMsgUsersRemove"
                                 style="@style/Widget.Material3.Button.OutlinedButton"
                                 android:layout_width="0dp"

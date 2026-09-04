@@ -25,9 +25,11 @@
     <string name="timeout_caption">How long to wait for each server. If it does not answer in time it is marked ❌, but the rest of the test keeps running.</string>
     <!-- Message for users (caption tab) -->
     <string name="msg_users_title">✏️ Message for users</string>
-    <string name="msg_users_caption">Extra text sent under the caption — channel link, notes, update info. It is included in the final caption below.</string>
+    <string name="msg_users_caption">A separate text block — channel link, notes, update info. Copy it on its own with the Copy button below.</string>
     <string name="msg_users_edit">✏️ Edit</string>
     <string name="msg_users_remove">🗑️ Remove</string>
+    <string name="msg_users_copy">📋 Copy</string>
+    <string name="msg_users_copied">Message for users copied</string>
     <string name="msg_users_empty">(not set)</string>
     <string name="msg_users_hint">e.g. 🎯 Made by @yourchannel\nT.me/yourchannel\n\n🌍 Daily update</string>
     <string name="msg_users_editor_msg">This text is appended under the caption when you copy it.</string>
@@ -56,7 +58,7 @@
     <!-- Output card -->
     <string name="results_title">📤 Results</string>
     <string name="lines_count">%1$d line(s)</string>
-    <string name="btn_copy_only">Copy only</string>
+    <string name="btn_copy_only">Copy</string>
 
 
     <string name="btn_save">💾 Save file</string>
@@ -211,7 +213,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.44
+<string name="changelog">v1.0.45
+• New minimal square CS icon + Android 13+ themed-icon (wallpaper palette) support
+• Fixed: Message for users no longer rides at the end of the copied caption — it has its own Copy button
+• Button renamed: "Copy only" → "Copy"
+• Country-codes backup: the same XX=code file now moves between the app and the bot (bot sends/restores the file too)
+
+v1.0.44
 • Added: Material You — the app can follow the Android 12+ wallpaper color palette (toggle in Settings)
 • New CS app icon
 • Added: Message for users — extra text under the caption (Caption tab)

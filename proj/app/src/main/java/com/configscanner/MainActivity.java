@@ -502,6 +502,16 @@ public class MainActivity extends AppCompatActivity {
         });
         findViewById(R.id.btnMsgUsersEdit).setOnClickListener(v -> showMsgUsersEditor());
         findViewById(R.id.btnMsgUsersRemove).setOnClickListener(v -> confirmMsgUsersRemove());
+        findViewById(R.id.btnMsgUsersCopy).setOnClickListener(v -> {
+            String mu = prefs.getString("message_for_users", "").trim();
+            if (mu.isEmpty()) {
+                toast(getString(R.string.msg_users_empty));
+                return;
+            }
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("message-for-users", mu));
+            toast(getString(R.string.msg_users_copied));
+        });
         btnOutLangFa.setOnClickListener(v -> applyOutLang("fa"));
         btnOutLangEn.setOnClickListener(v -> applyOutLang("en"));
         updateOutLangStyle();
@@ -1310,13 +1320,11 @@ public class MainActivity extends AppCompatActivity {
     private String buildFullCaption() {
         String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
         String flags = buildFlagsLine();
-        String out = tpl.contains("{{FLAGS}}")
+        // caption ONLY — the users message is a separate block with its own
+        // copy button (mixing the two made the bot-caption dirty)
+        return tpl.contains("{{FLAGS}}")
                 ? tpl.replace("{{FLAGS}}", flags)
                 : tpl + "\n" + flags;
-        // the users message rides under the caption (channel link, notes…)
-        String mu = prefs.getString("message_for_users", "");
-        if (!mu.trim().isEmpty()) out = out + "\n\n" + mu.trim();
-        return out;
     }
 
     /** Shows a hint instead of an empty box when no users message is set. */

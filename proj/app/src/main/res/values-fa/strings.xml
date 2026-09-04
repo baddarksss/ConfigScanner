@@ -25,9 +25,11 @@
     <string name="timeout_caption">تا چند ثانیه برای هر سرور صبر کنیم. اگه تا اون زمان جواب نده ❌ می‌شه، ولی بقیه تست ادامه داره.</string>
     <!-- Message for users (caption tab) -->
     <string name="msg_users_title">✏️ پیام برای کاربران</string>
-    <string name="msg_users_caption">متن اضافه‌ای که زیر کپشن قرار می‌گیرد — لینک کانال، توضیحات، اطلاعات آپدیت. در کپشن نهایی پایین همین بخش هم می‌آید.</string>
+    <string name="msg_users_caption">متن جدا از کپشن — لینک کانال، توضیحات، اطلاعات آپدیت. با دکمه کپی همین بخش، فقط همین متن کپی می‌شود.</string>
     <string name="msg_users_edit">✏️ ویرایش</string>
     <string name="msg_users_remove">🗑️ حذف</string>
+    <string name="msg_users_copy">📋 کپی</string>
+    <string name="msg_users_copied">پیام برای کاربران کپی شد</string>
     <string name="msg_users_empty">(تنظیم نشده)</string>
     <string name="msg_users_hint">مثلاً: 🎯 ساخته شده توسط @yourchannel\nT.me/yourchannel\n\n🌍 آپدیت روزانه</string>
     <string name="msg_users_editor_msg">این متن هنگام کپی کردن، زیر کپشن اضافه می‌شود.</string>
@@ -56,7 +58,7 @@
     <!-- Output card -->
     <string name="results_title">📤 نتیجه</string>
     <string name="lines_count">%1$d خط</string>
-    <string name="btn_copy_only">کپی فقط</string>
+    <string name="btn_copy_only">کپی</string>
 
 
     <string name="btn_save">💾 ذخیره فایل</string>
@@ -211,7 +213,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.44
+<string name="changelog">v1.0.45
+• New minimal square CS icon + Android 13+ themed-icon (wallpaper palette) support
+• Fixed: Message for users no longer rides at the end of the copied caption — it has its own 📋 Copy button
+• Button renamed: «Copy only» → «Copy»
+• Country-codes backup: same XX=code file now moves between the app and the bot (bot sends/restores the file too)
+
+v1.0.44
 • افزودن: Material You — اپ می‌تواند از پالت رنگی والپیپر (اندروید ۱۲+) پیروی کند (کلید در تنظیمات)
 • آیکون جدید CS
 • افزودن: پیام برای کاربران — متن اضافه زیر کپشن (تب کپشن)

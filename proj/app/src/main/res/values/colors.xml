@@ -2,6 +2,7 @@
 <!-- Light theme palette: crisp blue-white, semi-transparent glass over a visible gradient -->
 <resources>
     <color name="ic_bg">#0B1534</color>
+    <color name="ic_launcher_background">#0B1534</color>
     <color name="bg_main">#EEF2FB</color>
     <color name="bg_grad_top">#F8FAFF</color>
     <color name="bg_grad_bottom">#C9DCF8</color>
