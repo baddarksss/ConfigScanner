@@ -1,94 +1,127 @@
 # ConfigScanner
 
-Android app that scans your proxy configs (VLESS/VMess/Trojan/SS/Hysteria2),
-tests each one through a local SOCKS5 proxy and reports the exit country —
-with a live animated water-circle progress.
+**[فارسی 🇮🇷](README.fa.md) | English 🇬🇧**
 
-- Bilingual (English / Persian)
-- Dark & Light themes (iOS lock-screen glass look)
-- Built-in Xray-core (for VLESS/VMess/Trojan/SS) + native Hysteria client (for Hysteria2, Salamander/Gecko)
-- Parallel testing, adjustable timeout, channel-name tagging
-- Copy / save results, save app log as .txt
-- In-app updates for both the app (this repo's releases) and the Xray core (stable / beta)
+![Release](https://img.shields.io/github/v/release/baddarksss/ConfigScanner?label=version&color=2E6BFF)
+![CI](https://img.shields.io/github/actions/workflow/status/baddarksss/ConfigScanner/android.yml?branch=main&label=build&color=35D8C4)
+![Platform](https://img.shields.io/badge/platform-Android%208%2B%20(arm64)-1E3A75)
 
-## App identity (read before upgrading)
+Android app that scans your proxy configs (VLESS / VMess / Trojan / Shadowsocks /
+Hysteria2 and more), tests each one through a local SOCKS5 tunnel and reports
+the exit country — with a live animated water-circle progress and clean,
+ready-to-post output.
 
-- **v1.0.14 and later** use the package `com.configscanner` and a new signing
-  certificate. Versions **v1.0.13 and earlier** used `com.wpnfa.configscan`.
-  → To move from ≤ v1.0.13, **uninstall the old app first**, then install v1.0.14+.
-- Updates **within** v1.0.14+ install over each other (same package + key),
-  including via the built-in in-app updater (GitHub releases).
+## ✨ Features
 
-## In-app updates
+**Scan engine**
+- Protocols: **VLESS** (Reality / TLS / WS / gRPC / xHTTP + PQC encryption),
+  **VMess**, **Trojan**, **Shadowsocks**, **Hysteria2** (native client with
+  Salamander / Gecko obfs), plus parsing-only reporting for SSR, TUIC,
+  ShadowTLS, AnyTLS, SNIc
+- Bundled **Xray-core** (updatable in-app) + native **Hysteria** client
+- TCP fragment (`fm=`), ECH, xhttp padding — panel extras are carried over
+- Parallel testing (1–10 workers), per-server timeout, atomic port allocation
+- Self-signed servers: the leaf certificate is pinned automatically
 
-- **App update** (Settings → App update): checks the latest release of this
-  repo, downloads the APK and installs it (the user grants “install unknown
-  apps” once; if the FileProvider route fails it falls back to the public
-  Downloads folder). Downloaded APKs are kept, so a failed install is retried
-  without re-downloading.
-- **Core update** (Settings → Xray core): checks Xray-core releases (stable,
-  or the newest pre-release with the beta tick), downloads the zip into app
-  storage (cached), extracts the `xray` binary and installs it — an in-app
-  copy wins over the bundled one. It never downgrades the running core.
-  Some devices block executing binaries from app storage; in that case the app
-  suggests updating the app itself (new cores ship bundled in new app releases).
+**Results & output**
+- Working links renamed to `🇩🇪 Country | your-channel` (clean, no counters)
+- Exit country voted by **6 geo services** in parallel — no single-service flukes
+- Copy all links / working links only / save as `.txt`
 
-## Releases
+**Caption builder** (Caption tab)
+- Caption template with `{{FLAGS}}` placeholder
+- Country emoji codes (premium emoji ids) per country, with search
+- **Message for users** — a separate text block with its own copy button
+- Backup/restore country codes as a `XX=code` **file** — the same file works
+  in the [companion Telegram bot](https://github.com/baddarksss/ConfigScannerBot)
 
-APK builds are published as GitHub releases — see the [releases page](https://github.com/baddarksss/ConfigScanner/releases).
+**Look & feel**
+- 🎨 **Material You** — follows the wallpaper color palette on Android 12+
+  (toggle in Settings), themed app icon on Android 13+
+- Dark & Light themes, English + Persian UI, per-output country name language
 
-## Building
+## 📥 Download & Install
 
-Requirements: JDK 17+, Android SDK (platform 34, build-tools 34), Gradle 8.11.
+1. Grab the latest APK from the
+   [**Releases**](https://github.com/baddarksss/ConfigScanner/releases) page
+   (or use the in-app updater).
+2. Requires **Android 8.0+ (arm64)**.
+3. First install: allow "install unknown apps" for your browser/file manager
+   when asked.
+
+> Moving from very old versions (`com.wpnfa.configscan`, ≤ v1.0.13)?
+> Uninstall the old app first — the package name changed to `com.configscanner`.
+> Within v1.0.14+ everything updates in place, including through the built-in updater.
+
+## 🚀 Usage
+
+**Test tab** — paste configs (or 📄 pick a `.txt`), hit **🚀 Start test**,
+watch the water circle fill. Results appear line by line: ✅ working (renamed
+with the country), ⚠️ connected-but-unknown-country, ❌ unreachable, and skips
+for protocols the core can't run.
+
+**Settings tab** — channel name + switch (adds `| your-channel` to output
+names), parallel workers, timeout, system color palette (Material You),
+theme, app language, Xray-core update/test, app update, log & about.
+
+**Caption tab** — edit the caption template, set country emoji codes, preview
+the flags of the last run, and keep a **Message for users** block that you copy
+on its own. Backup or restore all codes as one file, and copy them to the
+clipboard in the exact format the Telegram bot understands.
+
+## 🔄 In-app updates
+
+- **App update** (Settings → App update): checks this repo's latest release,
+  downloads the APK and hands it to the installer. Failed installs are retried
+  from the cached APK without re-downloading.
+- **Xray core update** (Settings → Xray core): pulls the newest stable (or
+  pre-release with the beta tick) Xray-core, verifies and installs it into app
+  storage — never downgrades. On devices that block executing updated binaries,
+  the app suggests installing a newer APK (new releases bundle a fresh core).
+
+## 🤖 Companion Telegram bot
+
+[**ConfigScannerBot**](https://github.com/baddarksss/ConfigScannerBot) runs the
+same scan engine on a server: send it configs, get the working links, flags,
+caption and users-message as Telegram messages — and sync country emoji codes
+both ways with this app using the same `XX=code` backup file.
+
+## 🛠 Building from source
+
+Requirements: **JDK 17+**, **Android SDK** (platform 34, build-tools 34),
+**Gradle 8.7+**.
 
 ```bash
 cd proj
-# 1) native binaries live in app/src/main/jniLibs/arm64-v8a (see below)
-# 2) build (release-key signing is enabled when CFGSCAN_KEY_PASS is set)
-CFGSCAN_KEY_PASS=... JAVA_HOME=/path/to/jdk17 ANDROID_HOME=/path/to/sdk \
-  /path/to/gradle-8.11.1/bin/gradle assembleDebug
-# APK: proj/app/build/outputs/apk/debug/app-debug.apk
+gradle assembleDebug    # APK: app/build/outputs/apk/debug/
+gradle assembleRelease  # APK: app/build/outputs/apk/release/
 ```
 
-### Native binaries (jniLibs/arm64-v8a)
+### Native binaries (`app/src/main/jniLibs/arm64-v8a`)
 
 | File | Source |
 |------|--------|
 | `libxray.so` | Xray-core release asset `Xray-android-arm64-v8a.zip` (the `xray` binary inside) — https://github.com/XTLS/Xray-core/releases |
 | `libhysteria.so` | Hysteria release asset `hysteria-android-arm64` — https://github.com/HyNetworks/hysteria/releases |
 
-### Signing
+## ⚙️ CI
 
-`build.gradle` reads the signing password from the `CFGSCAN_KEY_PASS`
-environment variable and the keystore from the repo parent directory
-(`cfgscan-v2.keystore`). When the variable is set, builds are signed with the
-release key so updates install over previous v1.0.14+ versions; otherwise the
-debug key is used.
+Every push to `main` is built automatically by
+[GitHub Actions](.github/workflows/android.yml) — the APK lands in
+**Actions → Artifacts**. Pushing a version tag (`git tag v1.0.45 &&
+git push origin v1.0.45`) publishes the APK to
+[**Releases**](https://github.com/baddarksss/ConfigScanner/releases), which is
+exactly where the in-app updater looks.
 
----
+## ❓ FAQ
 
-## بیلد خودکار APK (GitHub Actions)
-
-با هر پوش روی `main`، اپ به‌صورت خودکار بیلد می‌شود (خروجی در تب **Actions → Artifacts**).
-
-**ریلیز:** کافیه یک تگ بزنی — اکشن APK را بیلد و در **Releases** می‌گذارد (همان جایی که آپدیت درون‌برنامه‌ای می‌خواند):
-
-```bash
-git tag v1.0.44 && git push origin v1.0.44
-```
-
-### امضای APK (برای آپدیت درجا — مهم)
-
-اندروید اجازه نمی‌دهد APK با امضای متفاوت روی نسخه نصب‌شده آپدیت شود. برای اینکه APK ساخت CI با کلید خودت امضا شود، یک‌بار این دو Secret را در ریپو اضافه کن
-(Settings → Secrets and variables → Actions):
-
-| Secret | مقدار |
-|---|---|
-| `CFGSCAN_KEYSTORE_BASE64` | خروجی `base64 -w0 cfgscan-v2.keystore` |
-| `CFGSCAN_KEY_PASS` | پسورد کی‌استور |
-
-بدون این Secrets هم بیلد انجام می‌شود ولی APK با کلید debug امضا می‌شود (فقط نصب تازه، نه آپدیت). بیلد لوکال با کلید خودت مثل قبل کار می‌کند:
-
-```bash
-cd proj && CFGSCAN_KEY_PASS=... gradle assembleRelease
-```
+- **The app kills the scan in the background** — disable battery optimization
+  for ConfigScanner; a progress notification keeps the run alive.
+- **A server is marked ❌ but works in my client** — the test opens a full
+  tunnel and queries 6 geo services; some servers only allow browser-like
+  traffic. Raise the timeout and try again.
+- **"Core update blocked"** — your device refuses to execute updated binaries
+  from app storage (SELinux). Install the newest app release instead; it ships
+  with an updated core.
+- **Where do results go?** — they stay in the output box until you clear them;
+  use Copy / Save to export.
