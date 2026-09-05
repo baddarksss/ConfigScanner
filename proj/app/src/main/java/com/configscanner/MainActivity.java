@@ -125,10 +125,14 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private int themeMode = 0; // 0=system 1=dark 2=light
 
-    private ExecutorService pool;
+    private volatile ExecutorService pool;
     private volatile boolean running = false;
     private volatile boolean coreUpdating = false;
     private volatile boolean runStopped = false;
+    /** Bumped on every startRun/stopRun — stale workers of an old run
+     *  recognize the change and abandon their server without touching the
+     *  counters/output of the new run. */
+    private volatile int runGeneration = 0;
 
     private static final int SCAN_NOTIF_ID = 42;
 
@@ -136,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
     private final List<String> flagList = new ArrayList<>();
     private int basePort = 21000;
     private final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
-    private int totalCount = 0;
+    private volatile int totalCount = 0;
     private final AtomicBoolean runFinished = new AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicInteger okCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger noCountryCount = new java.util.concurrent.atomic.AtomicInteger();
@@ -412,7 +416,9 @@ public class MainActivity extends AppCompatActivity {
                 .setOnCheckedChangeListener((b, checked) ->
                         prefs.edit().putBoolean("include_unknown_in_links", checked).apply());
         ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
-            if (outputLines.isEmpty()) {
+            boolean empty;
+            synchronized (outputLines) { empty = outputLines.isEmpty(); }
+            if (empty) {
                 toast(getString(R.string.toast_output_empty));
                 return;
             }
@@ -421,7 +427,12 @@ public class MainActivity extends AppCompatActivity {
             fileExportLauncher.launch(fn);
         });
         ((MaterialButton) findViewById(R.id.btnClearOut)).setOnClickListener(v -> {
-            outputLines.clear();
+            synchronized (outputLines) {
+                outputLines.clear();
+            }
+            synchronized (unknownLinks) {
+                unknownLinks.clear();
+            }
             refreshOutput();
         });
 
@@ -613,7 +624,10 @@ public class MainActivity extends AppCompatActivity {
     private void onExportFile(Uri uri) {
         if (uri == null) return;
         try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-            String all = String.join("\n", outputLines) + "\n";
+            String all;
+            synchronized (outputLines) {
+                all = String.join("\n", outputLines) + "\n";
+            }
             os.write(all.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             toast(getString(R.string.toast_saved));
         } catch (Exception e) {
@@ -625,16 +639,17 @@ public class MainActivity extends AppCompatActivity {
         if (uri == null) return;
         toast(getString(R.string.toast_checking_core));
         new Thread(() -> {
+            File tmp = new File(getCacheDir(), "core_tmp.zip");
+            java.util.zip.ZipFile zf2 = null;
             try (InputStream is = getContentResolver().openInputStream(uri)) {
                 // The zip contains a single binary named "xray" (flat layout)
                 // write stream to temp file first
-                File tmp = new File(getCacheDir(), "core_tmp.zip");
                 FileOutputStream fos = new FileOutputStream(tmp);
                 byte[] buf = new byte[65536];
                 int n;
                 while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
                 fos.close();
-                java.util.zip.ZipFile zf2 = new java.util.zip.ZipFile(tmp);
+                zf2 = new java.util.zip.ZipFile(tmp);
                 java.util.zip.ZipEntry e = zf2.getEntry("xray");
                 if (e == null) {
                     // fallback: first entry
@@ -652,8 +667,6 @@ public class MainActivity extends AppCompatActivity {
                 try (InputStream es = zf2.getInputStream(e)) {
                     vline = XrayManager.installNewBinary(this, es);
                 }
-                zf2.close();
-                tmp.delete();
                 final String vl = vline;
                 postUi(() -> {
                     toast(getString(R.string.toast_core_updated, vl));
@@ -664,6 +677,11 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ex) {
                 final String m = ex.getMessage();
                 postUi(() -> toast(getString(R.string.toast_update_file_failed, String.valueOf(m))));
+            } finally {
+                if (zf2 != null) {
+                    try { zf2.close(); } catch (Exception ignored) { }
+                }
+                tmp.delete(); // never leave the staged zip behind
             }
         }).start();
     }
@@ -711,6 +729,7 @@ public class MainActivity extends AppCompatActivity {
         }
         ensureScanNotification();
         runStopped = false;
+        runGeneration++; // invalidate workers of any previous run
         String text = input.getText().toString().trim();
         if (text.isEmpty()) {
             toast(getString(R.string.toast_paste_first));
@@ -758,7 +777,7 @@ public class MainActivity extends AppCompatActivity {
         }
         running = true;
         runFinished.set(false);
-        assignedPorts.clear();
+        synchronized (assignedPorts) { assignedPorts.clear(); }
         okCount.set(0);
         noCountryCount.set(0);
         unreachableCount.set(0);
@@ -768,7 +787,9 @@ public class MainActivity extends AppCompatActivity {
         doneCount.set(0);
         totalCount = servers.size();
         basePort = 21000 + (int) (Math.random() * 500);
-        outputLines.clear();
+        synchronized (outputLines) {
+            outputLines.clear();
+        }
         refreshOutput();
         btnStart.setText(R.string.btn_stop);
 
@@ -786,18 +807,29 @@ public class MainActivity extends AppCompatActivity {
         final int timeoutSec = timeoutBar.getProgress() + 5;
         final boolean hasHy2F = hasHy2;
         final File binF = bin;
+        final int gen = runGeneration; // captured BEFORE the version checks
         new Thread(() -> {
             AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
                     + " xray=" + XrayManager.version(binF)
                     + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
-            pool = Executors.newFixedThreadPool(parallelN);
-            // pool.submit only enqueues — port is allocated dynamically when the worker runs
-            for (int i = 0; i < servers.size(); i++) {
-                final ServerSpec s = servers.get(i);
-                pool.submit(() -> {
-                    final int port = findFreePort();
-                    testOne(s, port, timeoutSec);
-                });
+            // the user may hit Stop while the version check above was running
+            // — a stopped run must not start testing anything
+            if (runStopped || !running || gen != runGeneration) return;
+            synchronized (runStartLock) {
+                if (runStopped || !running || gen != runGeneration) return;
+                ExecutorService newPool = Executors.newFixedThreadPool(parallelN);
+                pool = newPool;
+                // pool.submit only enqueues — port is allocated dynamically when the worker runs
+                for (int i = 0; i < servers.size(); i++) {
+                    final ServerSpec s = servers.get(i);
+                    newPool.submit(() -> {
+                        // a stale worker (its run was stopped/superseded) must
+                        // not touch the counters/output of the current run
+                        if (gen != runGeneration) return;
+                        final int port = findFreePort();
+                        testOne(s, port, timeoutSec, gen);
+                    });
+                }
             }
         }, "run-prep").start();
     }
@@ -816,6 +848,8 @@ public class MainActivity extends AppCompatActivity {
 
     /** Ports currently in use by active test workers in the current run */
     private final java.util.Set<Integer> assignedPorts = new java.util.HashSet<>();
+    /** Serializes pool creation between startRun's prep thread and stopRun */
+    private final Object runStartLock = new Object();
 
     private int findFreePort() {
         synchronized (assignedPorts) {
@@ -851,13 +885,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopRun() {
+        // set the flags first so the run-prep thread sees the stop even
+        // before the pool exists; bumping the generation makes every in-flight
+        // worker abandon its server without touching run state
+        running = false;
+        runStopped = true;
+        runGeneration++;
         if (pool != null) pool.shutdownNow();
         for (Process p : activeEngines) {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
         synchronized (assignedPorts) { assignedPorts.clear(); }
-        running = false;
-        runStopped = true;
         cancelScanNotification();
         postUi(() -> {
             syncCoreButtons();
@@ -868,8 +906,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void testOne(ServerSpec s, int port, int timeoutSec) {
+    private void testOne(ServerSpec s, int port, int timeoutSec, int gen) {
         String hostport = s.host + ":" + s.port;
+        if (gen != runGeneration) return; // run was stopped/superseded
         AppLog.d("test", ">> " + s.protocol + " " + hostport);
         status(s.protocol + " " + hostport);
 
@@ -884,10 +923,13 @@ public class MainActivity extends AppCompatActivity {
             // (inside the try so the finally below still counts the server and
             //  finishes the run when every server takes this path)
             if ("hysteria1".equals(s.protocol)) {
+                if (gen != runGeneration) return;
                 doneCount.incrementAndGet();
                 skipCount.incrementAndGet();
                 String base = s.name.isEmpty() ? "hysteria v1" : s.name;
-                outputLines.add("⚠️ " + base + " — " + getString(R.string.res_hysteria1_unsupported));
+                synchronized (outputLines) {
+                    outputLines.add("⚠️ " + base + " — " + getString(R.string.res_hysteria1_unsupported));
+                }
                 AppLog.w("test", "SKIP " + base + " (hysteria v1 not supported by the core)");
                 refreshOutput();
                 autoScroll();
@@ -897,9 +939,12 @@ public class MainActivity extends AppCompatActivity {
                     && s.obfs != null && !s.obfs.isEmpty()
                     && !"plain".equalsIgnoreCase(s.obfs)
                     && (s.obfsParam == null || s.obfsParam.isEmpty())) {
+                if (gen != runGeneration) return;
                 doneCount.incrementAndGet();
                 String base = s.name.isEmpty() ? hostport : s.name;
-                outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
+                synchronized (outputLines) {
+                    outputLines.add("⚠️ " + base + " — " + getString(R.string.res_obfs_nopass));
+                }
                 AppLog.w("test", "SKIP " + hostport + " (hysteria2 obfs without password)");
                 skipCount.incrementAndGet();
                 refreshOutput();
@@ -933,6 +978,7 @@ public class MainActivity extends AppCompatActivity {
 
             activeEngines.add(engine);
             Thread.sleep(300);
+            if (gen != runGeneration) return; // run stopped while sleeping
             if (!engine.isAlive()) {
                 String earlyTail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "engine exited early rc=" + engine.exitValue()
@@ -950,6 +996,7 @@ public class MainActivity extends AppCompatActivity {
             // wait for SOCKS port
             long waitMs = Math.min(8000, 3000 + 100L * timeoutSec);
             boolean up = XrayManager.waitForPort(port, waitMs);
+            if (gen != runGeneration) return; // run stopped while waiting
             if (!up) {
                 AppLog.w("test", "port " + port + " not up after " + waitMs + "ms"
                         + " engine alive=" + engine.isAlive()
@@ -966,6 +1013,7 @@ public class MainActivity extends AppCompatActivity {
             long t0 = System.currentTimeMillis();
             GeoChecker.Result geo = GeoChecker.check(port, timeoutSec);
             long took = (System.currentTimeMillis() - t0) / 1000;
+            if (gen != runGeneration) return; // run stopped during geo check
             AppLog.d("test", "geo code=" + geo.code + " country=" + geo.country
                     + " ip=" + geo.ip + " ok=" + geo.ok
                     + " votes=" + geo.votes + "/" + geo.answered
@@ -1026,9 +1074,11 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             AppLog.e("test", "error " + hostport + " " + e.getMessage());
-            doneCount.incrementAndGet();
-            unreachableCount.incrementAndGet();
-            fail(s, String.valueOf(e.getMessage()));
+            if (gen == runGeneration) {
+                doneCount.incrementAndGet();
+                unreachableCount.incrementAndGet();
+                fail(s, String.valueOf(e.getMessage()));
+            }
         } finally {
             activeEngines.remove(engine);
             synchronized (assignedPorts) { assignedPorts.remove(port); }
@@ -1038,9 +1088,13 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception ignored) {
                 }
             }
-            updateProgress();
-            if (doneCount.get() >= totalCount) {
-                finishRun();
+            // only the workers of the CURRENT run drive progress/completion —
+            // a stale worker of a stopped/superseded run must stay silent
+            if (gen == runGeneration) {
+                updateProgress();
+                if (doneCount.get() >= totalCount) {
+                    finishRun();
+                }
             }
         }
     }
@@ -1053,7 +1107,9 @@ public class MainActivity extends AppCompatActivity {
             cancelScanNotification();
             final String summary = buildRunSummary();
             AppLog.i("run", "finished: " + summary);
-            outputLines.add("\n—— " + summary + " ——");
+            synchronized (outputLines) {
+                outputLines.add("\n—— " + summary + " ——");
+            }
             refreshOutput();
             postUi(() -> {
                 running = false;
@@ -1070,7 +1126,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void success(String renamedLine, String flag) {
-        outputLines.add(renamedLine);
+        synchronized (outputLines) {
+            outputLines.add(renamedLine);
+        }
         if (flag != null && !flag.isEmpty()) {
             final List<String> copy;
             synchronized (flagList) {
@@ -1085,7 +1143,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void fail(ServerSpec s, String reason) {
         String base = s.name.isEmpty() ? (s.host + ":" + s.port) : s.name;
-        outputLines.add("❌ " + base + " — " + reason);
+        synchronized (outputLines) {
+            outputLines.add("❌ " + base + " — " + reason);
+        }
         AppLog.e("test", "FAIL " + base + ": " + reason);
         refreshOutput();
         autoScroll();
@@ -1191,14 +1251,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void onCodesImport(Uri uri) {
         if (uri == null) return;
-        try (InputStream is = getContentResolver().openInputStream(uri)) {
+        try (InputStream is = getContentResolver().openInputStream(uri);
+             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+            // decode the WHOLE stream first — decoding chunk-by-chunk with
+            // new String(byte[], off, len) can split a multi-byte UTF-8
+            // sequence at a buffer boundary and corrupt Persian text
             byte[] buf = new byte[16384];
-            StringBuilder sb = new StringBuilder();
             int n;
-            while ((n = is.read(buf)) > 0)
-                sb.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
+            while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
+            String content = new String(bos.toByteArray(),
+                    java.nio.charset.StandardCharsets.UTF_8);
             int count = 0;
-            for (String line : sb.toString().split("\\r?\\n")) {
+            for (String line : content.split("\\r?\\n")) {
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 int eq = line.indexOf('=');
@@ -1641,17 +1705,19 @@ public class MainActivity extends AppCompatActivity {
     private void copyLinksOnly() {
         java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
         boolean includeUnknown = prefs.getBoolean("include_unknown_in_links", false);
-        for (String line : outputLines) {
-            String t = line.trim();
-            if (isProxyLink(t)) {
-                boolean isUnknown;
-                synchronized (unknownLinks) {
-                    isUnknown = unknownLinks.contains(t);
+        synchronized (outputLines) {
+            for (String line : outputLines) {
+                String t = line.trim();
+                if (isProxyLink(t)) {
+                    boolean isUnknown;
+                    synchronized (unknownLinks) {
+                        isUnknown = unknownLinks.contains(t);
+                    }
+                    if (!includeUnknown && isUnknown) {
+                        continue;
+                    }
+                    links.add(t);
                 }
-                if (!includeUnknown && isUnknown) {
-                    continue;
-                }
-                links.add(t);
             }
         }
         if (links.isEmpty()) {
@@ -1665,7 +1731,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void copyAll() {
-        String all = String.join("\n", outputLines);
+        String all;
+        synchronized (outputLines) {
+            all = String.join("\n", outputLines);
+        }
         if (all.isEmpty()) {
             toast(getString(R.string.toast_output_empty));
             return;

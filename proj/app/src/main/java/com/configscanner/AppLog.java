@@ -121,19 +121,21 @@ public class AppLog {
     public static String fileTail(File f, int maxLines) {
         if (f == null || !f.exists()) return "";
         try {
-            java.util.List<String> lines = java.util.Collections
-                    .nCopies(maxLines, null);
+            // ring buffer of the last maxLines lines (nCopies is IMMUTABLE —
+            // the old .set() on it always threw UnsupportedOperationException
+            // and silently returned "" for every file)
+            String[] ring = new String[maxLines];
             int i = 0;
             try (BufferedReader br = new BufferedReader(new java.io.FileReader(f))) {
                 String line;
                 while ((line = br.readLine()) != null) {
-                    lines.set(i % maxLines, line);
+                    ring[i % maxLines] = line;
                     i++;
                 }
             }
             StringBuilder sb = new StringBuilder();
             for (int k = Math.max(0, i - maxLines); k < i; k++) {
-                String l = lines.get(k % maxLines);
+                String l = ring[k % maxLines];
                 if (l != null) sb.append(l).append(" | ");
             }
             return sb.toString();

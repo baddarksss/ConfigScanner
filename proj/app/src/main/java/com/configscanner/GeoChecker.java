@@ -58,9 +58,13 @@ public class GeoChecker {
         ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
 
+        // ONE client for every geo probe (was: a new OkHttpClient per
+        // service = 6 clients/sockets per server tested)
+        OkHttpClient client = newProxyClient(proxyPort, timeout);
+
         try {
             for (final String[] svc : SERVICES) {
-                cs.submit(() -> query(newProxyClient(proxyPort, timeout), svc));
+                cs.submit(() -> query(client, svc));
             }
 
             for (int i = 0; i < SERVICES.length; i++) {

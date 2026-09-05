@@ -213,7 +213,17 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.45
+    <string name="changelog">v1.0.46
+• Fixed: engine log tails were ALWAYS empty (a crash in the log reader was silently swallowed) — broken tunnels are now correctly reported as unreachable instead of \"country unknown\", and the real engine error is visible in the Log again
+• Fixed: Stop button — a run stopped during startup (the version-check window) no longer continues testing in the background
+• Fixed: quickly stopping and starting a new run no longer lets old workers corrupt the new run\'s results or finish it prematurely (runs are now generation-tagged)
+• Fixed: crash when copying/saving results while a run was still writing output
+• Fixed: language choice (fa/en) is now remembered after an app restart on Android 12 and below
+• Fixed: restoring country-code backups no longer corrupts multi-byte UTF-8 text split at buffer boundaries
+• Fixed: \"Update core from file\" no longer leaks the temp zip and file handle when the file is invalid
+• Improved: geo checks reuse ONE HTTP client instead of six per server (less memory, faster)
+
+v1.0.45
 • New minimal square CS icon + Android 13+ themed-icon (wallpaper palette) support
 • Fixed: Message for users no longer rides at the end of the copied caption — it has its own Copy button
 • Button renamed: "Copy only" → "Copy"
