@@ -227,7 +227,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.48
+    <string name="changelog">v1.0.49
+• Fixed: ECH settings now actually reach Xray (echConfigList — echForceQuery/echConfig are not real xray fields)
+• Fixed: night theme overlay (Theme.Base parent) — "style not found" build break on some setups
+
+v1.0.48
 • New app icon: solid black with a bold white CS monogram in a scanner viewfinder frame — plus scan-beam and ping accents
 • Modern redesign: cleaner white light theme, deeper dark theme with richer charcoal glass cards, refined text contrast and system bars
 • Removed the unused water/orange palette leftovers from the color set

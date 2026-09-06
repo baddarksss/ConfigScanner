@@ -227,7 +227,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.48
+<string name="changelog">v1.0.49
+• فیکس: تنظیمات ECH حالا واقعاً به Xray می‌رسد (echConfigList — فیلدهای echForceQuery/echConfig در xray وجود ندارند)
+• فیکس: اورلی تم شب (پدر Theme.Base) — خطای بیلد «style not found» در برخی حالت‌ها
+
+v1.0.48
 • آیکون جدید: مشکی خالص با مونوگرام سفیدِ بولد CS داخل قاب اسکنر (viewfinder) + خطوط بیم اسکن و نقطه پینگ
 • طراحی مدرن جدید: تم روشنِ تمیزتر، تم تیره‌ی عمیق‌تر با کارت‌های شیشه‌ای ذغالی، کنتراست متن و نوار سیستم بهینه
 • حذف رنگ‌های بلااستفاده (پالت آب و نارنجی) از مجموعه رنگ
