@@ -1738,11 +1738,10 @@ public class MainActivity extends AppCompatActivity {
         chip.setTextColor(getResources().getColor(R.color.chip_text, getTheme()));
         chip.setBackgroundResource(R.drawable.bg_chip);
         chip.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
-        android.widget.LinearLayout.LayoutParams lp =
-                new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.marginEnd = dpToPx(8);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = dpToPx(8);
         chip.setLayoutParams(lp);
         chip.setOnClickListener(v -> onClear.run());
         return chip;
