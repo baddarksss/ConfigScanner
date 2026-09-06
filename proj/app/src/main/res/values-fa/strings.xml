@@ -164,6 +164,20 @@
     <string name="run_summary">%1$d موفق · %2$d بدون شناسایی کشور · %3$d غیرقابل دسترس · %4$d ردشده</string>
     <string name="include_unknown_title">سرورهای «بدون شناسایی کشور» رو هم توی «فقط لینک‌ها» بذار</string>
     <string name="include_unknown_caption">این سرورها وصل شدن ولی کشورشون شناسایی نشد؛ معمولاً سالم‌ن و با این گزینه لینکشون هم کپی می‌شه که گم نشن.</string>
+
+    <!-- Output tools: per-country stats + filters -->
+    <string name="country_stats_title">🌍 سرورها بر اساس کشور</string>
+    <string name="filter_countries">🌍 فیلتر کشور</string>
+    <string name="filter_apply">اعمال</string>
+    <string name="filter_select_all">همه</string>
+    <string name="filter_cleared">فیلتر حذف شد</string>
+    <string name="filter_chip_countries">کشورها: %1$d</string>
+    <string name="filter_chip_limit">محدودیت: %1$d</string>
+    <string name="country_unknown_label">کشور نامشخص</string>
+    <string name="limit_count">🔢 محدودیت تعداد</string>
+    <string name="limit_msg">%1$d سرور داری — چند تا رو نگه دارم؟ (تصادفی انتخاب می‌شن)</string>
+    <string name="limit_bad_range">یه عدد بین ۱ تا %1$d بزن</string>
+    <string name="limit_all">همه</string>
     <string name="out_lang_title">زبان اسم کشور توی خروجی</string>
     <string name="out_lang_fa">فارسی</string>
     <string name="out_lang_en">انگلیسی</string>
@@ -213,7 +227,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.46
+<string name="changelog">v1.0.47
+• جدید: خلاصه‌ی هر کشور در پایان تست — پرچم + اسم کشور + تعداد سرورهای سالم، زیر وضعیت پایانی
+• جدید: 🌍 فیلتر کشور — کشورهای موردنظر رو تیک بزن و اعمال کن؛ باکس خروجی، «کپی لینک‌ها» و «ذخیره فایل» همه از فیلتر پیروی می‌کنن
+• جدید: 🔢 محدودیت تعداد — فقط N سرور به‌صورت تصادفی از سالم‌ها نگه داشته بشه (مثلاً ۱۰۰ تا تست بده، ۲۰ تا خروجی بگیر)
+• فیلترهای فعال به‌صورت چیپ بالای خروجی دیده می‌شن — با لمس چیپ حذف می‌شن
+• طراحی جدید: انیمیشن دایره‌ای آب جای خودش رو به یه نمای پیشرفت مینیمال و مدرن داد — درصد درشت، نوار گرادیان باریک با نوید درخشان
+• کپی/ذخیره دقیقاً همون چیزی رو می‌دن که توی باکس (فیلترشده) می‌بینی
+
+v1.0.46
 • فیکس: انتهای لاگ موتور همیشه خالی بود (کراش بی‌صدا در خواننده لاگ) — تونل‌های خراب حالا درست «unreachable» گزارش می‌شوند و خطای واقعی موتور دوباره در لاگ دیده می‌شود
 • فیکس: دکمه Stop — توقفی که در بازه استارت (بررسی نسخه) اتفاق می‌افتاد، دیگر باعث ادامه تست در پس‌زمینه نمی‌شود
 • فیکس: توقف سریع و شروع بلافاصله یک تست دیگر، دیگر به کارگرهای قدیمی اجازه خرابکاری در نتایج/اتمام زودهنگام تست جدید را نمی‌دهد (هر اجرا شناسه نسل دارد)

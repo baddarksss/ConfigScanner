@@ -23,4 +23,9 @@
     <color name="water_circle_bg">#0F1B33</color>
     <color name="water_1">#4CC9F0</color>
     <color name="water_2">#38BDF8</color>
+    <!-- progress hero -->
+    <color name="hero_track">#26FFFFFF</color>
+    <color name="hero_fill_end">#7DD3FC</color>
+    <color name="hero_tick">#59FFFFFF</color>
+    <color name="hero_number">#FFFFFF</color>
 </resources>

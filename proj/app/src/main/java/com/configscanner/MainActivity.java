@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.HorizontalScrollView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -75,10 +76,17 @@ public class MainActivity extends AppCompatActivity {
     private TextView timeoutValue;
     private MaterialButton btnStart;
     private MaterialCardView progressCard;
-    private WaterCircleView waterCircle;
+    private ProgressHeroView waterCircle;
     private TextView progressLabel;
     private TextView progressCount;
     private TextView progressStatus;
+    private TextView progressPercent;
+    private android.widget.LinearLayout countryStatsBox;
+    private android.widget.LinearLayout countryStatsList;
+    private MaterialButton btnFilterCountries;
+    private MaterialButton btnLimitCount;
+    private HorizontalScrollView filterChipsScroll;
+    private android.widget.LinearLayout filterChipsBox;
     private ScrollView pageTest;
     private ScrollView pageSettings;
     private BottomNavigationView bottomNav;
@@ -148,6 +156,20 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
     private final List<String> unknownLinks = new ArrayList<>();
+
+    // ------------------------- output model / filtering -------------------------
+    /** One successful output entry: the renamed link + its ISO country ("" = unknown). */
+    static final class OutEntry {
+        final String line;
+        final String iso;
+        OutEntry(String line, String iso) { this.line = line; this.iso = iso; }
+    }
+    /** Full run output in order — the source of truth the box is rendered from. */
+    private final List<OutEntry> outEntries = new ArrayList<>();
+    /** ISO countries the user selected to keep (null = no filter active). */
+    private java.util.Set<String> selectedCountries;
+    /** Max number of entries to keep (0 = all). Applied randomly when set. */
+    private int outLimit;
     private volatile boolean destroyed = false;
     private final java.util.Set<Process> activeEngines = java.util.Collections
             .newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -210,6 +232,13 @@ public class MainActivity extends AppCompatActivity {
         progressLabel = findViewById(R.id.progressLabel);
         progressCount = findViewById(R.id.progressCount);
         progressStatus = findViewById(R.id.progressStatus);
+        progressPercent = findViewById(R.id.progressPercent);
+        countryStatsBox = findViewById(R.id.countryStatsBox);
+        countryStatsList = findViewById(R.id.countryStatsList);
+        btnFilterCountries = findViewById(R.id.btnFilterCountries);
+        btnLimitCount = findViewById(R.id.btnLimitCount);
+        filterChipsScroll = findViewById(R.id.filterChipsScroll);
+        filterChipsBox = findViewById(R.id.filterChipsBox);
         pageTest = findViewById(R.id.pageTest);
         pageSettings = findViewById(R.id.pageSettings);
         pageCaption = findViewById(R.id.pageCaption);
@@ -410,6 +439,8 @@ public class MainActivity extends AppCompatActivity {
             updateStartState();
         });
         ((MaterialButton) findViewById(R.id.btnCopyLinks)).setOnClickListener(v -> copyLinksOnly());
+        btnFilterCountries.setOnClickListener(v -> showFilterDialog());
+        btnLimitCount.setOnClickListener(v -> showLimitDialog());
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
                 .setChecked(prefs.getBoolean("include_unknown_in_links", false));
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
@@ -433,6 +464,13 @@ public class MainActivity extends AppCompatActivity {
             synchronized (unknownLinks) {
                 unknownLinks.clear();
             }
+            synchronized (outEntries) {
+                outEntries.clear();
+            }
+            selectedCountries = null;
+            outLimit = 0;
+            countryStatsBox.setVisibility(View.GONE);
+            renderFilterChips();
             refreshOutput();
         });
 
@@ -623,11 +661,19 @@ public class MainActivity extends AppCompatActivity {
 
     private void onExportFile(Uri uri) {
         if (uri == null) return;
-        try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-            String all;
+        // export the FILTERED view — what the box shows is what gets saved
+        List<OutEntry> vis = visibleEntries();
+        final String all;
+        if (vis.isEmpty()) {
             synchronized (outputLines) {
                 all = String.join("\n", outputLines) + "\n";
             }
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (OutEntry e : vis) sb.append(e.line).append("\n");
+            all = sb.toString();
+        }
+        try (OutputStream os = getContentResolver().openOutputStream(uri)) {
             os.write(all.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             toast(getString(R.string.toast_saved));
         } catch (Exception e) {
@@ -790,6 +836,10 @@ public class MainActivity extends AppCompatActivity {
         synchronized (outputLines) {
             outputLines.clear();
         }
+        synchronized (outEntries) {
+            outEntries.clear();
+        }
+        selectedCountries = null; // a new run resets the country filter
         refreshOutput();
         btnStart.setText(R.string.btn_stop);
 
@@ -1118,8 +1168,11 @@ public class MainActivity extends AppCompatActivity {
                 btnStart.setEnabled(true);
                 waterCircle.setRunning(false);
                 waterCircle.setProgress(totalCount == 0 ? 0 : 100f);
+                progressPercent.setText("100%");
                 progressLabel.setText(R.string.progress_done);
                 progressStatus.setText(summary);
+                buildCountryStats();
+                renderFilterChips();
                 vibrateOnce();
             });
         }
@@ -1128,6 +1181,18 @@ public class MainActivity extends AppCompatActivity {
     private void success(String renamedLine, String flag) {
         synchronized (outputLines) {
             outputLines.add(renamedLine);
+        }
+        // remember the entry with its country for stats/filtering ("" = unknown)
+        String iso = "";
+        if (flag != null && !flag.isEmpty()) {
+            synchronized (runCountryCodes) {
+                for (String c : runCountryCodes) {
+                    if (GeoChecker.flag(c).equals(flag)) { iso = c; break; }
+                }
+            }
+        }
+        synchronized (outEntries) {
+            outEntries.add(new OutEntry(renamedLine, iso));
         }
         if (flag != null && !flag.isEmpty()) {
             final List<String> copy;
@@ -1568,6 +1633,225 @@ public class MainActivity extends AppCompatActivity {
                 unreachableCount.get(), skipCount.get());
     }
 
+    // ------------------------------------------------------- run stats & output tools
+
+    /** Build the per-country stats box: flag + name + count of live servers. */
+    private void buildCountryStats() {
+        final java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        synchronized (outEntries) {
+            for (OutEntry e : outEntries) {
+                if (e.iso == null || e.iso.isEmpty()) continue;
+                counts.merge(e.iso, 1, Integer::sum);
+            }
+        }
+        if (counts.isEmpty()) {
+            countryStatsBox.setVisibility(View.GONE);
+            return;
+        }
+        countryStatsList.removeAllViews();
+        boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+        for (java.util.Map.Entry<String, Integer> en : counts.entrySet()) {
+            String iso = en.getKey();
+            CountryData.C c = CountryData.byCode(iso);
+            String name = c != null ? (fa ? c.fa : c.en) : iso;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            TextView tv = new TextView(this);
+            tv.setText(GeoChecker.flag(iso) + "  " + name + "  ×  " + en.getValue());
+            tv.setTextSize(13f);
+            tv.setTextColor(getResources().getColor(R.color.text_primary, getTheme()));
+            tv.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            android.util.TypedValue tv2 = new android.util.TypedValue();
+            getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv2, true);
+            row.setBackgroundResource(tv2.resourceId);
+            row.setPadding(0, dpToPx(6), 0, dpToPx(6));
+            row.setOnClickListener(v -> showFilterDialog());
+            row.addView(tv);
+            countryStatsList.addView(row);
+        }
+        countryStatsBox.setVisibility(View.VISIBLE);
+    }
+
+    /** Entries currently visible in the box: country filter + count limit applied. */
+    private List<OutEntry> visibleEntries() {
+        List<OutEntry> src;
+        synchronized (outEntries) {
+            src = new ArrayList<>(outEntries);
+        }
+        if (selectedCountries != null) {
+            List<OutEntry> f = new ArrayList<>();
+            for (OutEntry e : src) {
+                if (selectedCountries.contains(e.iso)) f.add(e);
+            }
+            src = f;
+        }
+        if (outLimit > 0 && src.size() > outLimit) {
+            // pick the keepers randomly, then restore the original run order
+            final java.util.Map<OutEntry, Integer> idx = new java.util.IdentityHashMap<>();
+            int i = 0;
+            for (OutEntry e : src) idx.put(e, i++);
+            java.util.Collections.shuffle(src);
+            src = new ArrayList<>(src.subList(0, outLimit));
+            java.util.Collections.sort(src, (a, b) -> Integer.compare(idx.get(a), idx.get(b)));
+        }
+        return src;
+    }
+
+    /** Re-render the output box from the entry model with filters applied. */
+    private void applyOutputFilters() {
+        renderFilterChips();
+        refreshOutput();
+    }
+
+    /** Chip row under the buttons showing the active filters (tap a chip to clear). */
+    private void renderFilterChips() {
+        filterChipsBox.removeAllViews();
+        boolean any = false;
+        if (selectedCountries != null && !selectedCountries.isEmpty()) {
+            any = true;
+            String joined = new ArrayList<>(selectedCountries).toString();
+            String txt = getString(R.string.filter_chip_countries,
+                    selectedCountries.size()) + " " + joined;
+            filterChipsBox.addView(makeFilterChip(txt, () -> {
+                selectedCountries = null;
+                applyOutputFilters();
+                toast(getString(R.string.filter_cleared));
+            }));
+        }
+        if (outLimit > 0) {
+            any = true;
+            filterChipsBox.addView(makeFilterChip(getString(R.string.filter_chip_limit, outLimit), () -> {
+                outLimit = 0;
+                applyOutputFilters();
+                toast(getString(R.string.filter_cleared));
+            }));
+        }
+        filterChipsScroll.setVisibility(any ? View.VISIBLE : View.GONE);
+    }
+
+    private android.view.View makeFilterChip(String text, Runnable onClear) {
+        TextView chip = new TextView(this);
+        chip.setText(text + "  ✕");
+        chip.setTextSize(11.5f);
+        chip.setTextColor(getResources().getColor(R.color.chip_text, getTheme()));
+        chip.setBackgroundResource(R.drawable.bg_chip);
+        chip.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
+        android.widget.LinearLayout.LayoutParams lp =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.marginEnd = dpToPx(8);
+        chip.setLayoutParams(lp);
+        chip.setOnClickListener(v -> onClear.run());
+        return chip;
+    }
+
+    /** Dialog with a checkbox per country found in the run + Apply. */
+    private void showFilterDialog() {
+        List<OutEntry> snapshot;
+        synchronized (outEntries) {
+            snapshot = new ArrayList<>(outEntries);
+        }
+        if (snapshot.isEmpty()) {
+            toast(getString(R.string.toast_output_empty));
+            return;
+        }
+        // count per country, preserving first-seen order
+        java.util.LinkedHashMap<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (OutEntry e : snapshot) counts.merge(e.iso, 1, Integer::sum);
+        String unkLabel = getString(R.string.country_unknown_label);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = dpToPx(8);
+        box.setPadding(pad, pad, pad, pad);
+        ScrollView sc = new ScrollView(this);
+        sc.addView(box);
+        android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+        wrap.addView(sc, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT));
+
+        final java.util.List<String> order = new ArrayList<>(counts.keySet());
+        final java.util.Map<String, com.google.android.material.checkbox.MaterialCheckBox> checks = new java.util.HashMap<>();
+        boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+        for (String iso : order) {
+            CountryData.C c = CountryData.byCode(iso);
+            String name = iso.isEmpty() ? unkLabel : (c != null ? (fa ? c.fa : c.en) : iso);
+            com.google.android.material.checkbox.MaterialCheckBox cb =
+                    new com.google.android.material.checkbox.MaterialCheckBox(this);
+            int n = counts.get(iso);
+            cb.setText((iso.isEmpty() ? "❓" : GeoChecker.flag(iso)) + "  " + name
+                    + (n > 1 ? "  (" + n + ")" : ""));
+            cb.setTextSize(13.5f);
+            boolean defChecked = selectedCountries == null || selectedCountries.contains(iso);
+            cb.setChecked(defChecked);
+            checks.put(iso, cb);
+            box.addView(cb);
+        }
+        wrap.setPadding(dpToPx(6), dpToPx(2), dpToPx(6), 0);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.filter_countries)
+                .setView(wrap)
+                .setPositiveButton(R.string.filter_apply, (d, w) -> {
+                    java.util.Set<String> sel = new java.util.HashSet<>();
+                    for (String iso : order) {
+                        if (checks.get(iso).isChecked()) sel.add(iso);
+                    }
+                    // nothing or everything ticked == no filter
+                    selectedCountries = (sel.isEmpty() || sel.equals(new java.util.HashSet<>(order)))
+                            ? null : sel;
+                    applyOutputFilters();
+                })
+                .setNeutralButton(R.string.filter_select_all, (d, w) -> {
+                    selectedCountries = null;
+                    applyOutputFilters();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Dialog asking how many servers to keep (random) in the output. */
+    private void showLimitDialog() {
+        List<OutEntry> visible = visibleEntries();
+        int max = visible.size();
+        if (max == 0) {
+            toast(getString(R.string.toast_output_empty));
+            return;
+        }
+        EditText edit = new EditText(this);
+        edit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        edit.setHint("1 - " + max);
+        edit.setGravity(android.view.Gravity.CENTER);
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding(dpToPx(6), dpToPx(2), dpToPx(6), 0);
+        box.addView(edit);
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.limit_count))
+                .setMessage(getString(R.string.limit_msg, max))
+                .setView(box)
+                .setPositiveButton(R.string.filter_apply, (d, w) -> {
+                    String t = edit.getText().toString().trim();
+                    int n = 0;
+                    try { n = Integer.parseInt(t); } catch (Exception ignored) { }
+                    if (n <= 0 || n > max) {
+                        toast(getString(R.string.limit_bad_range, max));
+                        return;
+                    }
+                    outLimit = n;
+                    applyOutputFilters();
+                })
+                .setNeutralButton(R.string.limit_all, (d, w) -> {
+                    outLimit = 0;
+                    applyOutputFilters();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     /** True when the engine log tail contains a fatal engine error or crash. */
     private static boolean looksLikeEngineError(String tail) {
         if (tail == null || tail.isEmpty()) return false;
@@ -1597,6 +1881,7 @@ public class MainActivity extends AppCompatActivity {
         postUi(() -> {
             int pct = total == 0 ? 0 : (int) (100.0 * done / total);
             waterCircle.setProgress(pct);
+            progressPercent.setText(pct + "%");
             progressCount.setText(done + "/" + total);
             if (running && done < total) {
                 progressLabel.setText(R.string.progress_testing);
@@ -1655,14 +1940,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Debounced output flush — long runs used to rebuild the whole box per
-     *  result (O(n^2)); now at most one rebuild per 250ms. */
+     *  result (O(n^2)); now at most one rebuild per 250ms. When an output
+     *  filter (country/limit) is active the FILTERED model is rendered. */
     private final Runnable outputFlusher = new Runnable() {
         @Override public void run() {
+            final boolean filtered = (selectedCountries != null && !selectedCountries.isEmpty())
+                    || outLimit > 0;
             final int n;
             StringBuilder sb = new StringBuilder();
-            synchronized (outputLines) {
-                n = outputLines.size();
-                for (String l : outputLines) sb.append(l).append("\n");
+            if (filtered) {
+                List<OutEntry> vis = visibleEntries();
+                n = vis.size();
+                for (OutEntry e : vis) sb.append(e.line).append("\n");
+            } else {
+                synchronized (outputLines) {
+                    n = outputLines.size();
+                    for (String l : outputLines) sb.append(l).append("\n");
+                }
             }
             // Never scroll programmatically while a run is in progress — the
             // ScrollView keeps the user's viewport where they left it.
@@ -1701,24 +1995,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Copy ONLY the working config links (one per unique URI) to the clipboard —
-     *  failed lines (❌ …) are not links and are skipped. */
+     *  failed lines (❌ …) are not links and are skipped. Country filter and the
+     *  count limit are honored: what the box shows is what gets copied. */
     private void copyLinksOnly() {
         java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
-        boolean includeUnknown = prefs.getBoolean("include_unknown_in_links", false);
-        synchronized (outputLines) {
-            for (String line : outputLines) {
-                String t = line.trim();
-                if (isProxyLink(t)) {
-                    boolean isUnknown;
-                    synchronized (unknownLinks) {
-                        isUnknown = unknownLinks.contains(t);
-                    }
-                    if (!includeUnknown && isUnknown) {
-                        continue;
-                    }
-                    links.add(t);
+        List<OutEntry> vis = visibleEntries();
+        if (vis.isEmpty()) {
+            // no entries (or nothing survives the filters) — fall back to raw links
+            boolean includeUnknown = prefs.getBoolean("include_unknown_in_links", false);
+            synchronized (outputLines) {
+                for (String line : outputLines) {
+                    String t = line.trim();
+                    if (isProxyLink(t)) links.add(t);
                 }
             }
+            if (!includeUnknown) {
+                synchronized (unknownLinks) {
+                    links.removeAll(unknownLinks);
+                }
+            }
+        } else {
+            for (OutEntry e : vis) links.add(e.line);
         }
         if (links.isEmpty()) {
             toast(getString(R.string.toast_output_empty));

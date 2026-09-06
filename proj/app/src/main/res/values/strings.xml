@@ -164,6 +164,20 @@
     <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
     <string name="include_unknown_title">Include "country unknown" servers in Copy links only</string>
     <string name="include_unknown_caption">These servers connected, but their country could not be detected. They usually still work — this keeps their links copyable so you don’t lose them.</string>
+
+    <!-- Output tools: per-country stats + filters -->
+    <string name="country_stats_title">🌍 Servers by country</string>
+    <string name="filter_countries">🌍 Filter by country</string>
+    <string name="filter_apply">Apply</string>
+    <string name="filter_select_all">All</string>
+    <string name="filter_cleared">Filter removed</string>
+    <string name="filter_chip_countries">Countries: %1$d</string>
+    <string name="filter_chip_limit">Limit: %1$d</string>
+    <string name="country_unknown_label">Country unknown</string>
+    <string name="limit_count">🔢 Limit count</string>
+    <string name="limit_msg">%1$d servers available — how many do you want to keep? (picked randomly)</string>
+    <string name="limit_bad_range">Enter a number between 1 and %1$d</string>
+    <string name="limit_all">All</string>
     <string name="out_lang_title">Country name in output</string>
     <string name="out_lang_fa">Persian</string>
     <string name="out_lang_en">English</string>
@@ -213,7 +227,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.46
+    <string name="changelog">v1.0.47
+• New: per-country summary at the end of a run — flag + country name + live-server count, right under the final status
+• New: 🌍 Filter by country — pick the countries you want to keep (checkboxes); the output box, Copy links and Save file all honor the filter
+• New: 🔢 Limit count — keep only N servers picked randomly from the working ones (e.g. test 100, export 20)
+• Active filters show as chips above the output — tap a chip to clear it
+• New design: the water-circle progress was replaced with a minimal modern progress hero — big bold percent, slim gradient bar with a glowing head, cleaner card
+• Copy links only / Save file now export exactly what the filtered box shows
+
+v1.0.46
 • Fixed: engine log tails were ALWAYS empty (a crash in the log reader was silently swallowed) — broken tunnels are now correctly reported as unreachable instead of \"country unknown\", and the real engine error is visible in the Log again
 • Fixed: Stop button — a run stopped during startup (the version-check window) no longer continues testing in the background
 • Fixed: quickly stopping and starting a new run no longer lets old workers corrupt the new run\'s results or finish it prematurely (runs are now generation-tagged)

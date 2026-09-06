@@ -66,7 +66,7 @@
                 android:padding="16dp"
                 android:paddingBottom="16dp">
 
-                                <!-- Progress hero: big animated water circle, always on top -->
+                                <!-- Progress hero: minimal bar + big percent, always on top -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/progressCard"
                     android:layout_width="match_parent"
@@ -82,45 +82,96 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:paddingStart="20dp"
+                        android:paddingTop="16dp"
+                        android:paddingEnd="20dp"
+                        android:paddingBottom="14dp">
 
-                        <com.configscanner.WaterCircleView
-                            android:id="@+id/waterCircle"
-                            android:layout_width="172dp"
-                            android:layout_height="172dp" />
+                        <!-- top row: label + counter -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
 
+                            <TextView
+                                android:id="@+id/progressLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/progress_testing"
+                                android:textColor="@color/text_bright"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/progressCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layoutDirection="ltr"
+                                android:text="0/0"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- big percent number -->
                         <TextView
-                            android:id="@+id/progressLabel"
+                            android:id="@+id/progressPercent"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:text="@string/progress_testing"
-                            android:textColor="@color/text_bright"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/progressCount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="6dp"
                             android:layoutDirection="ltr"
-                            android:text="0/0"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12.5sp" />
+                            android:fontFamily="sans-serif-black"
+                            android:includeFontPadding="false"
+                            android:text="0%"
+                            android:textColor="@color/hero_number"
+                            android:textSize="58sp" />
+
+                        <com.configscanner.ProgressHeroView
+                            android:id="@+id/waterCircle"
+                            android:layout_width="match_parent"
+                            android:layout_height="30dp"
+                            android:layout_marginTop="4dp" />
 
                         <TextView
                             android:id="@+id/progressStatus"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="2dp"
                             android:gravity="center"
                             android:maxLines="2"
                             android:text="@string/progress_starting"
                             android:textColor="@color/status_ok"
                             android:textSize="12sp" />
+
+                        <!-- per-country stats (filled at run end) -->
+                        <LinearLayout
+                            android:id="@+id/countryStatsBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/bg_input"
+                            android:orientation="vertical"
+                            android:padding="10dp"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/country_stats_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <LinearLayout
+                                android:id="@+id/countryStatsList"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:orientation="vertical" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -315,6 +366,60 @@
                                 android:text="🗑"
                                 android:textSize="13sp" />
                         </LinearLayout>
+
+                        <!-- ================= output tools: country filter + count ================= -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnFilterCountries"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:maxLines="1"
+                                android:text="@string/filter_countries"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="12dp"
+                                app:strokeColor="@color/stroke" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnLimitCount"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:maxLines="1"
+                                android:text="@string/limit_count"
+                                android:textColor="@color/btn_text"
+                                android:textSize="12sp"
+                                app:cornerRadius="12dp"
+                                app:strokeColor="@color/stroke" />
+                        </LinearLayout>
+
+                        <!-- active chips showing the applied output filters -->
+                        <HorizontalScrollView
+                            android:id="@+id/filterChipsScroll"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:scrollbars="none"
+                            android:visibility="gone">
+
+                            <LinearLayout
+                                android:id="@+id/filterChipsBox"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingTop="2dp"
+                                android:paddingBottom="2dp" />
+                        </HorizontalScrollView>
 
                         <ScrollView
                             android:id="@+id/outputScroll"
