@@ -2,14 +2,20 @@
 <resources>
     <style name="Theme.ConfigScanner" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
-        <item name="colorOnPrimary">#0A101E</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorPrimaryContainer">@color/chip_bg</item>
         <item name="colorOnPrimaryContainer">@color/chip_text</item>
-        <item name="colorSecondary">#2DD4BF</item>
-        <item name="colorOnSecondary">#08251F</item>
+        <item name="colorSecondary">@color/status_ok</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSurface">@color/card_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/input_bg</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/stroke</item>
         <item name="android:windowBackground">@color/bg_main</item>
         <item name="android:statusBarColor">@color/bg_main</item>
         <item name="android:navigationBarColor">@color/bg_main</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
     </style>

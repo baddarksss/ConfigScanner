@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- dark: dark status-bar icons, rest is inherited from the base theme -->
+    <style name="Theme.ConfigScanner">
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

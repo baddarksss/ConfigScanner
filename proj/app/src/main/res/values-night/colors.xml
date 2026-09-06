@@ -1,31 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark theme palette: deep night gradient, very transparent glass panels with bright edges -->
+<!-- Dark theme palette: deep modern black — rich charcoal glass, cool light text -->
 <resources>
-    <color name="ic_bg">#0B1534</color>
-    <color name="bg_main">#0A0F1E</color>
-    <color name="bg_grad_top">#060912</color>
-    <color name="bg_grad_bottom">#2A4685</color>
-    <color name="card_bg">#131B31</color>
-    <!-- glass: ~22% opacity — you see the gradient right through the panels -->
-    <color name="glass_card">#382F4675</color>
-    <color name="glass_stroke">#4DFFFFFF</color>
-    <color name="text_primary">#E2E9F7</color>
+    <color name="bg_main">#07090F</color>
+    <color name="bg_grad_top">#0B0E18</color>
+    <color name="bg_grad_bottom">#1A2340</color>
+    <color name="card_bg">#101524</color>
+    <!-- glass: charcoal with a light top-edge stroke for depth -->
+    <color name="glass_card">#F20D1526</color>
+    <color name="glass_stroke">#3DFFFFFF</color>
+    <color name="text_primary">#E8EDF8</color>
     <color name="text_bright">#FFFFFF</color>
-    <color name="text_secondary">#96A3BE</color>
-    <color name="input_bg">#380B1428</color>
-    <color name="chip_bg">#1D2C52</color>
+    <color name="text_secondary">#9AA8C4</color>
+    <color name="input_bg">#2E0B1428</color>
+    <color name="chip_bg">#1E2C52</color>
     <color name="chip_text">#AFC6FF</color>
-    <color name="accent">#63A0FF</color>
-    <color name="accent_soft">#63A0FF</color>
+    <color name="accent">#6FA5FF</color>
+    <color name="accent_soft">#6FA5FF</color>
     <color name="status_ok">#35D8C4</color>
-    <color name="stroke">#2C3A5E</color>
-    <color name="btn_text">#CBD7EF</color>
-    <color name="water_circle_bg">#0F1B33</color>
-    <color name="water_1">#4CC9F0</color>
-    <color name="water_2">#38BDF8</color>
+    <color name="stroke">#2B3A5F</color>
+    <color name="btn_text">#CFDBF2</color>
     <!-- progress hero -->
-    <color name="hero_track">#26FFFFFF</color>
-    <color name="hero_fill_end">#7DD3FC</color>
-    <color name="hero_tick">#59FFFFFF</color>
+    <color name="hero_track">#2EFFFFFF</color>
+    <color name="hero_fill_end">#8FBEFF</color>
+    <color name="hero_tick">#66FFFFFF</color>
     <color name="hero_number">#FFFFFF</color>
 </resources>

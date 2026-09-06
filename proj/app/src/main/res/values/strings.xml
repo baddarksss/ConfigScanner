@@ -227,7 +227,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.47
+    <string name="changelog">v1.0.48
+• New app icon: solid black with a bold white CS monogram in a scanner viewfinder frame — plus scan-beam and ping accents
+• Modern redesign: cleaner white light theme, deeper dark theme with richer charcoal glass cards, refined text contrast and system bars
+• Removed the unused water/orange palette leftovers from the color set
+
+v1.0.47
 • New: per-country summary at the end of a run — flag + country name + live-server count, right under the final status
 • New: 🌍 Filter by country — pick the countries you want to keep (checkboxes); the output box, Copy links and Save file all honor the filter
 • New: 🔢 Limit count — keep only N servers picked randomly from the working ones (e.g. test 100, export 20)

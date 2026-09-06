@@ -1,32 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Light theme palette: crisp blue-white, semi-transparent glass over a visible gradient -->
+<!-- Light theme palette: clean modern white — soft gray-blue accents, airy glass -->
 <resources>
-    <color name="ic_bg">#0B1534</color>
-    <color name="ic_launcher_background">#0B1534</color>
-    <color name="bg_main">#EEF2FB</color>
-    <color name="bg_grad_top">#F8FAFF</color>
-    <color name="bg_grad_bottom">#C9DCF8</color>
-    <color name="card_bg">#F5F8FF</color>
-    <!-- glass: 68% white so the gradient clearly shows through -->
-    <color name="glass_card">#AEFFFFFF</color>
-    <color name="glass_stroke">#2E2C4A80</color>
-    <color name="text_primary">#1B2437</color>
-    <color name="text_bright">#0F1524</color>
-    <color name="text_secondary">#52617E</color>
-    <color name="input_bg">#121B2437</color>
-    <color name="chip_bg">#D5E3FC</color>
-    <color name="chip_text">#2F5FD0</color>
+    <!-- launcher: pure black adaptive-icon background -->
+    <color name="ic_launcher_background">#000000</color>
+    <color name="bg_main">#F6F8FC</color>
+    <color name="bg_grad_top">#FFFFFF</color>
+    <color name="bg_grad_bottom">#E3ECF9</color>
+    <color name="card_bg">#FFFFFF</color>
+    <!-- glass: near-solid white for a crisp modern card look -->
+    <color name="glass_card">#F2FFFFFF</color>
+    <color name="glass_stroke">#1E24324A</color>
+    <color name="text_primary">#171E2E</color>
+    <color name="text_bright">#0D1322</color>
+    <color name="text_secondary">#5C6B87</color>
+    <color name="input_bg">#0F1B2437</color>
+    <color name="chip_bg">#E4EEFF</color>
+    <color name="chip_text">#2456D6</color>
     <color name="accent">#2E6BFF</color>
     <color name="accent_soft">#2563EB</color>
     <color name="status_ok">#0D9488</color>
-    <color name="stroke">#BFD0EA</color>
-    <color name="btn_text">#2F3E5E</color>
-    <color name="water_circle_bg">#D5E7FC</color>
-    <color name="water_1">#38BDF8</color>
-    <color name="water_2">#0284C7</color>
+    <color name="stroke">#C9D6EC</color>
+    <color name="btn_text">#33415E</color>
     <!-- progress hero -->
-    <color name="hero_track">#142C4A80</color>
-    <color name="hero_fill_end">#38BDF8</color>
-    <color name="hero_tick">#662C4A80</color>
-    <color name="hero_number">#0F1524</color>
+    <color name="hero_track">#16232C4A</color>
+    <color name="hero_fill_end">#5F9BFF</color>
+    <color name="hero_tick">#52232C4A</color>
+    <color name="hero_number">#0D1322</color>
 </resources>
