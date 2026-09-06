@@ -737,13 +737,14 @@ public class ServerSpec {
                     }
                     if (a.length() > 0) t.put("alpn", a);
                 }
-                // ECH: panels send a resolver hint (ip.gs+udp://…); xray 26.x
-                // takes "half" = resolve the ECH config itself when advertised
+                // ECH: panels send a resolver hint (ip.gs+udp://8.8.8.8).
+                // xray's TlsConfig has NO echForceQuery/echConfig keys — those
+                // were silently ignored, so ECH never actually applied. The
+                // only client-side knob is echConfigList (transport_security.go):
+                // a value containing "://" is xray's DNS-resolver form
+                // ("name+url") and xray queries the ECHConfig itself (tls/ech.go).
                 if (ech != null && !ech.isEmpty()) {
-                    t.put("echForceQuery", "half");
-                    if (ech.length() > 25 && !ech.contains("/") && !ech.contains("+") && !ech.contains(":") && !ech.contains("?")) {
-                        t.put("echConfig", ech);
-                    }
+                    t.put("echConfigList", ech);
                 }
                 st.put("tlsSettings", t);
             }
