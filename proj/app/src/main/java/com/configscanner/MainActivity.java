@@ -551,16 +551,10 @@ public class MainActivity extends AppCompatActivity {
         });
         findViewById(R.id.btnMsgUsersEdit).setOnClickListener(v -> showMsgUsersEditor());
         findViewById(R.id.btnMsgUsersRemove).setOnClickListener(v -> confirmMsgUsersRemove());
-        findViewById(R.id.btnMsgUsersCopy).setOnClickListener(v -> {
-            String mu = prefs.getString("message_for_users", "").trim();
-            if (mu.isEmpty()) {
-                toast(getString(R.string.msg_users_empty));
-                return;
-            }
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(ClipData.newPlainText("message-for-users", mu));
-            toast(getString(R.string.msg_users_copied));
-        });
+        // big always-visible copy button on the message card (v1.0.50) —
+        // no need to expand the section first
+        findViewById(R.id.btnMsgUsersCopyMain).setOnClickListener(v -> copyUsersMessage());
+        findViewById(R.id.btnMsgUsersCopy).setOnClickListener(v -> copyUsersMessage());
         btnOutLangFa.setOnClickListener(v -> applyOutLang("fa"));
         btnOutLangEn.setOnClickListener(v -> applyOutLang("en"));
         updateOutLangStyle();
@@ -1105,21 +1099,15 @@ public class MainActivity extends AppCompatActivity {
                     // ORIGINAL name (no warning sign in the name or the flag
                     // strip) so usable-but-unlabeled servers are not lost.
                     noCountryCount.incrementAndGet();
-                    String channel2 = prefs.getString("channel", "");
-                    boolean incCh2 = prefs.getBoolean("include_channel", true);
-                    String nmSuffix = (incCh2 && !channel2.isEmpty()) ? " | " + channel2 : "";
-                    String baseName = s.name;
-                    if (baseName.isEmpty()) {
-                        baseName = "fa".equals(prefs.getString("out_lang", "en"))
-                                ? "\u0646\u0627\u0634\u0646\u0627\u0633" : "unknown";
-                    }
-                    String nm = baseName + nmSuffix;
-                    String line = renameUri(s.raw, nm);
-                    synchronized (unknownLinks) { unknownLinks.add(line); }
-                    AppLog.d("test", "PARTIAL (no country) -> " + nm);
+                    // v1.0.50: servers whose country could not be detected do
+                    // NOT enter the output anymore — they were confusing (old
+                    // name + channel tag, no flag). They are only counted and
+                    // listed in the summary; the include-unknown option and
+                    // the raw fallback in copyLinksOnly still work unchanged.
+                    synchronized (unknownLinks) { unknownLinks.add(renameUri(s.raw, s.name)); }
+                    AppLog.d("test", "PARTIAL (no country) — hidden from output");
                     status(String.format("\u26a0 [%d/%d] %s = ? country",
                             doneCount.get(), totalCount, hostport));
-                    success(line, null);
                 }
             }
         } catch (Exception e) {
@@ -1460,6 +1448,18 @@ public class MainActivity extends AppCompatActivity {
     private String msgUsersDisplayText() {
         String mu = prefs.getString("message_for_users", "");
         return mu.trim().isEmpty() ? getString(R.string.msg_users_empty) : mu;
+    }
+
+    /** Copies the users message (shared by both copy buttons). */
+    private void copyUsersMessage() {
+        String mu = prefs.getString("message_for_users", "").trim();
+        if (mu.isEmpty()) {
+            toast(getString(R.string.msg_users_empty));
+            return;
+        }
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("message-for-users", mu));
+        toast(getString(R.string.msg_users_copied));
     }
 
     private void setMsgUsersOpen(boolean open) {

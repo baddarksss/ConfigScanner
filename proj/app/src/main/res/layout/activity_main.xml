@@ -1547,6 +1547,16 @@
                             android:textColor="@color/text_primary"
                             android:textIsSelectable="true"
                             android:textSize="11.5sp" />
+
+                        <!-- always-visible copy button: no need to open the
+                             collapsible section to copy the message -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnMsgUsersCopyMain"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/msg_users_copy"
+                            android:textSize="13sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

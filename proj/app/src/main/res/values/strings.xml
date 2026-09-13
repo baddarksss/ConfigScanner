@@ -162,8 +162,8 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
     <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
-    <string name="include_unknown_title">Include "country unknown" servers in Copy links only</string>
-    <string name="include_unknown_caption">These servers connected, but their country could not be detected. They usually still work — this keeps their links copyable so you don’t lose them.</string>
+    <string name="include_unknown_title">Servers whose country was not detected</string>
+    <string name="include_unknown_caption">These servers connected but no country could be detected, so they are NOT in the output above (no name or channel tag). Turn this on to keep a copy of their raw links for manual review.</string>
 
     <!-- Output tools: per-country stats + filters -->
     <string name="country_stats_title">🌍 Servers by country</string>
@@ -227,7 +227,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.49
+    <string name="changelog">v1.0.50
+• Fixed: servers whose country is not detected no longer appear in the output (old name + channel tag was confusing) — they are only counted and listed in the run summary
+• Caption: the Message-for-users card now has a big always-visible Copy button — no need to expand the section
+• Clearer wording for the unknown-country servers option
+
+v1.0.49
 • Fixed: ECH settings now actually reach Xray (echConfigList — echForceQuery/echConfig are not real xray fields)
 • Fixed: night theme overlay (Theme.Base parent) — "style not found" build break on some setups
 

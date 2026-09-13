@@ -162,8 +162,8 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d از %2$d سرور — %3$d٪</string>
     <string name="run_summary">%1$d موفق · %2$d بدون شناسایی کشور · %3$d غیرقابل دسترس · %4$d ردشده</string>
-    <string name="include_unknown_title">سرورهای «بدون شناسایی کشور» رو هم توی «فقط لینک‌ها» بذار</string>
-    <string name="include_unknown_caption">این سرورها وصل شدن ولی کشورشون شناسایی نشد؛ معمولاً سالم‌ن و با این گزینه لینکشون هم کپی می‌شه که گم نشن.</string>
+    <string name="include_unknown_title">سرورهایی که کشورشون شناسایی نشد</string>
+    <string name="include_unknown_caption">این سرورها وصل شدن ولی کشورشون شناسایی نشد؛ برای همین توی خروجی بالا نمی‌ان (نه اسم دارن نه تگ کانال). با روشن کردن این گزینه، لینک خام‌شون برای بررسی دستی نگه داشته می‌شه.</string>
 
     <!-- Output tools: per-country stats + filters -->
     <string name="country_stats_title">🌍 سرورها بر اساس کشور</string>
@@ -227,7 +227,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.49
+<string name="changelog">v1.0.50
+• فیکس: سرورهایی که کشورشون شناسایی نمی‌شه دیگر توی خروجی نمی‌آیند (اسم قبلی + تگ کانال گمراه‌کننده بود) — فقط شمرده می‌شوند و در خلاصه‌ی ران می‌آیند
+• کپشن: کارت «پیام برای کاربران» حالا دکمه کپی بزرگِ همیشه‌دیدن دارد — لازم نیست بخش را باز کنید
+• جمله‌بندی واضح‌تر برای گزینه سرورهای بدون کشور
+
+v1.0.49
 • فیکس: تنظیمات ECH حالا واقعاً به Xray می‌رسد (echConfigList — فیلدهای echForceQuery/echConfig در xray وجود ندارند)
 • فیکس: اورلی تم شب (پدر Theme.Base) — خطای بیلد «style not found» در برخی حالت‌ها
 
