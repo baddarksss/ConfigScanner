@@ -227,7 +227,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.50
+    <string name="changelog">v1.0.51
+• Fixed: in-app Xray core update no longer ends in "blocked by device" — targetSdk pinned below 29 so Android allows running the updated core from app storage
+• Install this version once; core updates from within the app work from now on
+
+v1.0.50
 • Fixed: servers whose country is not detected no longer appear in the output (old name + channel tag was confusing) — they are only counted and listed in the run summary
 • Caption: the Message-for-users card now has a big always-visible Copy button — no need to expand the section
 • Clearer wording for the unknown-country servers option

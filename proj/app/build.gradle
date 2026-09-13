@@ -20,9 +20,14 @@ android {
     defaultConfig {
         applicationId "com.configscanner"
         minSdk 26
-        targetSdk 34
-        versionCode 51
-        versionName "1.0.50"
+        // targetSdk deliberately pinned below 29: Android 10+ blocks exec()
+        // of binaries in the app's writable storage for targetSdk >= 29 apps
+        // (SELinux W^X rule), which broke the in-app Xray core update
+        // ("blocked by device"). The legacy targetSdk keeps exec() allowed,
+        // same approach Termux/NekoBox use. App is sideloaded (no Play).
+        targetSdk 28
+        versionCode 52
+        versionName "1.0.51"
     }
 
     signingConfigs {
