@@ -255,7 +255,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.54
+    <string name="changelog">v1.0.55
+• Fixed: after a successful in-app update the app now restarts itself into the new version automatically — the installer\u2019s Open button can no longer leave you stuck
+
+v1.0.54
 • Results: per-country totals (🇩🇪 5 · ❓ 1) right under the title; Mudfish button resized to fit its row
 • Country filter moved into the Results section — tap the totals to open the country list; added Clear-all next to All
 • Icon: removed the leftover hatch pattern behind the CS letters

@@ -2776,6 +2776,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private File pendingInstall;
+    /** versionCode of the running build at the moment the installer was
+     *  launched — lets onResume detect "the app updated itself" and restart
+     *  cleanly even when the OEM installer's own Open button is dead. */
+    private int installStartVersion = -1;
+
+    private int runningVersionCode() {
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(
+                    getPackageName(), 0);
+            return pi.versionCode;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
 
     /**
      * canRequestPackageInstalls() throws SecurityException on Android 12+
@@ -2824,11 +2838,36 @@ public class MainActivity extends AppCompatActivity {
                         f.getName().replace("ConfigScanner-v", "").replace(".apk", "")));
             });
             doInstall(f);
+            return;
         }
+        // The installer finished while we were in the background and the
+        // build changed under us. Some OEM installers have a dead "Open"
+        // button — restart THIS app ourselves so the new version is in
+        // front of the user without them hunting for the icon.
+        if (installStartVersion > 0 && runningVersionCode() != installStartVersion) {
+            AppLog.i("appupdate", "build changed " + installStartVersion
+                    + " -> " + runningVersionCode() + " — auto-restarting app");
+            installStartVersion = -1;
+            try {
+                android.content.Intent li = getPackageManager()
+                        .getLaunchIntentForPackage(getPackageName());
+                if (li != null) {
+                    li.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    finish();
+                    startActivity(li);
+                    return;
+                }
+            } catch (Exception e) {
+                AppLog.e("appupdate", "auto-restart failed: " + e.getMessage());
+            }
+        }
+        installStartVersion = -1;
     }
 
     private void doInstall(File apk) {
         try {
+            installStartVersion = runningVersionCode();
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
                     this, getPackageName() + ".fileprovider", apk);
             if (isFinishing()) return;
