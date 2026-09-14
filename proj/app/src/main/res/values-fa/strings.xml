@@ -61,6 +61,9 @@
     <string name="btn_copy_only">کپی</string>
 
 
+    <string name="out_expand">▼ نمایش همه خط‌ها</string>
+    <string name="out_collapse">▲ جمع کردن</string>
+    <string name="install_open_pkg">باز کردن</string>
     <string name="btn_mudfish">🌍 لینک Mudfish</string>
     <string name="mudfish_preparing">در حال بارگذاری در bin.mudfish.net…</string>
     <string name="mudfish_done">لینک Raw آماده شد — در کلیپ‌بورد کپی شد</string>
@@ -250,7 +253,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.52
+<string name="changelog">v1.0.53
+• فیکس: کادر نتایج دیگر خروجی‌های بلند را نمی‌بُرد — دکمه‌ی «نمایش همه خط‌ها» آن را کامل باز می‌کند
+• فیکس: آپدیت درون‌برنامه‌ای حالا APK را به نصاب استاندارد می‌دهد تا دکمه‌ی Open سیستم بعد از نصب، برنامه را درست باز کند
+
+v1.0.52
 • کپشن‌های ذخیره‌شده: چند کپشن با اسم نگه دارید، از منوی کشویی انتخابشون کنید، هر وقت خواستید ادیت یا حذف کنید
 • تعداد کانفیگ در کپشن: خط کوتاه «📦 تعداد کانفیگ: 30» با کلید روشن/خاموش (یا جای دلخواه با {{COUNT}})
 • خروجی مادفیش: با یک لمس نتیجه‌ی اسکن در bin.mudfish.net آپلود و لینک Raw تحویل گرفته می‌شود

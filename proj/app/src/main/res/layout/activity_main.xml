@@ -459,6 +459,19 @@
                                 android:textSize="11.5sp" />
                         </ScrollView>
 
+                        <!-- expand/collapse: the fixed 260dp box cut long
+                             outputs — collapsed shows the last lines, the
+                             EXPAND button reveals the whole run -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnOutExpand"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:minHeight="34dp"
+                            android:text="@string/out_expand"
+                            android:textSize="12sp" />
+
                         <TextView
                             android:id="@+id/flagStrip"
                             android:layout_width="match_parent"

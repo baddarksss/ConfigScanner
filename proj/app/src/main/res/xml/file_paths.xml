@@ -3,4 +3,10 @@
     <external-files-path
         name="updates"
         path="updates/" />
+    <external-files-path
+        name="ext_root"
+        path="." />
+    <files-path
+        name="files_root"
+        path="." />
 </paths>

@@ -91,6 +91,8 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView pageSettings;
     private BottomNavigationView bottomNav;
     private ScrollView outputScroll;
+    private com.google.android.material.button.MaterialButton btnOutExpand;
+    private boolean outExpanded;
     private TextView outputView;
     private TextView outCount;
     private TextView headerChip;
@@ -251,6 +253,7 @@ public class MainActivity extends AppCompatActivity {
         pageCaption = findViewById(R.id.pageCaption);
         bottomNav = findViewById(R.id.bottomNav);
         outputScroll = findViewById(R.id.outputScroll);
+        btnOutExpand = findViewById(R.id.btnOutExpand);
         outputView = findViewById(R.id.outputView);
         outCount = findViewById(R.id.outCount);
         headerChip = findViewById(R.id.headerChip);
@@ -473,6 +476,15 @@ public class MainActivity extends AppCompatActivity {
         chkCaptionCount.setOnCheckedChangeListener((b, checked) -> {
             prefs.edit().putBoolean("caption_show_count", checked).apply();
             refreshCaptionTab();
+        });
+        btnOutExpand.setOnClickListener(v -> {
+            outExpanded = !outExpanded;
+            outputScroll.getLayoutParams().height = outExpanded
+                    ? android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    : dpToPx(260);
+            outputScroll.setLayoutParams(outputScroll.getLayoutParams());
+            btnOutExpand.setText(outExpanded ? R.string.out_collapse
+                                             : R.string.out_expand);
         });
         ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
             boolean empty;
@@ -2787,10 +2799,28 @@ public class MainActivity extends AppCompatActivity {
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
                     this, getPackageName() + ".fileprovider", apk);
             if (isFinishing()) return;
-            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
-            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            // ACTION_INSTALL_PACKAGE is the installer's real contract (the
+            // generic ACTION_VIEW package-archive intent is the one some
+            // OEM installers reject silently — the "Open" button then does
+            // nothing). Extras tell the installer to show Open (-> this app)
+            // and to delete the staged apk afterwards.
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_INSTALL_PACKAGE);
+            i.setData(uri);
             i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
+            i.putExtra(android.content.Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
+            i.putExtra(android.content.Intent.EXTRA_RETURN_RESULT, true);
+            i.putExtra(android.content.Intent.EXTRA_INSTALLER_PACKAGE_NAME, getPackageName());
+            try {
+                startActivity(i);
+                return;
+            } catch (Exception inner) {
+                AppLog.w("appupdate", "INSTALL_PACKAGE intent rejected (" + inner.getMessage()
+                        + ") — trying ACTION_VIEW");
+            }
+            android.content.Intent v = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            v.setDataAndType(uri, "application/vnd.android.package-archive");
+            v.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(v);
         } catch (Exception e) {
             AppLog.e("appupdate", "fileprovider install failed (" + e.getMessage()
                     + ") — falling back to public Downloads");
@@ -2805,13 +2835,13 @@ public class MainActivity extends AppCompatActivity {
     private void tryFallbackInstall(File apk, String why) {
         try {
             if (android.os.Build.VERSION.SDK_INT >= 29) {
-                android.content.ContentValues v = new android.content.ContentValues();
-                v.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, apk.getName());
-                v.put(android.provider.MediaStore.Downloads.MIME_TYPE,
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, apk.getName());
+                cv.put(android.provider.MediaStore.Downloads.MIME_TYPE,
                         "application/vnd.android.package-archive");
-                v.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download");
+                cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download");
                 android.net.Uri pub = getContentResolver().insert(
-                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                 if (pub == null) throw new Exception("no media uri");
                 try (java.io.OutputStream os = getContentResolver().openOutputStream(pub);
                      java.io.InputStream is = new FileInputStream(apk)) {
@@ -2820,9 +2850,19 @@ public class MainActivity extends AppCompatActivity {
                     while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
                 }
                 if (isFinishing()) return;
-                android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
-                i.setDataAndType(pub, "application/vnd.android.package-archive");
-                startActivity(i);
+                android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_INSTALL_PACKAGE);
+                i.setData(pub);
+                i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                i.putExtra(android.content.Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
+                i.putExtra(android.content.Intent.EXTRA_INSTALLER_PACKAGE_NAME, getPackageName());
+                try {
+                    startActivity(i);
+                } catch (Exception inner) {
+                    android.content.Intent v = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                    v.setDataAndType(pub, "application/vnd.android.package-archive");
+                    v.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(v);
+                }
                 AppLog.i("appupdate", "fallback install via Downloads OK (why: " + why + ")");
             } else {
                 throw new Exception("fallback needs Android 10+ (why: " + why + ")");
