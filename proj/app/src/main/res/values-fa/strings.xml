@@ -61,6 +61,11 @@
     <string name="btn_copy_only">کپی</string>
 
 
+    <string name="btn_mudfish">🌍 لینک Mudfish</string>
+    <string name="mudfish_preparing">در حال بارگذاری در bin.mudfish.net…</string>
+    <string name="mudfish_done">لینک Raw آماده شد — در کلیپ‌بورد کپی شد</string>
+    <string name="mudfish_empty">کانفیگی برای بارگذاری نیست</string>
+    <string name="mudfish_failed">بارگذاری ناموفق: %1$s</string>
     <string name="btn_save">💾 ذخیره فایل</string>
 
     <!-- Xray card -->
@@ -162,6 +167,24 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d از %2$d سرور — %3$d٪</string>
     <string name="run_summary">%1$d موفق · %2$d بدون شناسایی کشور · %3$d غیرقابل دسترس · %4$d ردشده</string>
+    <string name="tpl_add">کپشن جدید</string>
+    <string name="tpl_active_fmt">فعال: %1$s</string>
+    <string name="tpl_hint">{{FLAGS}} = ردیف پرچم‌ها · {{COUNT}} = تعداد کانفیگ · {{LINK}} = لینک Raw مادفیش</string>
+    <string name="tpl_edit_title">ویرایش کپشن</string>
+    <string name="tpl_new_title">کپشن جدید</string>
+    <string name="tpl_name_hint">نام کپشن (مثلاً کانال A)</string>
+    <string name="tpl_text_hint">متن کپشن — {{FLAGS}} و {{COUNT}} خودکار جایگزین می‌شوند</string>
+    <string name="tpl_save">ذخیره</string>
+    <string name="tpl_saved">کپشن ذخیره شد</string>
+    <string name="tpl_deleted">کپشن حذف شد</string>
+    <string name="tpl_delete_confirm">«%1$s» حذف شود؟</string>
+    <string name="tpl_delete">حذف</string>
+    <string name="tpl_last_one">حداقل یک کپشن باید باقی بماند</string>
+    <string name="tpl_default_name">پیش‌فرض</string>
+    <string name="caption_flags_label">پرچم‌های اسکن آخر</string>
+    <string name="caption_count_title">نمایش تعداد کانفیگ در کپشن</string>
+    <string name="caption_count_caption">یک خط کوتاه مثل «📦 تعداد کانفیگ: 30» بعد از ردیف پرچم‌ها اضافه می‌شود. جای دستی: {{COUNT}}. {{LINK}} هم لینک Raw مادفیش را (بعد از آپلود 🌍) همان‌جا می‌گذارد.</string>
+    <string name="caption_count_fmt_fa">📦 تعداد کانفیگ: %1$d</string>
     <string name="include_unknown_title">سرورهایی که کشورشون شناسایی نشد</string>
     <string name="include_unknown_caption">این سرورها وصل شدن ولی کشورشون شناسایی نشد؛ برای همین توی خروجی بالا نمی‌ان (نه اسم دارن نه تگ کانال). با روشن کردن این گزینه، لینک خام‌شون برای بررسی دستی نگه داشته می‌شه.</string>
 
@@ -227,7 +250,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.51
+<string name="changelog">v1.0.52
+• کپشن‌های ذخیره‌شده: چند کپشن با اسم نگه دارید، از منوی کشویی انتخابشون کنید، هر وقت خواستید ادیت یا حذف کنید
+• تعداد کانفیگ در کپشن: خط کوتاه «📦 تعداد کانفیگ: 30» با کلید روشن/خاموش (یا جای دلخواه با {{COUNT}})
+• خروجی مادفیش: با یک لمس نتیجه‌ی اسکن در bin.mudfish.net آپلود و لینک Raw تحویل گرفته می‌شود
+• دستور {{LINK}} لینک Raw مادفیش را هر جای قالب کپشن می‌گذارد
+• تب کپشن مرتب‌تر شد: پرچم‌ها / کپشن نهایی / پیام کاربران کشویی هستند و دکمه‌ی کپی همیشه جلوی چشم است
+
+v1.0.51
 • فیکس: آپدیت هسته Xray از داخل برنامه دیگر با «blocked by device» تمام نمی‌شود — targetSdk پایین‌تر از ۳۰ پین شد تا اندروید اجازه دهد هسته‌ی آپدیت‌شده از حافظه‌ی برنامه اجرا شود
 • یک‌بار این نسخه را نصب کنید؛ از این به بعد آپدیت هسته از داخل برنامه کار می‌کند
 

@@ -61,6 +61,11 @@
     <string name="btn_copy_only">Copy</string>
 
 
+    <string name="btn_mudfish">🌍 Mudfish link</string>
+    <string name="mudfish_preparing">Uploading to bin.mudfish.net…</string>
+    <string name="mudfish_done">Raw link ready — copied to clipboard</string>
+    <string name="mudfish_empty">No configs to upload</string>
+    <string name="mudfish_failed">Upload failed: %1$s</string>
     <string name="btn_save">💾 Save file</string>
 
     <!-- Xray card -->
@@ -162,6 +167,25 @@
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
     <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
+    <string name="tpl_add">New caption</string>
+    <string name="tpl_active_fmt">Active: %1$s</string>
+    <string name="tpl_hint">{{FLAGS}} = flag row · {{COUNT}} = config count · {{LINK}} = the Mudfish RAW link</string>
+    <string name="tpl_edit_title">Edit caption</string>
+    <string name="tpl_new_title">New caption</string>
+    <string name="tpl_name_hint">Caption name (e.g. Channel A)</string>
+    <string name="tpl_text_hint">Caption text — {{FLAGS}} and {{COUNT}} are replaced automatically</string>
+    <string name="tpl_save">Save</string>
+    <string name="tpl_saved">Caption saved</string>
+    <string name="tpl_deleted">Caption deleted</string>
+    <string name="tpl_delete_confirm">Delete “%1$s”?</string>
+    <string name="tpl_delete">Delete</string>
+    <string name="tpl_last_one">Keep at least one caption</string>
+    <string name="tpl_default_name">Default</string>
+    <string name="caption_flags_label">Scan flags (latest run)</string>
+    <string name="caption_count_title">Show config count in the caption</string>
+    <string name="caption_count_caption">Adds a compact line like “📦 Configs: 30” right after the flags row. Place it manually with {{COUNT}}. {{LINK}} puts the Mudfish RAW link (after 🌍 upload).</string>
+    <string name="caption_count_fmt">📦 Configs: %1$d</string>
+    <string name="caption_count_fmt_fa">📦 تعداد کانفیگ: %1$d</string>
     <string name="include_unknown_title">Servers whose country was not detected</string>
     <string name="include_unknown_caption">These servers connected but no country could be detected, so they are NOT in the output above (no name or channel tag). Turn this on to keep a copy of their raw links for manual review.</string>
 
@@ -227,7 +251,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.51
+    <string name="changelog">v1.0.52
+• Saved caption presets: keep multiple named captions, pick the active one from a dropdown, edit or delete anytime
+• Config count in the caption: compact “📦 Configs: 30” line with an on/off toggle (or place it with {{COUNT}})
+• Mudfish output: upload the run result to bin.mudfish.net and get the RAW link in one tap
+• {{LINK}} placeholder puts the Mudfish RAW link anywhere in the caption template
+• Cleaner caption tab: flags / final caption / users message are collapsible with always-visible Copy buttons
+
+v1.0.51
 • Fixed: in-app Xray core update no longer ends in "blocked by device" — targetSdk pinned below 29 so Android allows running the updated core from app storage
 • Install this version once; core updates from within the app work from now on
 

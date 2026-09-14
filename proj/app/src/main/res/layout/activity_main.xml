@@ -405,7 +405,20 @@
                                 android:textSize="12sp"
                                 app:cornerRadius="12dp"
                                 app:strokeColor="@color/stroke" />
-                        </LinearLayout>
+                        
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnMudfish"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:maxLines="1"
+                            android:text="@string/btn_mudfish"
+                            android:textColor="@color/btn_text"
+                            android:textSize="12sp"
+                            app:cornerRadius="12dp"
+                            app:strokeColor="@color/stroke" />
+</LinearLayout>
 
                         <!-- active chips showing the applied output filters -->
                         <HorizontalScrollView
@@ -1414,25 +1427,69 @@
                                 android:textStyle="bold" />
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnTemplateEdit"
+                                android:id="@+id/btnTemplateAdd"
                                 style="@style/Widget.Material3.Button.TextButton"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:minHeight="36dp"
-                                android:text="@string/caption_template_edit"
+                                android:text="@string/tpl_add"
                                 android:textSize="12sp" />
                         </LinearLayout>
 
-                        <TextView
-                            android:id="@+id/captionTemplatePreview"
+                        <!-- dropdown: pick / edit / delete saved captions -->
+                        <LinearLayout
+                            android:id="@+id/tplDropHeader"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:background="@drawable/bg_input"
-                            android:padding="10dp"
-                            android:textColor="@color/text_primary"
-                            android:textIsSelectable="true"
-                            android:textSize="11.5sp" />
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="10dp">
+
+                            <TextView
+                                android:id="@+id/tplActiveLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tplChevron"
+                                android:layout_width="22dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/tplDropOptions"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <LinearLayout
+                                android:id="@+id/tplListContainer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/tpl_hint"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="10.5sp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -1470,6 +1527,15 @@
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnMsgUsersCopyMain"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="36dp"
+                                android:text="@string/msg_users_copy"
+                                android:textSize="12sp" />
+
                             <TextView
                                 android:id="@+id/msgUsersChevron"
                                 android:layout_width="22dp"
@@ -1488,75 +1554,60 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="10.5sp" />
 
+                        <!-- collapsible body: text + edit/remove; the copy
+                             button stays visible on the header row above -->
                         <LinearLayout
                             android:id="@+id/msgUsersOptions"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:orientation="horizontal"
+                            android:orientation="vertical"
                             android:visibility="gone">
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnMsgUsersEdit"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
+                            <TextView
+                                android:id="@+id/msgUsersPreview"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:layout_marginEnd="5dp"
-                                android:layout_weight="1"
-                                android:text="@string/msg_users_edit"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="10dp"
-                                app:strokeColor="@color/stroke" />
+                                android:background="@drawable/bg_input"
+                                android:minHeight="44dp"
+                                android:padding="10dp"
+                                android:text="@string/msg_users_empty"
+                                android:textColor="@color/text_primary"
+                                android:textIsSelectable="true"
+                                android:textSize="11.5sp" />
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnMsgUsersCopy"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
+                            <LinearLayout
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:layout_marginEnd="5dp"
-                                android:layout_weight="1"
-                                android:text="@string/msg_users_copy"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="10dp"
-                                app:strokeColor="@color/stroke" />
+                                android:layout_marginTop="8dp"
+                                android:orientation="horizontal">
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnMsgUsersRemove"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/msg_users_remove"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="10dp"
-                                app:strokeColor="@color/stroke" />
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnMsgUsersEdit"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginEnd="5dp"
+                                    android:layout_weight="1"
+                                    android:text="@string/msg_users_edit"
+                                    android:textColor="@color/btn_text"
+                                    android:textSize="12sp"
+                                    app:cornerRadius="10dp"
+                                    app:strokeColor="@color/stroke" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnMsgUsersRemove"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/msg_users_remove"
+                                    android:textColor="@color/btn_text"
+                                    android:textSize="12sp"
+                                    app:cornerRadius="10dp"
+                                    app:strokeColor="@color/stroke" />
+                            </LinearLayout>
                         </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/msgUsersPreview"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:background="@drawable/bg_input"
-                            android:minHeight="44dp"
-                            android:padding="10dp"
-                            android:text="@string/msg_users_empty"
-                            android:textColor="@color/text_primary"
-                            android:textIsSelectable="true"
-                            android:textSize="11.5sp" />
-
-                        <!-- always-visible copy button: no need to open the
-                             collapsible section to copy the message -->
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnMsgUsersCopyMain"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:text="@string/msg_users_copy"
-                            android:textSize="13sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -1583,18 +1634,55 @@
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:id="@+id/captionFlagsBox"
+                        <LinearLayout
+                            android:id="@+id/flagsHeader"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:background="@drawable/bg_input"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="10dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/caption_flags_label"
+                                android:textColor="@color/text_bright"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCopyFlags"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="36dp"
+                                android:text="@string/msg_users_copy"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/flagsChevron"
+                                android:layout_width="22dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/captionFlagsBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
                             android:fontFamily="monospace"
                             android:layoutDirection="ltr"
                             android:textDirection="ltr"
-                            android:minHeight="40dp"
-                            android:gravity="center_vertical"
-                            android:padding="12dp"
+                            android:visibility="gone"
                             android:textColor="@color/text_bright"
                             android:textSize="11.5sp" />
 
@@ -1604,32 +1692,80 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical" />
 
-                        <TextView
+                        <LinearLayout
+                            android:id="@+id/fullHeader"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
-                            android:text="@string/caption_final_label"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10.5sp" />
-
-                        <TextView
-                            android:id="@+id/captionFullBox"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
-                            android:padding="12dp"
-                            android:textColor="@color/text_primary"
-                            android:textIsSelectable="true"
-                            android:textSize="11.5sp" />
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="10dp">
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnCopyCaption"
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/caption_final_label"
+                                android:textColor="@color/text_bright"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCopyCaptionCompact"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="36dp"
+                                android:text="@string/msg_users_copy"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/fullChevron"
+                                android:layout_width="22dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/fullOptions"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:text="@string/caption_copy_btn"
-                            android:textSize="13sp" />
+                            android:layout_marginTop="6dp"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/chkCaptionCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/caption_count_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="13.5sp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/caption_count_caption"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="10.5sp" />
+
+                            <TextView
+                                android:id="@+id/captionFullBox"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:background="@drawable/bg_input"
+                                android:padding="12dp"
+                                android:textColor="@color/text_primary"
+                                android:textIsSelectable="true"
+                                android:textSize="11.5sp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>

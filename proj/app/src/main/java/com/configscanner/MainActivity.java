@@ -117,7 +117,14 @@ public class MainActivity extends AppCompatActivity {
     private android.view.View msgUsersHeader, msgUsersOptions;
     private android.widget.TextView msgUsersChevron, msgUsersPreview;
     private android.widget.LinearLayout countryListContainer, captionMissingContainer;
-    private android.widget.TextView countryListCount, captionTemplatePreview, captionFlagsBox, captionFullBox;
+    private android.widget.TextView countryListCount, captionFlagsBox, captionFullBox;
+    private android.view.View tplDropHeader, tplDropOptions, flagsHeader, fullHeader;
+    private android.view.View tplDropBody, flagsBody, fullBody;
+    private android.widget.TextView tplActiveLabel, tplChevron, flagsChevron, fullChevron;
+    private android.widget.LinearLayout tplListContainer;
+    private com.google.android.material.checkbox.MaterialCheckBox chkCaptionCount;
+    /** The last RAW link returned by bin.mudfish.net (persisted). */
+    private String lastMudfishLink;
     /** ISO country code -> premium emoji code, persisted in prefs */
     private final java.util.Map<String, String> emojiCodes = new java.util.HashMap<>();
     /** ISO codes of countries seen in the current run, in order of first appearance */
@@ -278,9 +285,22 @@ public class MainActivity extends AppCompatActivity {
         countryListContainer = findViewById(R.id.countryListContainer);
         captionMissingContainer = findViewById(R.id.captionMissingContainer);
         countryListCount = findViewById(R.id.countryListCount);
-        captionTemplatePreview = findViewById(R.id.captionTemplatePreview);
+        tplDropHeader = findViewById(R.id.tplDropHeader);
+        tplDropOptions = findViewById(R.id.tplDropOptions);
+        tplDropBody = tplDropOptions;
+        tplActiveLabel = findViewById(R.id.tplActiveLabel);
+        tplChevron = findViewById(R.id.tplChevron);
+        tplListContainer = findViewById(R.id.tplListContainer);
+        flagsHeader = findViewById(R.id.flagsHeader);
+        flagsChevron = findViewById(R.id.flagsChevron);
+        flagsBody = findViewById(R.id.captionFlagsBox);
+        fullHeader = findViewById(R.id.fullHeader);
+        fullChevron = findViewById(R.id.fullChevron);
+        fullBody = findViewById(R.id.fullOptions);
         captionFlagsBox = findViewById(R.id.captionFlagsBox);
         captionFullBox = findViewById(R.id.captionFullBox);
+        chkCaptionCount = findViewById(R.id.chkCaptionCount);
+        lastMudfishLink = prefs.getString("mudfish_link", "");
         themeValue = findViewById(R.id.themeValue);
         themeChevron = findViewById(R.id.themeChevron);
         langValue = findViewById(R.id.langValue);
@@ -446,6 +466,14 @@ public class MainActivity extends AppCompatActivity {
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
                 .setOnCheckedChangeListener((b, checked) ->
                         prefs.edit().putBoolean("include_unknown_in_links", checked).apply());
+
+        // caption count toggle (v1.0.52): compact «📦 Configs: N» line,
+        // controlled by the checkbox or a {{COUNT}} placeholder
+        chkCaptionCount.setChecked(prefs.getBoolean("caption_show_count", true));
+        chkCaptionCount.setOnCheckedChangeListener((b, checked) -> {
+            prefs.edit().putBoolean("caption_show_count", checked).apply();
+            refreshCaptionTab();
+        });
         ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
             boolean empty;
             synchronized (outputLines) { empty = outputLines.isEmpty(); }
@@ -469,6 +497,8 @@ public class MainActivity extends AppCompatActivity {
             }
             selectedCountries = null;
             outLimit = 0;
+            lastMudfishLink = "";
+            prefs.edit().remove("mudfish_link").apply();
             countryStatsBox.setVisibility(View.GONE);
             renderFilterChips();
             refreshOutput();
@@ -526,8 +556,27 @@ public class MainActivity extends AppCompatActivity {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("country-codes", t));
             toast(getString(R.string.caption_copied_clip));
         });
-        findViewById(R.id.btnTemplateEdit).setOnClickListener(v -> showTemplateEditor());
-        findViewById(R.id.btnCopyCaption).setOnClickListener(v -> {
+        findViewById(R.id.btnTemplateAdd).setOnClickListener(v -> showTplEditor(null));
+        tplDropHeader.setOnClickListener(v -> {
+            boolean open = tplDropOptions.getVisibility() != View.VISIBLE;
+            tplDropOptions.setVisibility(open ? View.VISIBLE : View.GONE);
+            tplChevron.setText(open ? "\u2303" : "\u2304");
+        });
+        // text sections are collapsible; the copy buttons stay visible
+        flagsHeader.setOnClickListener(v -> {
+            boolean open = flagsBody.getVisibility() != View.VISIBLE;
+            flagsBody.setVisibility(open ? View.VISIBLE : View.GONE);
+            flagsChevron.setText(open ? "\u2303" : "\u2304");
+        });
+        fullHeader.setOnClickListener(v -> {
+            boolean open = fullBody.getVisibility() != View.VISIBLE;
+            fullBody.setVisibility(open ? View.VISIBLE : View.GONE);
+            fullChevron.setText(open ? "\u2303" : "\u2304");
+        });
+        // 🌍 Mudfish: upload the (filtered) output, get the RAW link back
+        findViewById(R.id.btnMudfish).setOnClickListener(v -> uploadToMudfish());
+
+        findViewById(R.id.btnCopyCaptionCompact).setOnClickListener(v -> {
             android.content.ClipboardManager cm =
                     (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(android.content.ClipData.newPlainText("caption", buildFullCaption()));
@@ -554,7 +603,6 @@ public class MainActivity extends AppCompatActivity {
         // big always-visible copy button on the message card (v1.0.50) —
         // no need to expand the section first
         findViewById(R.id.btnMsgUsersCopyMain).setOnClickListener(v -> copyUsersMessage());
-        findViewById(R.id.btnMsgUsersCopy).setOnClickListener(v -> copyUsersMessage());
         btnOutLangFa.setOnClickListener(v -> applyOutLang("fa"));
         btnOutLangEn.setOnClickListener(v -> applyOutLang("en"));
         updateOutLangStyle();
@@ -651,6 +699,46 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             toast(getString(R.string.toast_save_error, String.valueOf(e.getMessage())));
         }
+    }
+
+    /** Uploads the current (filtered) output to bin.mudfish.net and hands
+     *  back the RAW link: saved to the clipboard, shown as a toast, and the
+     *  full link is also printed to the run log. */
+    private void uploadToMudfish() {
+        java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
+        List<OutEntry> vis = visibleEntries();
+        if (vis.isEmpty()) {
+            synchronized (outputLines) {
+                for (String line : outputLines) {
+                    String t = line.trim();
+                    if (isProxyLink(t)) links.add(t);
+                }
+            }
+        } else {
+            for (OutEntry e : vis) links.add(e.line);
+        }
+        if (links.isEmpty()) {
+            toast(getString(R.string.mudfish_empty));
+            return;
+        }
+        status(getString(R.string.mudfish_preparing));
+        final String payload = String.join("\n", links) + "\n";
+        MudfishUploader.upload(payload, (rawUrl, error) -> postUi(() -> {
+            if (error != null) {
+                status("");
+                toast(getString(R.string.mudfish_failed, error));
+                return;
+            }
+            lastMudfishLink = rawUrl;
+            prefs.edit().putString("mudfish_link", rawUrl).apply();
+            refreshCaptionTab();
+            ClipboardManager cm =
+                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("mudfish-raw", rawUrl));
+            toast(getString(R.string.mudfish_done));
+            status(rawUrl);
+            AppLog.i("mudfish", "raw link: " + rawUrl + " (" + links.size() + " lines)");
+        }));
     }
 
     private void onExportFile(Uri uri) {
@@ -1335,28 +1423,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showTemplateEditor() {
-        EditText edit = new EditText(this);
-        edit.setText(prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE));
-        edit.setMinLines(9);
-        edit.setGravity(android.view.Gravity.START);
-        edit.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
-        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
-        box.setPadding(dpToPx(10), dpToPx(6), dpToPx(10), 0);
-        box.addView(edit);
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.caption_template_title)
-                .setMessage(R.string.caption_template_msg)
-                .setView(box)
-                .setPositiveButton(R.string.caption_template_edit, (d, w) -> {
-                    prefs.edit().putString("caption_template", edit.getText().toString()).apply();
-                    refreshCaptionTab();
-                    toast(getString(R.string.caption_template_saved));
-                })
-                .setNeutralButton(android.R.string.cancel, null)
-                .show();
-    }
-
     private void setCountryListOpen(boolean open) {
         captionCountryOptions.setVisibility(open ? View.VISIBLE : View.GONE);
         captionCountryChevron.setText(open ? "\u2303" : "\u2304");
@@ -1434,14 +1500,251 @@ public class MainActivity extends AppCompatActivity {
         return sb.toString();
     }
 
+// ------------------------- saved caption templates -------------------------
+    /** One saved caption template (v1.0.52: multiple named captions). */
+    static final class CaptionTpl {
+        final String id, name, tpl;
+        CaptionTpl(String id, String name, String tpl) {
+            this.id = id; this.name = name; this.tpl = tpl;
+        }
+    }
+
+    private static final String PREF_TPLS = "caption_templates";
+    private static final String PREF_TPL_ACTIVE = "caption_active_tpl";
+
+    /** Loads the saved templates; seeds the list from the legacy single
+     *  template on first run so nothing the user had is lost. */
+    private java.util.List<CaptionTpl> tplLoad() {
+        java.util.List<CaptionTpl> out = new ArrayList<>();
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(prefs.getString(PREF_TPLS, "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject o = arr.getJSONObject(i);
+                out.add(new CaptionTpl(o.getString("id"), o.getString("name"), o.getString("tpl")));
+            }
+        } catch (Exception e) {
+            AppLog.w("caption", "tpl parse failed, reseeding: " + e.getMessage());
+        }
+        if (out.isEmpty()) {
+            String legacy = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
+            if (legacy == null || legacy.trim().isEmpty()) legacy = DEFAULT_CAPTION_TEMPLATE;
+            out.add(new CaptionTpl("def", getString(R.string.tpl_default_name), legacy));
+            tplPersist(out);
+        }
+        return out;
+    }
+
+    private void tplPersist(java.util.List<CaptionTpl> list) {
+        org.json.JSONArray arr = new org.json.JSONArray();
+        try {
+            for (CaptionTpl t : list) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("id", t.id); o.put("name", t.name); o.put("tpl", t.tpl);
+                arr.put(o);
+            }
+        } catch (Exception ignored) { }
+        prefs.edit().putString(PREF_TPLS, arr.toString()).apply();
+    }
+
+    private CaptionTpl tplActive() {
+        java.util.List<CaptionTpl> list = tplLoad();
+        String act = prefs.getString(PREF_TPL_ACTIVE, "");
+        for (CaptionTpl t : list) if (t.id.equals(act)) return t;
+        return list.get(0);
+    }
+
+    /** The ACTIVE template's raw text — the single source buildFullCaption uses. */
+    private String activeTemplate() {
+        return tplActive().tpl;
+    }
+
+    private void setActiveTemplate(String id) {
+        prefs.edit().putString(PREF_TPL_ACTIVE, id).apply();
+        refreshCaptionTab();
+    }
+
+    private void rebuildTplList() {
+        tplListContainer.removeAllViews();
+        CaptionTpl act = tplActive();
+        for (final CaptionTpl t : tplLoad()) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dpToPx(6), 0, dpToPx(6));
+
+            TextView name = new TextView(this);
+            name.setText((t.id.equals(act.id) ? "\u2705 " : "\u25CB ") + t.name);
+            name.setTextSize(12.5f);
+            name.setTextColor(getColor(R.color.text_primary));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            row.addView(name, lp);
+            name.setOnClickListener(v -> setActiveTemplate(t.id));
+            row.setOnClickListener(v -> setActiveTemplate(t.id));
+
+            TextView edit = new TextView(this);
+            edit.setText("\u270F\uFE0F");
+            edit.setPadding(dpToPx(10), 0, dpToPx(10), 0);
+            edit.setTextSize(14f);
+            edit.setOnClickListener(v -> showTplEditor(t));
+            row.addView(edit);
+
+            TextView del = new TextView(this);
+            del.setText("\uD83D\uDDD1\uFE0F");
+            del.setPadding(dpToPx(10), 0, 0, 0);
+            del.setTextSize(14f);
+            del.setOnClickListener(v -> confirmTplDelete(t));
+            row.addView(del);
+
+            tplListContainer.addView(row);
+        }
+    }
+
+    /** Add (t == null) / edit (t != null) dialog: name + text. */
+    private void showTplEditor(final CaptionTpl t) {
+        final EditText nameEdit = new EditText(this);
+        nameEdit.setHint(R.string.tpl_name_hint);
+        nameEdit.setText(t == null ? "" : t.name);
+        nameEditSingleLine(nameEdit);
+        final EditText textEdit = new EditText(this);
+        textEdit.setHint(R.string.tpl_text_hint);
+        textEdit.setText(t == null ? DEFAULT_CAPTION_TEMPLATE : t.tpl);
+        textEdit.setMinLines(8);
+        textEdit.setGravity(android.view.Gravity.START);
+        textEdit.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dpToPx(10), dpToPx(6), dpToPx(10), 0);
+        box.addView(nameEdit);
+        box.addView(textEdit);
+        new AlertDialog.Builder(this)
+                .setTitle(t == null ? R.string.tpl_new_title : R.string.tpl_edit_title)
+                .setView(box)
+                .setPositiveButton(R.string.tpl_save, (d, w) -> {
+                    String name = nameEdit.getText().toString().trim();
+                    if (name.isEmpty()) name = getString(R.string.tpl_default_name);
+                    String text = textEdit.getText().toString();
+                    if (text.trim().isEmpty()) text = DEFAULT_CAPTION_TEMPLATE;
+                    java.util.List<CaptionTpl> list = tplLoad();
+                    if (t == null) {
+                        list.add(new CaptionTpl(String.valueOf(System.currentTimeMillis()),
+                                name, text));
+                        prefs.edit().putString(PREF_TPL_ACTIVE,
+                                list.get(list.size() - 1).id).apply();
+                    } else {
+                        for (int i = 0; i < list.size(); i++) {
+                            if (list.get(i).id.equals(t.id)) {
+                                list.set(i, new CaptionTpl(t.id, name, text));
+                                break;
+                            }
+                        }
+                    }
+                    tplPersist(list);
+                    refreshCaptionTab();
+                    toast(getString(R.string.tpl_saved));
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void nameEditSingleLine(EditText e) {
+        e.setSingleLine(false);
+        e.setMaxLines(1);
+    }
+
+    private void confirmTplDelete(final CaptionTpl t) {
+        java.util.List<CaptionTpl> list = tplLoad();
+        if (list.size() <= 1) {
+            toast(getString(R.string.tpl_last_one));
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.tpl_delete_confirm, t.name))
+                .setPositiveButton(R.string.tpl_delete, (d, w) -> {
+                    java.util.List<CaptionTpl> rest = new ArrayList<>();
+                    for (CaptionTpl x : list) if (!x.id.equals(t.id)) rest.add(x);
+                    if (t.id.equals(prefs.getString(PREF_TPL_ACTIVE, ""))) {
+                        prefs.edit().putString(PREF_TPL_ACTIVE, rest.get(0).id).apply();
+                    }
+                    tplPersist(rest);
+                    refreshCaptionTab();
+                    toast(getString(R.string.tpl_deleted));
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private String buildFullCaption() {
-        String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
+        String tpl = activeTemplate();
         String flags = buildFlagsLine();
         // caption ONLY — the users message is a separate block with its own
         // copy button (mixing the two made the bot-caption dirty)
-        return tpl.contains("{{FLAGS}}")
+        String out = tpl.contains("{{FLAGS}}")
                 ? tpl.replace("{{FLAGS}}", flags)
                 : tpl + "\n" + flags;
+        // config count (v1.0.52): a {{COUNT}} placeholder wins for manual
+        // placement; otherwise the toggle adds a compact line right after
+        // the flags row. An empty count leaves no empty line behind.
+        String count = captionCountLine();
+        if (out.contains("{{COUNT}}")) {
+            if (count.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (String ln : out.split("\n", -1)) {
+                    if (ln.trim().equals("{{COUNT}}")) continue;
+                    sb.append(ln).append('\n');
+                }
+                out = sb.substring(0, sb.length() - 1).replace("{{COUNT}}", "");
+            } else {
+                out = out.replace("{{COUNT}}", count);
+            }
+        } else if (!count.isEmpty()) {
+            out = insertAfterLine(out, flags, count);
+        }
+        // Mudfish RAW link (v1.0.52): {{LINK}} marks the exact spot; a line
+        // holding ONLY the placeholder disappears cleanly while no link or
+        // no output exists yet.
+        if (out.contains("{{LINK}}")) {
+            if (lastMudfishLink == null || lastMudfishLink.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (String ln : out.split("\n", -1)) {
+                    if (ln.trim().equals("{{LINK}}")) continue;
+                    sb.append(ln).append('\n');
+                }
+                out = sb.substring(0, sb.length() - 1).replace("{{LINK}}", "");
+            } else {
+                out = out.replace("{{LINK}}", lastMudfishLink);
+            }
+        }
+        return out;
+    }
+
+    /** The compact count line ("📦 Configs: 30" / "📦 تعداد کانفیگ: 30"),
+     *  or "" when the toggle is off or nothing usable has been tested. */
+    private String captionCountLine() {
+        if (!prefs.getBoolean("caption_show_count", true)) return "";
+        int n = visibleEntries().size();
+        if (n <= 0) return "";
+        boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+        return getString(fa ? R.string.caption_count_fmt_fa
+                            : R.string.caption_count_fmt, n);
+    }
+
+    /** Inserts {@code add} right after the first line that contains
+     *  {@code anchor} (falls back to appending at the end). */
+    private static String insertAfterLine(String text, String anchor, String add) {
+        String[] ls = text.split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        boolean done = anchor == null || anchor.isEmpty();
+        for (int i = 0; i < ls.length; i++) {
+            sb.append(ls[i]);
+            if (!done && ls[i].contains(anchor)) {
+                sb.append('\n').append(add);
+                done = true;
+            }
+            if (i < ls.length - 1) sb.append('\n');
+        }
+        if (!done) sb.append('\n').append(add);
+        return sb.toString();
     }
 
     /** Shows a hint instead of an empty box when no users message is set. */
@@ -1510,7 +1813,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Rebuild every caption-tab output from the saved state (thread-safe). */
     private void refreshCaptionTab() {
-        final String tpl = prefs.getString("caption_template", DEFAULT_CAPTION_TEMPLATE);
+        final String tpl = activeTemplate();
         final String flags = buildFlagsLine();
         final String full = buildFullCaption();
         final java.util.List<String> missing;
@@ -1518,8 +1821,10 @@ public class MainActivity extends AppCompatActivity {
             missing = new ArrayList<>(runCountryCodes);
         }
         final String msgUsers = msgUsersDisplayText();
+        final CaptionTpl actTpl = tplActive();
         postUi(() -> {
-            captionTemplatePreview.setText(tpl);
+            tplActiveLabel.setText(getString(R.string.tpl_active_fmt, actTpl.name));
+            rebuildTplList();
             msgUsersPreview.setText(msgUsers);
             captionFlagsBox.setText(flags.isEmpty() ? getString(R.string.caption_flags_empty) : flags);
             captionMissingContainer.removeAllViews();
