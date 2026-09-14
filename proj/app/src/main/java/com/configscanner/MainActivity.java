@@ -95,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean outExpanded;
     private TextView outputView;
     private TextView outCount;
+    private TextView outCountrySummary;
     private TextView headerChip;
     private TextView coreStatus;
     private TextView coreVersionLabel;
@@ -256,6 +257,7 @@ public class MainActivity extends AppCompatActivity {
         btnOutExpand = findViewById(R.id.btnOutExpand);
         outputView = findViewById(R.id.outputView);
         outCount = findViewById(R.id.outCount);
+        outCountrySummary = findViewById(R.id.outCountrySummary);
         headerChip = findViewById(R.id.headerChip);
         coreStatus = findViewById(R.id.coreStatus);
         coreVersionLabel = findViewById(R.id.coreVersionLabel);
@@ -2002,7 +2004,7 @@ public class MainActivity extends AppCompatActivity {
             for (OutEntry e : src) {
                 if (selectedCountries.contains(e.iso)) f.add(e);
             }
-            src = f;
+            src = f; // an explicitly empty selection hides everything (Clear all)
         }
         if (outLimit > 0 && src.size() > outLimit) {
             // pick the keepers randomly, then restore the original run order
@@ -2117,13 +2119,22 @@ public class MainActivity extends AppCompatActivity {
                     for (String iso : order) {
                         if (checks.get(iso).isChecked()) sel.add(iso);
                     }
-                    // nothing or everything ticked == no filter
-                    selectedCountries = (sel.isEmpty() || sel.equals(new java.util.HashSet<>(order)))
+                    // everything ticked == no filter; an empty set is now a
+                    // legit "Clear all" result and hides every line
+                    selectedCountries = sel.equals(new java.util.HashSet<>(order))
                             ? null : sel;
                     applyOutputFilters();
                 })
                 .setNeutralButton(R.string.filter_select_all, (d, w) -> {
                     selectedCountries = null;
+                    applyOutputFilters();
+                })
+                .setNegativeButton(R.string.filter_none, (d, w) -> {
+                    // untick everything: keep only what the user explicitly
+                    // re-selects; an empty selection here means "nothing"
+                    // stays visible, so treat it as the full set inverted —
+                    // practical behavior: show nothing until All is pressed
+                    selectedCountries = new java.util.HashSet<>();
                     applyOutputFilters();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
@@ -2276,12 +2287,34 @@ public class MainActivity extends AppCompatActivity {
             }
             // Never scroll programmatically while a run is in progress — the
             // ScrollView keeps the user's viewport where they left it.
+            final String summary = countrySummaryText();
             postUi(() -> {
                 outputView.setText(sb.toString());
                 outCount.setText(getString(R.string.lines_count, n));
+                outCountrySummary.setText(summary);
+                outCountrySummary.setVisibility(
+                        summary.isEmpty() ? View.GONE : View.VISIBLE);
             });
         }
     };
+
+    /** Compact per-country totals of the visible output: "🇩🇪 5 · 🇹🇷 3 · ❓ 1". */
+    private String countrySummaryText() {
+        List<OutEntry> vis = visibleEntries();
+        if (vis.isEmpty()) return "";
+        java.util.LinkedHashMap<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (OutEntry e : vis) counts.merge(e.iso, 1, Integer::sum);
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<String, Integer> en : counts.entrySet()) {
+            if (sb.length() > 0) sb.append("  ·  ");
+            String icon = en.getKey().isEmpty()
+                    ? "\uD83D\uDD27" // wrench-ish fallback: unknown
+                    : GeoChecker.flag(en.getKey());
+            if (en.getKey().isEmpty()) icon = "\u2753"; // ❓
+            sb.append(icon).append(" ").append(en.getValue());
+        }
+        return sb.toString();
+    }
 
     private void refreshOutput() {
         postUi(() -> {

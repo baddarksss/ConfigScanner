@@ -330,6 +330,20 @@
                                 android:textSize="11sp" />
                         </LinearLayout>
 
+                        <!-- per-country totals right under the title:
+                             🇩🇪 5 · 🇹🇷 3 · ❓ 1 -->
+                        <TextView
+                            android:id="@+id/outCountrySummary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:layoutDirection="ltr"
+                            android:textDirection="ltr"
+                            android:maxLines="2"
+                            android:ellipsize="end"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -405,7 +419,8 @@
                                 android:textSize="12sp"
                                 app:cornerRadius="12dp"
                                 app:strokeColor="@color/stroke" />
-                        
+                        </LinearLayout>
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnMudfish"
                             style="@style/Widget.Material3.Button.OutlinedButton"
@@ -416,9 +431,12 @@
                             android:text="@string/btn_mudfish"
                             android:textColor="@color/btn_text"
                             android:textSize="12sp"
+                            android:insetLeft="8dp"
+                            android:insetRight="8dp"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
                             app:cornerRadius="12dp"
                             app:strokeColor="@color/stroke" />
-</LinearLayout>
 
                         <!-- active chips showing the applied output filters -->
                         <HorizontalScrollView

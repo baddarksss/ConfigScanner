@@ -61,6 +61,7 @@
     <string name="btn_copy_only">Copy</string>
 
 
+    <string name="filter_none">Clear all</string>
     <string name="out_expand">▼ Show all lines</string>
     <string name="out_collapse">▲ Collapse</string>
     <string name="install_open_pkg">Open</string>
@@ -254,7 +255,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.53
+    <string name="changelog">v1.0.54
+• Results: per-country totals (🇩🇪 5 · ❓ 1) right under the title; Mudfish button resized to fit its row
+• Country filter moved into the Results section — tap the totals to open the country list; added Clear-all next to All
+• Icon: removed the leftover hatch pattern behind the CS letters
+
+v1.0.53
 • Fixed: the results box no longer cuts off long outputs — a Show-all toggle expands it to the full run
 • Fixed: the in-app updater now hands the APK to the proper installer, so the system Open button after install launches the app correctly
 

@@ -61,6 +61,7 @@
     <string name="btn_copy_only">کپی</string>
 
 
+    <string name="filter_none">برداشتن همه</string>
     <string name="out_expand">▼ نمایش همه خط‌ها</string>
     <string name="out_collapse">▲ جمع کردن</string>
     <string name="install_open_pkg">باز کردن</string>
@@ -253,7 +254,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.53
+<string name="changelog">v1.0.54
+• نتایج: مجموعه‌ی هر کشور (🇩🇪 5 · ❓ 1) دقیقاً زیر عنوان؛ دکمه‌ی Mudfish هم اندازه‌ی ردیفش شد
+• فیلتر کشور به بخش نتایج منتقل شد — روی مجموعه‌ها بزن تا لیست کشورها باز شود؛ کنار All هم دکمه‌ی «برداشتن همه» اضافه شد
+• آیکون: طرح هاشورِ پشت حروف CS حذف شد
+
+v1.0.53
 • فیکس: کادر نتایج دیگر خروجی‌های بلند را نمی‌بُرد — دکمه‌ی «نمایش همه خط‌ها» آن را کامل باز می‌کند
 • فیکس: آپدیت درون‌برنامه‌ای حالا APK را به نصاب استاندارد می‌دهد تا دکمه‌ی Open سیستم بعد از نصب، برنامه را درست باز کند
 
