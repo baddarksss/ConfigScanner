@@ -2102,7 +2102,7 @@ public class MainActivity extends AppCompatActivity {
                     new com.google.android.material.checkbox.MaterialCheckBox(this);
             int n = counts.get(iso);
             cb.setText((iso.isEmpty() ? "❓" : GeoChecker.flag(iso)) + "  " + name
-                    + (n > 1 ? "  (" + n + ")" : ""));
+                    + "  ×  " + n);
             cb.setTextSize(13.5f);
             boolean defChecked = selectedCountries == null || selectedCountries.contains(iso);
             cb.setChecked(defChecked);

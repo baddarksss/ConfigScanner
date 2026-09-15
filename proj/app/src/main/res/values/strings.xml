@@ -255,7 +255,10 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.55
+    <string name="changelog">v1.0.56
+• Fixed: the country count no longer shows inside a parenthesis — the filter list now uses the same clean “flag name × count” style as the stats
+
+v1.0.55
 • Fixed: after a successful in-app update the app now restarts itself into the new version automatically — the installer\u2019s Open button can no longer leave you stuck
 
 v1.0.54
