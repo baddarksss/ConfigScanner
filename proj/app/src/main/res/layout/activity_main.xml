@@ -290,11 +290,24 @@
 
                 
 
+                <!-- run stats, OUTSIDE the output card (above the
+                     results/flags box): 34 lines · 50/50 processing · 29 failed -->
+                <TextView
+                    android:id="@+id/outCount"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:layoutDirection="ltr"
+                    android:textDirection="ltr"
+                    android:text=""
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
                 <!-- 4: Output -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="@color/glass_card"
                     app:cardCornerRadius="18dp"
                     app:cardElevation="0dp">
@@ -320,14 +333,6 @@
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
-                            <TextView
-                                android:id="@+id/outCount"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layoutDirection="ltr"
-                                android:text="0"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
                         </LinearLayout>
 
                         <!-- per-country totals right under the title:

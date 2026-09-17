@@ -698,11 +698,18 @@ public class ServerSpec {
                 fp = null;
             }
             if ("reality".equals(security)) {
+                if (pbk == null || pbk.trim().isEmpty()) {
+                    // xray 26.x aborts the whole config ("REALITY config:
+                    // empty password"); fail THIS server with a readable
+                    // reason instead
+                    throw new IllegalArgumentException(
+                            "REALITY link has no pbk (publicKey) — link is incomplete");
+                }
                 JSONObject r = new JSONObject();
                 r.put("show", false);
                 r.put("fingerprint", fp == null ? "chrome" : fp);
                 if (sni != null && !sni.isEmpty()) r.put("serverName", sni);
-                if (pbk != null && !pbk.isEmpty()) r.put("publicKey", pbk);
+                r.put("publicKey", pbk.trim());
                 if (sid != null && !sid.isEmpty()) r.put("shortId", sid);
                 if (spx != null && !spx.isEmpty()) r.put("spiderX", spx);
                 st.put("realitySettings", r);
@@ -808,16 +815,16 @@ public class ServerSpec {
                             if (st == null) continue;
                             JSONObject f = new JSONObject();
                             f.put("packets", st.optString("packets", "tlshello"));
-                            f.put("length", fragRange(st.opt("lengths"), "50-100"));
-                            f.put("interval", fragRange(st.opt("delays"), "10-20"));
+                            f.put("length", fragRange(st.opt("lengths"), "50-100", true));
+                            f.put("interval", fragRange(st.opt("delays"), "10-20", false));
                             return f;
                         }
                     }
                 } else if (fm.has("packets") || fm.has("length") || fm.has("lengths")) {
                     JSONObject f = new JSONObject();
                     f.put("packets", fm.optString("packets", "tlshello"));
-                    f.put("length", fragRange(fm.has("lengths") ? fm.opt("lengths") : fm.opt("length"), "50-100"));
-                    f.put("interval", fragRange(fm.has("delays") ? fm.opt("delays") : fm.opt("interval"), "10-20"));
+                    f.put("length", fragRange(fm.has("lengths") ? fm.opt("lengths") : fm.opt("length"), "50-100", true));
+                    f.put("interval", fragRange(fm.has("delays") ? fm.opt("delays") : fm.opt("interval"), "10-20", false));
                     return f;
                 }
             }
@@ -825,20 +832,52 @@ public class ServerSpec {
         return null;
     }
 
-    private static String fragRange(Object obj, String dflt) {
+    private static String fragRange(Object obj, String dflt, boolean noZeroMin) {
+        String v = null;
         if (obj instanceof JSONArray) {
             JSONArray a = (JSONArray) obj;
             if (a.length() >= 2) {
-                return String.valueOf(a.opt(0)).trim() + "-" + String.valueOf(a.opt(1)).trim();
+                v = String.valueOf(a.opt(0)).trim() + "-" + String.valueOf(a.opt(1)).trim();
             } else if (a.length() == 1) {
-                String v = String.valueOf(a.opt(0)).trim();
-                return v.contains("-") ? v : v + "-" + v;
+                String s = String.valueOf(a.opt(0)).trim();
+                v = s.contains("-") ? s : s + "-" + s;
             }
+        } else if (obj instanceof Number) {
+            String s = String.valueOf(obj);
+            v = s + "-" + s;
         } else if (obj instanceof String) {
             String s = ((String) obj).trim();
-            if (!s.isEmpty()) return s;
+            if (!s.isEmpty()) v = s;
         }
-        return dflt;
+        if (v == null || v.isEmpty()) return dflt;
+        int dash = v.indexOf('-');
+        if (dash < 0) {
+            try {
+                int n = Integer.parseInt(v);
+                if (n < 0) n = 0;
+                if (noZeroMin && n == 0) return dflt;
+                return n + "-" + n;
+            } catch (NumberFormatException e) {
+                return dflt;
+            }
+        }
+        try {
+            int min = Integer.parseInt(v.substring(0, dash).trim());
+            int max = Integer.parseInt(v.substring(dash + 1).trim());
+            if (min < 0) min = 0;
+            if (max < 0) max = 0;
+            // v1.0.58: xray dies with "LengthMin can't be 0" when the panel
+            // emits lengths like [0,0] or "10-0" — normalize instead of
+            // passing the junk through (this killed 27/29 servers of the
+            // user's last run before they were even dialed).
+            if (noZeroMin && min == 0) {
+                return max > 0 ? "1-" + max : dflt;
+            }
+            if (max < min) max = min;
+            return min + "-" + max;
+        } catch (NumberFormatException e) {
+            return dflt;
+        }
     }
 
     /** Xray rejects a padding range whose minimum is 0 ("cannot be disabled"). */
