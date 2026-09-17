@@ -251,6 +251,7 @@ public class GeoChecker {
 
     /** ISO 3166-1 alpha-2 -> flag emoji */
     public static String flag(String code) {
+        if ("CDN".equalsIgnoreCase(code)) return "\u2601\uFE0F"; // ☁️
         if (code == null || code.length() != 2) return "🏳️";
         char c1 = Character.toUpperCase(code.charAt(0));
         char c2 = Character.toUpperCase(code.charAt(1));

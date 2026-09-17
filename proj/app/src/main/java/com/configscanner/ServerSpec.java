@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Base64;
+import java.util.concurrent.Executors;
 
 /**
  * Parsed representation of a single proxy server line.
@@ -905,6 +906,104 @@ public class ServerSpec {
             return "udp://" + target + (target.contains(":") ? "" : ":53");
         }
         return null;
+    }
+
+    // ---- Cloudflare detection (v1.0.60) --------------------------------
+    // Tunnels fronted by Cloudflare often cannot pass a geo probe from some
+    // networks (the handshake completes but data gets reset). Instead of
+    // dropping them as "no country" the app labels them as CDN. Detection:
+    // IP literal in a Cloudflare range, a Cloudflare-only domain suffix, or
+    // a DNS resolution that lands in a Cloudflare range.
+
+    private static final int[] CF_RANGES = {
+        // {network, bits} — official Cloudflare IPv4 list (2026)
+        ip("103.21.244.0"), 22, ip("103.22.200.0"), 22, ip("103.31.4.0"), 22,
+        ip("104.16.0.0"), 13, ip("104.24.0.0"), 14, ip("108.162.192.0"), 18, ip("131.0.72.0"), 22,
+        ip("141.101.64.0"), 18, ip("162.158.0.0"), 15, ip("172.64.0.0"), 13,
+        ip("173.245.48.0"), 20, ip("188.114.96.0"), 20, ip("190.93.240.0"), 20,
+        ip("197.234.240.0"), 22, ip("198.41.128.0"), 17,
+    };
+
+    private static int ip(String dotted) {
+        String[] p = dotted.split("\\.");
+        return (Integer.parseInt(p[0]) << 24) | (Integer.parseInt(p[1]) << 16)
+                | (Integer.parseInt(p[2]) << 8) | Integer.parseInt(p[3]);
+    }
+
+    private static boolean inCfRange(byte[] a) {
+        if (a == null || a.length != 4) return false;
+        int v = ((a[0] & 0xFF) << 24) | ((a[1] & 0xFF) << 16)
+                | ((a[2] & 0xFF) << 8) | (a[3] & 0xFF);
+        for (int i = 0; i + 1 < CF_RANGES.length; i += 2) {
+            int net = CF_RANGES[i], bits = CF_RANGES[i + 1];
+            int mask = bits == 0 ? 0 : (0xFFFFFFFF << (32 - bits));
+            if ((v & mask) == (net & mask)) return true;
+        }
+        return false;
+    }
+
+    private static final String[] CF_SUFFIXES = {
+        ".pages.dev", ".workers.dev", ".trycloudflare.com", ".cfargotunnel.com"
+    };
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> CF_RESOLVE_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** True when host/sni/hostHeader point at Cloudflare (directly or after
+     *  a short DNS lookup). Never throws; never blocks longer than ~2s. */
+    public static boolean isCloudflareTarget(String host, String sni, String hostHeader) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        if (host != null && !host.trim().isEmpty()) names.add(host.trim().toLowerCase());
+        if (sni != null && !sni.trim().isEmpty()) names.add(sni.trim().toLowerCase());
+        if (hostHeader != null && !hostHeader.trim().isEmpty()) names.add(hostHeader.trim().toLowerCase());
+        boolean needResolve = false;
+        for (String n : names) {
+            if (n.matches("^[0-9.]+:[0-9]+$")) continue; // host:port leftover
+            if (n.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) {
+                String[] p = n.split("\\.");
+                byte[] a = new byte[4];
+                boolean ok = true;
+                for (int i = 0; i < 4; i++) {
+                    int v;
+                    try { v = Integer.parseInt(p[i]); } catch (Exception e) { ok = false; break; }
+                    if (v < 0 || v > 255) { ok = false; break; }
+                    a[i] = (byte) v;
+                }
+                if (ok && inCfRange(a)) return true;
+            } else {
+                for (String suf : CF_SUFFIXES) {
+                    if (n.endsWith(suf)) return true;
+                }
+                needResolve = true;
+            }
+        }
+        if (!needResolve) return false;
+        for (String n : names) {
+            if (n.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) continue;
+            Boolean cached = CF_RESOLVE_CACHE.get(n);
+            if (cached != null) { if (cached) return true; continue; }
+            boolean cf = resolveIsCf(n);
+            CF_RESOLVE_CACHE.put(n, cf);
+            if (cf) return true;
+        }
+        return false;
+    }
+
+    private static boolean resolveIsCf(String host) {
+        java.util.concurrent.ExecutorService ex =
+                Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<java.net.InetAddress[]> f = ex.submit(
+                    () -> java.net.InetAddress.getAllByName(host));
+            java.net.InetAddress[] addrs = f.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            for (java.net.InetAddress a : addrs) {
+                if (inCfRange(a.getAddress())) return true;
+            }
+        } catch (Exception ignored) {
+        } finally {
+            ex.shutdownNow();
+        }
+        return false;
     }
 
     /** vless user "encryption" value the core will accept: "none" or the

@@ -1216,6 +1216,28 @@ public class MainActivity extends AppCompatActivity {
                                 + geo.failed + "/" + geo.total
                                 + ", first: " + geo.firstError
                         : "tunnel up; country unknown — no geo provider answered in time";
+                // v1.0.60: a Cloudflare-fronted target is its own category.
+                // These tunnels handshake fine but their network path often
+                // blocks the geo probes — that does NOT mean the config is
+                // dead. Label them ☁️ CDN (Cloudflare) instead of dropping
+                // them as "no country".
+                if (!looksLikeEngineError(tail)
+                        && ServerSpec.isCloudflareTarget(s.host, s.sni, s.hostHeader)) {
+                    boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+                    String channel = prefs.getString("channel", "");
+                    boolean incCh = prefs.getBoolean("include_channel", true);
+                    String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
+                    String label = fa ? "کلادفلر CDN" : "Cloudflare CDN";
+                    String renamed = "\u2601\uFE0F " + label + suffix;
+                    String renamedRaw = renameUri(s.raw, renamed);
+                    AppLog.d("test", "OK CDN (cloudflare, geo blocked) -> " + renamed);
+                    status(String.format("\u2601 [%d/%d] %s = CDN",
+                            doneCount.get(), totalCount, hostport));
+                    okCount.incrementAndGet();
+                    success(renamedRaw, GeoChecker.flag("CDN"));
+                    noteCountry("CDN");
+                    return;
+                }
                 failedReasons.put(s.raw, geoDiag);
                 if (looksLikeEngineError(tail)) {
                     // the tunnel itself is broken — report it as unreachable
@@ -1942,7 +1964,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Remember a country found in this run; the caption outputs refresh live. */
     private void noteCountry(String iso) {
-        if (iso == null || iso.length() != 2) return;
+        if (iso == null || (iso.length() != 2 && !"CDN".equals(iso))) return;
         boolean added;
         synchronized (runCountryCodes) {
             added = !runCountryCodes.contains(iso);

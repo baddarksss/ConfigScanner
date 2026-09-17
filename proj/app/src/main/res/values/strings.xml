@@ -261,7 +261,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.59
+    <string name="changelog">v1.0.60
+• New: servers behind Cloudflare are no longer dropped as “no country” — the tunnel is up but the network path blocks geo probes; they now enter the output as ☁️ Cloudflare CDN
+• Detection by Cloudflare IP ranges, Cloudflare-only domains (pages.dev, workers.dev, …) and DNS
+• The country stats and filter show the ☁️ CDN group like a country
+
+v1.0.59
 • Speed: country detection now gives up at 15s max and returns as soon as the answer is confirmed — a run that took ~15 min now finishes in a few minutes
 • Removed the doubled second geo pass (it never recovered anything, only added time)
 • The Failed block now shows WHY country detection failed per server (which geo providers refused and the first error)
