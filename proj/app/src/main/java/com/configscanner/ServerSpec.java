@@ -868,6 +868,16 @@ public class ServerSpec {
         return null;
     }
 
+    /** vless user "encryption" value the core will accept: "none" or the
+     *  post-quantum mlkem… family; legacy panel junk is mapped to "none". */
+    public String vlessEncryptionForCore() {
+        if (vlessEncryption == null) return "none";
+        String v = vlessEncryption.trim();
+        if (v.isEmpty()) return "none";
+        if (v.startsWith("mlkem768x25519plus")) return v;
+        return "none";
+    }
+
     public String buildOutbound() throws Exception {
         JSONObject o = new JSONObject();
         JSONArray serversArr = new JSONArray();
@@ -877,10 +887,13 @@ public class ServerSpec {
                 JSONObject user = new JSONObject();
                 user.put("id", uuid);
                 // classic default is "none"; newer panels may require the
-                // post-quantum hybrid exchange (mlkem768x25519plus…)
-                user.put("encryption",
-                        vlessEncryption == null || vlessEncryption.isEmpty()
-                                ? "none" : vlessEncryption);
+                // post-quantum hybrid exchange (mlkem768x25519plus…).
+                // v1.0.57: xray 26.9.x rejects legacy panel values
+                // ("auto", "aes-128-gcm", empty, …) at config load with a
+                // bare "invalid config" (exit 23) — only "none" and the
+                // mlkem… family are valid, anything else is downgraded to
+                // "none" so the link still gets tested.
+                user.put("encryption", vlessEncryptionForCore());
                 if (flow != null && !flow.isEmpty()) user.put("flow", flow);
                 JSONArray vnext = new JSONArray();
                 JSONObject vObj = new JSONObject();

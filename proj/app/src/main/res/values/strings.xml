@@ -58,6 +58,12 @@
     <!-- Output card -->
     <string name="results_title">📤 Results</string>
     <string name="lines_count">%1$d line(s)</string>
+    <string name="counter_processed">%1$d/%2$d processed</string>
+    <string name="counter_failed">%1$d failed</string>
+    <string name="failed_section_title">Failed / undetected configs (%1$d) — tap to copy</string>
+    <string name="failed_copied">Failed block copied (%1$d items)</string>
+    <string name="failed_copy_btn">Copy failed</string>
+    <string name="failed_empty">No failures</string>
     <string name="btn_copy_only">Copy</string>
 
 
@@ -255,7 +261,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.56
+    <string name="changelog">v1.0.57
+• Fixed: most “invalid config” servers now scan again — new Xray cores reject legacy vless encryption values (e.g. auto); they are converted to the supported form automatically
+• Results corner now shows live counters: lines · processed/total · failed (no parentheses, ever)
+• Log dialog: a copyable “Failed / undetected” block with the real engine reason of every failed config — tap “Copy failed” and send it for debugging
+• Geo lookup retried once for tunnels that are actually up — far fewer working servers disappearing from the output
+
+v1.0.56
 • Fixed: the country count no longer shows inside a parenthesis — the filter list now uses the same clean “flag name × count” style as the stats
 
 v1.0.55

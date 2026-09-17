@@ -924,6 +924,9 @@ public class MainActivity extends AppCompatActivity {
         noCountryCount.set(0);
         unreachableCount.set(0);
         skipCount.set(0);
+        failedCount.set(0);
+        failedReasons.clear();
+        procLogs.clear();
         synchronized (unknownLinks) { unknownLinks.clear(); }
         syncCoreButtons();
         doneCount.set(0);
@@ -1115,20 +1118,34 @@ public class MainActivity extends AppCompatActivity {
                 try (FileOutputStream fos = new FileOutputStream(cfgFile)) {
                     fos.write(cfg.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 }
-                // xray writes its error log to this file ("error" field,
-                // renamed from "logPath" in 26.x); the app tails it on failure
+                // engineLog tails xray's own error log (the "error" file from
+                // the config). The process stdout/err goes to procLog — that
+                // is where CONFIG-LOAD errors appear, and it is the file we
+                // must show on an early exit (v1.0.57: before, the early-exit
+                // path tailed the error log, which is still empty because
+                // xray died before initializing logging — so failures showed
+                // a blind "Engine error" with log=[]).
                 engineLog = xrayOwnLog;
-                engine = XrayManager.start(XrayManager.binary(this), cfgFile,
-                        new File(XrayManager.coreDir(this), "xray_" + port + ".log"));
+                File procLog = new File(XrayManager.coreDir(this), "xray_" + port + ".log");
+                engine = XrayManager.start(XrayManager.binary(this), cfgFile, procLog);
+                procLogs.put(port, procLog);
             }
 
             activeEngines.add(engine);
             Thread.sleep(300);
             if (gen != runGeneration) return; // run stopped while sleeping
             if (!engine.isAlive()) {
-                String earlyTail = AppLog.fileTail(engineLog, 8);
+                File procLog = procLogs.get(port);
+                String earlyTail = procLog != null
+                        ? AppLog.fileTail(procLog, 12) : "";
+                if (earlyTail.isEmpty()) {
+                    earlyTail = AppLog.fileTail(engineLog, 8);
+                }
                 AppLog.w("test", "engine exited early rc=" + engine.exitValue()
                         + " log=[" + earlyTail + "]");
+                failedReasons.put(s.raw, earlyTail.isEmpty()
+                        ? "xray exited rc=" + engine.exitValue() + " (no output)"
+                        : earlyTail);
                 doneCount.incrementAndGet();
                 unreachableCount.incrementAndGet();
                 if (earlyTail.contains("unknown config id")) {
@@ -1188,10 +1205,40 @@ public class MainActivity extends AppCompatActivity {
                 success(renamedRaw, flag);
                 noteCountry(geo.code);
             } else {
+                // v1.0.57: the tunnel is UP — geo often fails transiently
+                // (400 from split-http exits, reset connections). Retry the
+                // geo check once before giving up: this recovered most of
+                // the servers that used to disappear from the output.
+                GeoChecker.Result retry = GeoChecker.check(port, timeoutSec);
+                if (gen == runGeneration && retry.ok && !retry.code.isEmpty()) {
+                    String countryName = retry.country.isEmpty()
+                            ? retry.code : retry.country;
+                    if ("fa".equals(prefs.getString("out_lang", "en"))) {
+                        CountryData.C cc = CountryData.byCode(retry.code);
+                        if (cc != null) countryName = cc.fa;
+                    }
+                    String flag2 = GeoChecker.flag(retry.code);
+                    String channel2 = prefs.getString("channel", "");
+                    boolean incCh2 = prefs.getBoolean("include_channel", true);
+                    String suffix2 = (incCh2 && !channel2.isEmpty()) ? " | " + channel2 : "";
+                    String renamed2 = flag2 + " " + countryName + suffix2;
+                    String renamedRaw2 = renameUri(s.raw, renamed2);
+                    AppLog.d("test", "OK " + retry.code + " (geo retry) -> " + renamed2);
+                    doneCount.incrementAndGet();
+                    status(String.format("✓ [%d/%d] %s = %s",
+                            doneCount.get(), totalCount, hostport, retry.code));
+                    okCount.incrementAndGet();
+                    success(renamedRaw2, flag2);
+                    noteCountry(retry.code);
+                    return;
+                }
                 doneCount.incrementAndGet();
                 String tail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
                         + tail + "]");
+                String shortTail = tail.isEmpty() ? "(engine log empty)"
+                        : tail.substring(0, Math.min(tail.length(), 400));
+                failedReasons.put(s.raw, "connected; country not detected — geo tail: " + shortTail);
                 if (looksLikeEngineError(tail)) {
                     // the tunnel itself is broken — report it as unreachable
                     unreachableCount.incrementAndGet();
@@ -1217,6 +1264,7 @@ public class MainActivity extends AppCompatActivity {
             if (gen == runGeneration) {
                 doneCount.incrementAndGet();
                 unreachableCount.incrementAndGet();
+                failedReasons.put(s.raw, String.valueOf(e.getMessage()));
                 fail(s, String.valueOf(e.getMessage()));
             }
         } finally {
@@ -1297,6 +1345,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fail(ServerSpec s, String reason) {
+        failedCount.incrementAndGet();
         String base = s.name.isEmpty() ? (s.host + ":" + s.port) : s.name;
         synchronized (outputLines) {
             outputLines.add("❌ " + base + " — " + reason);
@@ -2288,9 +2337,15 @@ public class MainActivity extends AppCompatActivity {
             // Never scroll programmatically while a run is in progress — the
             // ScrollView keeps the user's viewport where they left it.
             final String summary = countrySummaryText();
+            // corner counters: lines · processed/total · failed
+            final String counter = getString(R.string.lines_count, n)
+                    + "  ·  " + getString(R.string.counter_processed,
+                            doneCount.get(), totalCount)
+                    + "  ·  " + getString(R.string.counter_failed,
+                            failedCount.get());
             postUi(() -> {
                 outputView.setText(sb.toString());
-                outCount.setText(getString(R.string.lines_count, n));
+                outCount.setText(counter);
                 outCountrySummary.setText(summary);
                 outCountrySummary.setVisibility(
                         summary.isEmpty() ? View.GONE : View.VISIBLE);
@@ -2776,6 +2831,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private File pendingInstall;
+    /** port -> xray process stdout/err log (config-load errors land here). */
+    private final java.util.Map<Integer, File> procLogs = new java.util.HashMap<>();
+    /** raw link -> engine error tail of every failed/undetected config (for
+     *  the copyable Failed block in the log dialog). */
+    private final java.util.LinkedHashMap<String, String> failedReasons = new java.util.LinkedHashMap<>();
+    private final java.util.concurrent.atomic.AtomicInteger failedCount = new java.util.concurrent.atomic.AtomicInteger();
     /** versionCode of the running build at the moment the installer was
      *  launched — lets onResume detect "the app updated itself" and restart
      *  cleanly even when the OEM installer's own Open button is dead. */
@@ -2997,6 +3058,7 @@ public class MainActivity extends AppCompatActivity {
     private void showLog() {
         String raw = AppLog.dump();
         final String log = raw.isEmpty() ? getString(R.string.log_empty) : raw;
+        final String failedBlock = buildFailedBlock();
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(R.string.log_title)
                 .setNeutralButton(R.string.log_clear, (d, w) -> AppLog.clear())
@@ -3004,17 +3066,54 @@ public class MainActivity extends AppCompatActivity {
                         logExportLauncher.launch("cfgscan_log_"
                                 + new java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US)
                                 .format(new java.util.Date()) + ".txt"));
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
         EditText et = new EditText(this);
-        et.setText(log);
+        et.setText(log + failedBlock);
         et.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
         et.setTextIsSelectable(true);
-        b.setView(et);
+        box.addView(et, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        if (!failedReasons.isEmpty()) {
+            // dedicated button under the text: copies ONLY the failed block
+            // (a second neutral dialog button would overwrite "Clear log")
+            android.widget.Button fbtn = new android.widget.Button(this);
+            fbtn.setText(getString(R.string.failed_section_title, failedReasons.size()));
+            fbtn.setOnClickListener(v -> {
+                ClipboardManager cm2 =
+                        (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm2.setPrimaryClip(ClipData.newPlainText("failed", failedBlock));
+                toast(getString(R.string.failed_copied, failedReasons.size()));
+            });
+            box.addView(fbtn, new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        b.setView(box);
         b.setPositiveButton(R.string.log_copy, (d, w) -> {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("log", log));
             toast(getString(R.string.toast_copy_done));
         });
         b.show();
+    }
+
+    /** The copyable block of every failed / undetected config of the LAST
+     *  run with its engine reason — built for sending to debug. */
+    private String buildFailedBlock() {
+        if (failedReasons.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n—— ").append(getString(R.string.failed_section_title,
+                failedReasons.size())).append(" ——\n");
+        int i = 1;
+        for (java.util.Map.Entry<String, String> e : failedReasons.entrySet()) {
+            String reason = e.getValue() == null ? "" : e.getValue().replace("\n", " ");
+            if (reason.length() > 400) reason = reason.substring(0, 400) + "…";
+            sb.append(i++).append(". ").append(e.getKey())
+              .append("\n   → ").append(reason).append("\n");
+        }
+        return sb.toString();
     }
 
     @Override

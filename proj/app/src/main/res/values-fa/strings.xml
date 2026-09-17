@@ -58,6 +58,12 @@
     <!-- Output card -->
     <string name="results_title">📤 نتیجه</string>
     <string name="lines_count">%1$d خط</string>
+    <string name="counter_processed">%1$d/%2$d پردازش</string>
+    <string name="counter_failed">%1$d فیل</string>
+    <string name="failed_section_title">کانفیگ‌های فیل / شناسایی‌نشده (%1$d) — لمس = کپی</string>
+    <string name="failed_copied">بلاگ فیل‌ها کپی شد (%1$d مورد)</string>
+    <string name="failed_copy_btn">کپی فیل‌ها</string>
+    <string name="failed_empty">فیل نداریم</string>
     <string name="btn_copy_only">کپی</string>
 
 
@@ -254,7 +260,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.56
+<string name="changelog">v1.0.57
+• فیکس: بیشتر سرورهای «invalid config» حالا اسکن می‌شوند — کورهای جدید Xray مقدارهای قدیمی encryption ولس (مثل auto) را رد می‌کنند؛ خودکار به شکل مجاز تبدیل می‌شوند
+• گوشه‌ی نتایج شمارنده‌ی زنده دارد: خطوط · پردازش‌شده/کل · فیل (بدون پرانتز)
+• دیالوگ لاگ: بلاگ قابل‌کپی «فیل / شناسایی‌نشده» با دلیل واقعی موتور برای هر کانفیگ — «کپی فیل‌ها» را بزن و برای دیباگ بفرست
+• چک کشور برای تونل‌هایی که واقعاً وصل‌اند یک بار تکرار می‌شود — سرورهای سالم خیلی کمتر از خروجی حذف می‌شوند
+
+v1.0.56
 • فیکس: تعداد کشور دیگر داخل پرانتز نیست — لیست فیلتر حالا مثل آمار کشورها تمیز است: «پرچم نام × تعداد»
 
 v1.0.55
