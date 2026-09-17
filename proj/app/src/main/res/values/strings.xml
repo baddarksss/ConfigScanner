@@ -261,7 +261,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.58
+    <string name="changelog">v1.0.59
+• Speed: country detection now gives up at 15s max and returns as soon as the answer is confirmed — a run that took ~15 min now finishes in a few minutes
+• Removed the doubled second geo pass (it never recovered anything, only added time)
+• The Failed block now shows WHY country detection failed per server (which geo providers refused and the first error)
+
+v1.0.58
 • Fixed the mass “invalid config” fail: the panels\u2019 fm= fragment values contained zeros and new Xray cores reject them before dialing — values are now normalized, so those servers are tested again
 • REALITY links without pbk now report a clear reason instead of “invalid config”
 • The run counters moved out of the results card — now on their own line right above it

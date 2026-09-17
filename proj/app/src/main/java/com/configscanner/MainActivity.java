@@ -1205,40 +1205,18 @@ public class MainActivity extends AppCompatActivity {
                 success(renamedRaw, flag);
                 noteCountry(geo.code);
             } else {
-                // v1.0.57: the tunnel is UP — geo often fails transiently
-                // (400 from split-http exits, reset connections). Retry the
-                // geo check once before giving up: this recovered most of
-                // the servers that used to disappear from the output.
-                GeoChecker.Result retry = GeoChecker.check(port, timeoutSec);
-                if (gen == runGeneration && retry.ok && !retry.code.isEmpty()) {
-                    String countryName = retry.country.isEmpty()
-                            ? retry.code : retry.country;
-                    if ("fa".equals(prefs.getString("out_lang", "en"))) {
-                        CountryData.C cc = CountryData.byCode(retry.code);
-                        if (cc != null) countryName = cc.fa;
-                    }
-                    String flag2 = GeoChecker.flag(retry.code);
-                    String channel2 = prefs.getString("channel", "");
-                    boolean incCh2 = prefs.getBoolean("include_channel", true);
-                    String suffix2 = (incCh2 && !channel2.isEmpty()) ? " | " + channel2 : "";
-                    String renamed2 = flag2 + " " + countryName + suffix2;
-                    String renamedRaw2 = renameUri(s.raw, renamed2);
-                    AppLog.d("test", "OK " + retry.code + " (geo retry) -> " + renamed2);
-                    doneCount.incrementAndGet();
-                    status(String.format("✓ [%d/%d] %s = %s",
-                            doneCount.get(), totalCount, hostport, retry.code));
-                    okCount.incrementAndGet();
-                    success(renamedRaw2, flag2);
-                    noteCountry(retry.code);
-                    return;
-                }
                 doneCount.incrementAndGet();
                 String tail = AppLog.fileTail(engineLog, 8);
                 AppLog.w("test", "connected but country unknown — engine log tail: ["
                         + tail + "]");
-                String shortTail = tail.isEmpty() ? "(engine log empty)"
-                        : tail.substring(0, Math.min(tail.length(), 400));
-                failedReasons.put(s.raw, "connected; country not detected — geo tail: " + shortTail);
+                // v1.0.59: the geo providers' verdict is the diagnostic that
+                // matters here (tunnel is up — requests just don't pass)
+                String geoDiag = geo.failed > 0
+                        ? "tunnel up; country unknown — geo providers failed "
+                                + geo.failed + "/" + geo.total
+                                + ", first: " + geo.firstError
+                        : "tunnel up; country unknown — no geo provider answered in time";
+                failedReasons.put(s.raw, geoDiag);
                 if (looksLikeEngineError(tail)) {
                     // the tunnel itself is broken — report it as unreachable
                     unreachableCount.incrementAndGet();

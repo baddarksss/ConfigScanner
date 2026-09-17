@@ -38,6 +38,11 @@ public class GeoChecker {
         public boolean deadTunnel = false;
         /** true when exactly ONE service answered */
         public boolean singleVote = false;
+        /** v1.0.59: how many providers failed + the first failure reason —
+         *  this is what makes "country unknown" diagnosable */
+        public int failed = 0;
+        public int total = 0;
+        public String firstError = "";
     }
 
     /** {url, countryField, codeField, successField (nullable)} */
@@ -51,10 +56,15 @@ public class GeoChecker {
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
-        int timeout = Math.max(8, connectTimeoutSec);
+        // v1.0.59: hard cap at 15s. Country detection never needed more —
+        // providers that CAN answer do so in <5s; the old behavior waited
+        // the full user timeout (30s+) for the remaining dead providers on
+        // EVERY unroutable tunnel, turning a 50-server run into 15 minutes.
+        int timeout = Math.min(15, Math.max(8, connectTimeoutSec));
         long deadline = System.currentTimeMillis() + timeout * 1000L;
 
         List<String[]> votes = new ArrayList<>();
+        final List<String[]> errors = java.util.Collections.synchronizedList(new ArrayList<>());
         ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
 
@@ -81,8 +91,15 @@ public class GeoChecker {
                     String[] res = f.get();
                     if (res != null && res[0] != null && !res[0].isEmpty()) {
                         votes.add(res);
-                        // If 2 or more services agree on the same country, we can return early
+                        // If 2 or more services agree on the same country, we
+                        // can return early
                         if (topVote(votes) >= 2) break;
+                        // v1.0.59: one vote in hand — only wait a short grace
+                        // for a confirming second vote, not the full deadline
+                        deadline = Math.min(deadline,
+                                System.currentTimeMillis() + 6000L);
+                    } else if (res != null && res[3] != null && !res[3].isEmpty()) {
+                        errors.add(res);
                     }
                 } catch (Exception ignored) { }
             }
@@ -90,7 +107,17 @@ public class GeoChecker {
             ex.shutdownNow();
         }
 
-        return makeResult(votes);
+        Result r = makeResult(votes);
+        r.total = SERVICES.length;
+        synchronized (errors) {
+            r.failed = errors.size();
+            for (String[] e : errors) {
+                if (r.firstError.isEmpty() && e[3] != null && !e[3].isEmpty()) {
+                    r.firstError = e[3];
+                }
+            }
+        }
+        return r;
     }
 
     private static int topVote(List<String[]> votes) {
@@ -164,8 +191,9 @@ public class GeoChecker {
                     .get().build();
             try (Response resp = client.newCall(req).execute()) {
                 if (!resp.isSuccessful() || resp.body() == null) {
+                    String err = "HTTP " + resp.code() + " (" + hostOf(url) + ")";
                     AppLog.w("geo", url + " failed: HTTP " + resp.code());
-                    return null;
+                    return new String[]{"", "", "", err};
                 }
                 String body = resp.body().string();
                 String country = "", code = "", ip = "";
@@ -179,8 +207,9 @@ public class GeoChecker {
                 } else {
                     JSONObject o = new JSONObject(body);
                     if (svc[3] != null && !o.optBoolean(svc[3], false)) {
+                        String err = "success=false (" + hostOf(url) + ")";
                         AppLog.w("geo", url + " failed: success=false");
-                        return null;
+                        return new String[]{"", "", "", err};
                     }
                     if (!svc[1].isEmpty()) country = o.optString(svc[1], "");
                     if (!svc[2].isEmpty()) code = o.optString(svc[2], "");
@@ -191,8 +220,9 @@ public class GeoChecker {
                     country = "";
                 }
                 if (code.isEmpty() && country.isEmpty()) {
+                    String err = "no country in response (" + hostOf(url) + ")";
                     AppLog.w("geo", url + " failed: no country in response");
-                    return null;
+                    return new String[]{"", "", "", err};
                 }
                 if (!code.isEmpty() && country.isEmpty()) {
                     CountryData.C c = CountryData.byCode(code);
@@ -203,8 +233,19 @@ public class GeoChecker {
                 return new String[]{code, country, ip};
             }
         } catch (Exception e) {
-            AppLog.w("geo", url + " error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            return null;
+            String err = e.getClass().getSimpleName() + ": " + e.getMessage()
+                    + " (" + hostOf(url) + ")";
+            AppLog.w("geo", url + " error: " + err);
+            return new String[]{"", "", "", err};
+        }
+    }
+
+    /** hostname part of a service URL for compact error lines */
+    private static String hostOf(String url) {
+        try {
+            return java.net.URI.create(url).getHost();
+        } catch (Exception e) {
+            return url;
         }
     }
 
