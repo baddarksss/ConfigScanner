@@ -161,6 +161,8 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger noCountryCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger unreachableCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
+    /** lines that ServerSpec.parse could not parse (reported, never silent) */
+    private final java.util.concurrent.atomic.AtomicInteger parseFailCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
     private final List<String> unknownLinks = new ArrayList<>();
 
@@ -876,14 +878,25 @@ public class MainActivity extends AppCompatActivity {
         }
         savePrefs();
 
-        // parse all lines
+        // parse all lines — unparsable lines are counted and listed in the
+        // Failed block instead of silently disappearing (review fix v1.0.63)
         List<ServerSpec> servers = new ArrayList<>();
+        int parseFail = 0;
         for (String line : text.split("\n")) {
             String t = line.trim();
             if (t.isEmpty() || t.startsWith("#")) continue;
             ServerSpec s = ServerSpec.parse(t);
-            if (s != null) servers.add(s);
+            if (s != null) {
+                servers.add(s);
+            } else {
+                parseFail++;
+                if (parseFail <= 50) {
+                    String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
+                    failedReasons.put(t, "parse failed — unsupported/invalid format: " + shortLink);
+                }
+            }
         }
+        parseFailCount.set(parseFail);
         if (servers.isEmpty()) {
             toast(getString(R.string.toast_no_config));
             return;
@@ -921,6 +934,7 @@ public class MainActivity extends AppCompatActivity {
         noCountryCount.set(0);
         unreachableCount.set(0);
         skipCount.set(0);
+        parseFailCount.set(0);
         failedCount.set(0);
         failedReasons.clear();
         procLogs.clear();
@@ -1249,19 +1263,24 @@ public class MainActivity extends AppCompatActivity {
                     unreachableCount.incrementAndGet();
                     fail(s, getString(R.string.res_engine_error));
                 } else {
-                    // tunnel is up, only geo failed — keep the link with its
-                    // ORIGINAL name (no warning sign in the name or the flag
-                    // strip) so usable-but-unlabeled servers are not lost.
+                    // v1.0.63 (review fix): a config that is UP but whose
+                    // country could not be detected is a WORKING config — it
+                    // must not silently disappear (v1.0.50 hid these, which
+                    // read as "not processed"). Keep it in the output with a
+                    // ❔ Unknown marker; the reason stays in the Failed block.
                     noCountryCount.incrementAndGet();
-                    // v1.0.50: servers whose country could not be detected do
-                    // NOT enter the output anymore — they were confusing (old
-                    // name + channel tag, no flag). They are only counted and
-                    // listed in the summary; the include-unknown option and
-                    // the raw fallback in copyLinksOnly still work unchanged.
-                    synchronized (unknownLinks) { unknownLinks.add(renameUri(s.raw, s.name)); }
-                    AppLog.d("test", "PARTIAL (no country) — hidden from output");
-                    status(String.format("\u26a0 [%d/%d] %s = ? country",
+                    boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+                    String channel = prefs.getString("channel", "");
+                    boolean incCh = prefs.getBoolean("include_channel", true);
+                    String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
+                    String base = s.name.isEmpty() ? hostport : s.name;
+                    String renamed = "❔ " + (fa ? "ناشناس" : "Unknown")
+                            + suffix + " | " + base;
+                    String renamedRaw = renameUri(s.raw, renamed);
+                    AppLog.d("test", "UNKNOWN (tunnel up, country undetected) -> " + renamed);
+                    status(String.format("❔ [%d/%d] %s = ? country",
                             doneCount.get(), totalCount, hostport));
+                    success(renamedRaw, "❔");
                 }
             }
         } catch (Exception e) {
@@ -2003,7 +2022,7 @@ public class MainActivity extends AppCompatActivity {
 
     private String buildRunSummary() {
         return getString(R.string.run_summary, okCount.get(), noCountryCount.get(),
-                unreachableCount.get(), skipCount.get());
+                unreachableCount.get(), skipCount.get(), parseFailCount.get());
     }
 
     // ------------------------------------------------------- run stats & output tools
@@ -2822,11 +2841,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private File pendingInstall;
-    /** port -> xray process stdout/err log (config-load errors land here). */
-    private final java.util.Map<Integer, File> procLogs = new java.util.HashMap<>();
+    /** port -> xray process stdout/err log (config-load errors land here).
+     *  Synchronized wrapper — test workers put into it in parallel. */
+    private final java.util.Map<Integer, File> procLogs =
+            java.util.Collections.synchronizedMap(new java.util.HashMap<Integer, File>());
     /** raw link -> engine error tail of every failed/undetected config (for
-     *  the copyable Failed block in the log dialog). */
-    private final java.util.LinkedHashMap<String, String> failedReasons = new java.util.LinkedHashMap<>();
+     *  the copyable Failed block in the log dialog). Synchronized wrapper —
+     *  test workers put into it in parallel; iteration happens under the
+     *  map's monitor so the order (insertion) is stable. */
+    private final java.util.Map<String, String> failedReasons =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<String, String>());
     private final java.util.concurrent.atomic.AtomicInteger failedCount = new java.util.concurrent.atomic.AtomicInteger();
     /** versionCode of the running build at the moment the installer was
      *  launched — lets onResume detect "the app updated itself" and restart
@@ -3098,11 +3122,13 @@ public class MainActivity extends AppCompatActivity {
         sb.append("\n—— ").append(getString(R.string.failed_section_title,
                 failedReasons.size())).append(" ——\n");
         int i = 1;
-        for (java.util.Map.Entry<String, String> e : failedReasons.entrySet()) {
-            String reason = e.getValue() == null ? "" : e.getValue().replace("\n", " ");
-            if (reason.length() > 400) reason = reason.substring(0, 400) + "…";
-            sb.append(i++).append(". ").append(e.getKey())
-              .append("\n   → ").append(reason).append("\n");
+        synchronized (failedReasons) {
+            for (java.util.Map.Entry<String, String> e : failedReasons.entrySet()) {
+                String reason = e.getValue() == null ? "" : e.getValue().replace("\n", " ");
+                if (reason.length() > 400) reason = reason.substring(0, 400) + "…";
+                sb.append(i++).append(". ").append(e.getKey())
+                  .append("\n   → ").append(reason).append("\n");
+            }
         }
         return sb.toString();
     }

@@ -935,13 +935,15 @@ public class ServerSpec {
         ip("65.8.0.0"), 16, ip("65.9.0.0"), 16, ip("99.84.0.0"), 16,
         ip("108.138.0.0"), 15, ip("130.176.0.0"), 16, ip("143.204.0.0"), 16,
         ip("144.220.0.0"), 16,
-        // Akamai (well-known edge blocks)
-        ip("2.16.0.0"), 13, ip("23.32.0.0"), 11, ip("23.192.0.0"), 11,
+        // Akamai — conservative subset (v1.0.63 review fix: the huge blocks
+        // 104.64.0.0/10 and 23.x.0.0/11 swallowed non-CDN IPs, so only the
+        // tight, Akamai-specific ranges remain)
+        ip("2.16.0.0"), 13,
         ip("88.221.0.0"), 16, ip("92.122.0.0"), 15, ip("95.100.0.0"), 15,
-        ip("104.64.0.0"), 10, ip("184.24.0.0"), 13, ip("184.84.0.0"), 14,
-        // Google frontends / global HTTP(S) LB anycast
+        ip("184.24.0.0"), 13, ip("184.84.0.0"), 14,
+        // Google — only the dedicated global HTTP(S) LB anycast /16s
+        // (142.250.0.0/15 and 172.217.0.0/16 removed: too broad)
         ip("34.98.0.0"), 16, ip("34.117.0.0"), 16, ip("34.149.0.0"), 16,
-        ip("142.250.0.0"), 15, ip("172.217.0.0"), 16,
     };
 
     private static int ip(String dotted) {

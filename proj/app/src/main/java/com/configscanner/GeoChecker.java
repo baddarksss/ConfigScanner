@@ -52,7 +52,8 @@ public class GeoChecker {
             {"https://api.country.is/", "", "country", null},
             {"https://api.ip.sb/geoip", "country", "country_code", null},
             {"https://ipinfo.io/json", "", "country", null},
-            {"http://ip-api.com/json/", "country", "countryCode", null},
+            // ip-api.com removed (v1.0.63): plaintext HTTP — the geo answer
+            // (which becomes the server remark) must not travel unencrypted
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
@@ -141,22 +142,30 @@ public class GeoChecker {
             count.put(code, count.getOrDefault(code, 0) + 1);
         }
 
+        // deterministic pick: most votes first, tie -> alphabetically first
+        // code (HashMap order must never leak into the result — review fix)
         String best = "";
         int bestN = 0;
         for (Map.Entry<String, Integer> e : count.entrySet()) {
-            if (e.getValue() > bestN) {
-                bestN = e.getValue();
+            int n = e.getValue();
+            if (n > bestN
+                    || (n == bestN && (best.isEmpty()
+                        || e.getKey().compareTo(best) < 0))) {
+                bestN = n;
                 best = e.getKey();
             }
         }
 
         Result r = new Result();
         r.answered = answered;
-        if (!best.isEmpty()) {
+        // v1.0.63 (review fix): ONE provider alone no longer decides the
+        // country — the remark would look authoritative while a single
+        // service could be wrong/intercepted. Two providers must agree.
+        if (bestN >= 2) {
             r.code = best;
             r.ok = true;
             r.votes = bestN;
-            r.singleVote = (bestN < 2);
+            r.singleVote = false;
             for (String[] v : votes) {
                 if (v != null && v[0] != null && v[0].equalsIgnoreCase(best)) {
                     if (v[1] != null && !v[1].isEmpty()) r.country = v[1];
@@ -167,6 +176,10 @@ public class GeoChecker {
                 CountryData.C c = CountryData.byCode(r.code);
                 if (c != null) r.country = c.en;
             }
+        } else if (bestN == 1) {
+            // kept for diagnostics only — not trusted as a result
+            r.singleVote = true;
+            r.code = "";
         }
         return r;
     }

@@ -176,7 +176,7 @@
     <string name="core_update_busy">One moment — another core operation is in progress</string>
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
-    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped</string>
+    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped · %5$d invalid</string>
     <string name="tpl_add">New caption</string>
     <string name="tpl_active_fmt">Active: %1$s</string>
     <string name="tpl_hint">{{FLAGS}} = flag row · {{COUNT}} = config count · {{LINK}} = the Mudfish RAW link</string>
@@ -261,7 +261,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.62
+    <string name="changelog">v1.0.63
+• Pipeline fix (review): a config that is UP but whose country cannot be detected now STAYS in the output as ❔ Unknown — healthy configs are never dropped just because geo failed
+• Country results now need 2 providers agreeing; a single provider’s answer is never shown as a country (and ties are resolved deterministically)
+• The plaintext-HTTP geo provider (ip-api.com) was removed — country data must not travel unencrypted
+• Configs that cannot be parsed are now counted and listed in the Failed block with the raw line instead of silently disappearing (“invalid” counter added to the run summary)
+• Thread-safety: the failed-reasons/process-log maps are now safe under high parallelism
+• CDN ranges tightened: the huge Akamai/Google blocks removed (no more false ☁️ CDN)
+
+v1.0.62
 • CDN detection generalized: Fastly, AWS CloudFront, Akamai, Google frontends, Bunny/GCore (plus Cloudflare) — a tunnel that is up but geo-blocked now gets the ☁️ CDN label instead of disappearing as “no country”
 • The label is provider-neutral: ☁️ CDN
 • Unsupported protocols keep their clear skip messages (unchanged by design)
@@ -271,15 +279,5 @@ v1.0.61
 • Port allocation rewritten: deterministic round-robin, no more random scan/collisions under high parallelism
 • Hysteria2 YAML: full escaping of passwords/SNI/server (quotes, backslashes, control chars)
 • Cert pinning no longer aborts on exotic SNI hostnames
-• Code cleanups: leftover debug print removed
-
-v1.0.60
-• New: servers behind Cloudflare are no longer dropped as “no country” — the tunnel is up but the network path blocks geo probes; they now enter the output as ☁️ Cloudflare CDN
-• Detection by Cloudflare IP ranges, Cloudflare-only domains (pages.dev, workers.dev, …) and DNS
-• The country stats and filter show the ☁️ CDN group like a country
-
-v1.0.59
-• Speed: country detection now gives up at 15s max and returns as soon as the answer is confirmed — a run that took ~15 min now finishes in a few minutes
-• Removed the doubled second geo pass (it never recovered anything, only added time)
-• The Failed block now shows WHY country detection failed per server (which geo providers refused and the first error)</string>
+• Code cleanups: leftover debug print removed</string>
 </resources>
