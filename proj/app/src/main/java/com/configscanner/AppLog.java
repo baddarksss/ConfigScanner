@@ -45,7 +45,7 @@ public class AppLog {
                 // so the decoded tail can never begin with a replacement char.
                 int start = 0;
                 if (from > 0) {
-                    while (start < part.length && part[start] != (byte) '\\n') start++;
+                    while (start < part.length && part[start] != (byte) '\n') start++;
                     if (start < part.length) start++;
                 }
                 synchronized (LOCK) {
@@ -116,7 +116,7 @@ public class AppLog {
 
             // Align the retained tail to a complete UTF-8 line.
             int start = 0;
-            while (start < rest.length && rest[start] != (byte) '\\n') start++;
+            while (start < rest.length && rest[start] != (byte) '\n') start++;
             if (start < rest.length) start++;
             FileWriter fw = new FileWriter(logFile, false);
             fw.write(new String(rest, start, rest.length - start,
