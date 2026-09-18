@@ -852,12 +852,6 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace(new java.io.PrintWriter(sw));
                 String trace = "v" + VERSION + " thread=" + t.getName() + "\n" + sw.toString();
                 AppLog.e("crash", trace);
-                // belt & braces: direct append so a crash is never lost
-                java.io.File f = new java.io.File(getFilesDir(), "app.log");
-                java.io.FileWriter fw = new java.io.FileWriter(f, true);
-                fw.write(new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-                        .format(new java.util.Date()) + " E crash: " + trace + "\n");
-                fw.close();
                 android.util.Log.e("ConfigScanner", "uncaught", e);
             } catch (Exception ignored) { }
             if (defaultH != null) defaultH.uncaughtException(t, e);
@@ -1321,6 +1315,22 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception ignored) {
                 }
             }
+
+            // Every test owns these files by port. Delete them here even when
+            // Stop interrupts the worker, otherwise repeated scans slowly fill
+            // filesDir/core with stale logs and configs.
+            File core = XrayManager.coreDir(this);
+            String[] tempNames = {
+                    "xray_" + port + ".log",
+                    "xrayw_" + port + ".log",
+                    "hy2_" + port + ".log",
+                    "cfg_" + port + ".json",
+                    "hy2_" + port + ".yaml"
+            };
+            for (String name : tempNames) {
+                try { new File(core, name).delete(); } catch (Exception ignored) { }
+            }
+
             // only the workers of the CURRENT run drive progress/completion —
             // a stale worker of a stopped/superseded run must stay silent
             if (gen == runGeneration) {
