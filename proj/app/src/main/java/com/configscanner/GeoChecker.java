@@ -94,7 +94,9 @@ public class GeoChecker {
                         votes.add(res);
                         // If 2 or more services agree on the same country, we
                         // can return early
-                        if (topVote(votes) >= 2) break;
+                        // Stop only at 3 votes. With 5 providers, 3 is a strict majority.
+                        // Stopping at 2 could hide a later 2-2 tie and resurrect the old wrong country pick.
+                        if (topVote(votes) >= 3) break;
                         // v1.0.59: one vote in hand — only wait a short grace
                         // for a confirming second vote, not the full deadline
                         deadline = Math.min(deadline,
@@ -220,7 +222,8 @@ public class GeoChecker {
                     for (String line : body.split("\\n")) {
                         if (line.startsWith("loc=")) {
                             code = line.substring(4).trim();
-                            break;
+                        } else if (line.startsWith("ip=")) {
+                            ip = line.substring(3).trim();
                         }
                     }
                 } else {
