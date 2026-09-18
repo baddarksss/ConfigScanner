@@ -261,7 +261,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.63
+    <string name="changelog">v1.0.64
+• Critical (review): the first server of each country was registered as Unknown in the country stats/filter — the country is now passed with the result directly, stats are exact
+• Critical (review): parse-failure info was wiped again right after being recorded — invalid configs now really show up in the Failed block and the summary
+• hy2:// links are recognized (alias of hysteria2://)
+• Ambiguous geo vote (e.g. 2×US vs 2×DE) now yields Unknown instead of an alphabetical coin flip
+• CDN DNS cache gets a 10-minute TTL; one shared DNS resolver thread pool instead of a thread per lookup
+• Stopping during run-start no longer leaks the foreground service; unknownLinks made thread-safe
+
+v1.0.63
 • Pipeline fix (review): a config that is UP but whose country cannot be detected now STAYS in the output as ❔ Unknown — healthy configs are never dropped just because geo failed
 • Country results now need 2 providers agreeing; a single provider’s answer is never shown as a country (and ties are resolved deterministically)
 • The plaintext-HTTP geo provider (ip-api.com) was removed — country data must not travel unencrypted

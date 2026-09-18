@@ -192,6 +192,7 @@ public class ServerSpec {
         if (l.startsWith("vmess://")) return parseVmess(line);
         if (l.startsWith("trojan://")) return parseTrojan(line);
         if (l.startsWith("hysteria2://")) return parseHysteria(line);
+        if (l.startsWith("hy2://")) return parseHysteria(line); // common alias
         if (l.startsWith("hysteria://")) {
             // hysteria v1: different auth, not supported by the core — surface
             // it as an explicit skip instead of mis-parsing it as v2
@@ -976,8 +977,25 @@ public class ServerSpec {
         ".b-cdn.net", ".gcdn.co", ".gcorelabs.net",
     };
 
-    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> CDN_RESOLVE_CACHE =
+    private static final long CDN_TTL_MS = 10 * 60 * 1000L; // 10 min (review fix)
+
+    private static final class CdnEntry {
+        final boolean cdn;
+        final long at;
+        CdnEntry(boolean cdn, long at) { this.cdn = cdn; this.at = at; }
+    }
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, CdnEntry> CDN_RESOLVE_CACHE =
             new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** ONE shared DNS executor — a per-lookup single-thread executor created
+     *  and killed a thread for every unknown hostname (review fix). */
+    private static final java.util.concurrent.ExecutorService DNS_EXECUTOR =
+            Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "cfgscan-dns");
+                t.setDaemon(true);
+                return t;
+            });
 
     /** True when host/sni/hostHeader point at a known CDN (directly or after
      *  a short DNS lookup). Never throws; never blocks longer than ~2s. */
@@ -1010,28 +1028,27 @@ public class ServerSpec {
         if (!needResolve) return false;
         for (String n : names) {
             if (n.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) continue;
-            Boolean cached = CDN_RESOLVE_CACHE.get(n);
-            if (cached != null) { if (cached) return true; continue; }
+            CdnEntry c = CDN_RESOLVE_CACHE.get(n);
+            if (c != null && System.currentTimeMillis() - c.at < CDN_TTL_MS) {
+                if (c.cdn) return true;
+                continue;
+            }
             boolean cf = resolveIsCdn(n);
-            CDN_RESOLVE_CACHE.put(n, cf);
+            CDN_RESOLVE_CACHE.put(n, new CdnEntry(cf, System.currentTimeMillis()));
             if (cf) return true;
         }
         return false;
     }
 
     private static boolean resolveIsCdn(String host) {
-        java.util.concurrent.ExecutorService ex =
-                Executors.newSingleThreadExecutor();
         try {
-            java.util.concurrent.Future<java.net.InetAddress[]> f = ex.submit(
+            java.util.concurrent.Future<java.net.InetAddress[]> f = DNS_EXECUTOR.submit(
                     () -> java.net.InetAddress.getAllByName(host));
             java.net.InetAddress[] addrs = f.get(2, java.util.concurrent.TimeUnit.SECONDS);
             for (java.net.InetAddress a : addrs) {
                 if (inCdnRange(a.getAddress())) return true;
             }
         } catch (Exception ignored) {
-        } finally {
-            ex.shutdownNow();
         }
         return false;
     }

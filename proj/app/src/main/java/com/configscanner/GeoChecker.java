@@ -145,23 +145,28 @@ public class GeoChecker {
         // deterministic pick: most votes first, tie -> alphabetically first
         // code (HashMap order must never leak into the result — review fix)
         String best = "";
-        int bestN = 0;
+        int bestN = 0, secondN = 0;
         for (Map.Entry<String, Integer> e : count.entrySet()) {
             int n = e.getValue();
-            if (n > bestN
-                    || (n == bestN && (best.isEmpty()
-                        || e.getKey().compareTo(best) < 0))) {
+            if (n > bestN) {
+                secondN = bestN;
                 bestN = n;
                 best = e.getKey();
+            } else {
+                if (n > secondN) secondN = n;
+                if (n == bestN && (best.isEmpty()
+                        || e.getKey().compareTo(best) < 0)) {
+                    best = e.getKey();
+                }
             }
         }
 
         Result r = new Result();
         r.answered = answered;
-        // v1.0.63 (review fix): ONE provider alone no longer decides the
-        // country — the remark would look authoritative while a single
-        // service could be wrong/intercepted. Two providers must agree.
-        if (bestN >= 2) {
+        // v1.0.63: ONE provider alone never decides the country.
+        // v1.0.64 (review fix): an AMBIGUOUS tie (e.g. US 2 / DE 2) is not a
+        // result either — no alphabetical coin flip may pick a country.
+        if (bestN >= 2 && secondN < bestN) {
             r.code = best;
             r.ok = true;
             r.votes = bestN;
@@ -176,9 +181,10 @@ public class GeoChecker {
                 CountryData.C c = CountryData.byCode(r.code);
                 if (c != null) r.country = c.en;
             }
-        } else if (bestN == 1) {
-            // kept for diagnostics only — not trusted as a result
-            r.singleVote = true;
+        } else {
+            // single vote (no confirmation) or an ambiguous tie — kept for
+            // diagnostics only, never trusted as a result
+            r.singleVote = (bestN < 2);
             r.code = "";
         }
         return r;

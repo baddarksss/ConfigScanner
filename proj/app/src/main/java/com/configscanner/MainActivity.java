@@ -164,7 +164,8 @@ public class MainActivity extends AppCompatActivity {
     /** lines that ServerSpec.parse could not parse (reported, never silent) */
     private final java.util.concurrent.atomic.AtomicInteger parseFailCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
-    private final List<String> unknownLinks = new ArrayList<>();
+    private final List<String> unknownLinks =
+            java.util.Collections.synchronizedList(new ArrayList<String>());
 
     // ------------------------- output model / filtering -------------------------
     /** One successful output entry: the renamed link + its ISO country ("" = unknown). */
@@ -880,6 +881,8 @@ public class MainActivity extends AppCompatActivity {
 
         // parse all lines — unparsable lines are counted and listed in the
         // Failed block instead of silently disappearing (review fix v1.0.63)
+        parseFailCount.set(0);
+        failedReasons.clear();
         List<ServerSpec> servers = new ArrayList<>();
         int parseFail = 0;
         for (String line : text.split("\n")) {
@@ -899,6 +902,8 @@ public class MainActivity extends AppCompatActivity {
         parseFailCount.set(parseFail);
         if (servers.isEmpty()) {
             toast(getString(R.string.toast_no_config));
+            AppLog.w("run", "no parsable config — " + parseFail
+                    + " line(s) invalid, see Log \u2192 Failed block");
             return;
         }
 
@@ -934,10 +939,11 @@ public class MainActivity extends AppCompatActivity {
         noCountryCount.set(0);
         unreachableCount.set(0);
         skipCount.set(0);
-        parseFailCount.set(0);
         failedCount.set(0);
-        failedReasons.clear();
         procLogs.clear();
+        // NOTE: parseFailCount and failedReasons are cleared BEFORE the parse
+        // loop, not here — parse failures are registered during parsing and
+        // were previously wiped by this reset right after (review fix).
         synchronized (unknownLinks) { unknownLinks.clear(); }
         syncCoreButtons();
         doneCount.set(0);
@@ -983,7 +989,10 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             synchronized (runStartLock) {
-                if (runStopped || !running || gen != runGeneration) return;
+                if (runStopped || !running || gen != runGeneration) {
+                    ScanService.end(this); // begun above — don't leak the service
+                    return;
+                }
                 ExecutorService newPool = Executors.newFixedThreadPool(parallelN);
                 pool = newPool;
                 // pool.submit only enqueues — port is allocated dynamically when the worker runs
@@ -1221,7 +1230,7 @@ public class MainActivity extends AppCompatActivity {
                 status(String.format("✓ [%d/%d] %s = %s", doneCount.get(), totalCount,
                         hostport, geo.code));
                 okCount.incrementAndGet();
-                success(renamedRaw, flag);
+                success(renamedRaw, geo.code, flag);
                 noteCountry(geo.code);
             } else {
                 doneCount.incrementAndGet();
@@ -1253,7 +1262,7 @@ public class MainActivity extends AppCompatActivity {
                     status(String.format("\u2601 [%d/%d] %s = CDN",
                             doneCount.get(), totalCount, hostport));
                     okCount.incrementAndGet();
-                    success(renamedRaw, GeoChecker.flag("CDN"));
+                    success(renamedRaw, "CDN", GeoChecker.flag("CDN"));
                     noteCountry("CDN");
                     return;
                 }
@@ -1280,7 +1289,7 @@ public class MainActivity extends AppCompatActivity {
                     AppLog.d("test", "UNKNOWN (tunnel up, country undetected) -> " + renamed);
                     status(String.format("❔ [%d/%d] %s = ? country",
                             doneCount.get(), totalCount, hostport));
-                    success(renamedRaw, "❔");
+                    success(renamedRaw, "", "❔");
                 }
             }
         } catch (Exception e) {
@@ -1340,21 +1349,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void success(String renamedLine, String flag) {
+    /** Add a successful config to the output. iso is passed in explicitly —
+     *  guessing it back from the flag emoji broke the FIRST entry of every
+     *  country (runCountryCodes wasn't populated yet -> iso="" -> wrong
+     *  stats/filter). Review fix v1.0.64. */
+    private void success(String renamedLine, String iso, String flag) {
         synchronized (outputLines) {
             outputLines.add(renamedLine);
         }
-        // remember the entry with its country for stats/filtering ("" = unknown)
-        String iso = "";
-        if (flag != null && !flag.isEmpty()) {
-            synchronized (runCountryCodes) {
-                for (String c : runCountryCodes) {
-                    if (GeoChecker.flag(c).equals(flag)) { iso = c; break; }
-                }
-            }
-        }
         synchronized (outEntries) {
-            outEntries.add(new OutEntry(renamedLine, iso));
+            outEntries.add(new OutEntry(renamedLine, iso == null ? "" : iso));
         }
         if (flag != null && !flag.isEmpty()) {
             final List<String> copy;
