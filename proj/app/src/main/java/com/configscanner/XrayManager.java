@@ -291,11 +291,11 @@ public class XrayManager {
         if (!dir.exists()) dir.mkdirs();
         File newBin = new File(dir, "xray_new");
         try { newBin.delete(); } catch (Exception ignored) { }
-        FileOutputStream out = new FileOutputStream(newBin);
-        byte[] buf = new byte[16384];
-        int n;
-        while ((n = xrayStream.read(buf)) > 0) out.write(buf, 0, n);
-        out.close();
+        try (FileOutputStream out = new FileOutputStream(newBin)) {
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = xrayStream.read(buf)) > 0) out.write(buf, 0, n);
+        }
         AppLog.i("update", "staged " + newBin.getAbsolutePath() + " size=" + newBin.length());
 
         newBin.setExecutable(true, true);
@@ -332,8 +332,13 @@ public class XrayManager {
                     + ", binary reports " + vline);
         }
 
-        // atomic replace: no window where the running core does not exist
+        // Replace with a backup round-trip (review fix): a plain
+        // delete+rename could leave NO core at all if the app died between
+        // the two steps. Order now: keep the old core as xray_backup,
+        // rename the staged binary in, delete the backup only on success.
         File target = new File(dir, "xray");
+        File backup = new File(dir, "xray_backup");
+        try { backup.delete(); } catch (Exception ignored) { }
         boolean moved = false;
         try {
             java.nio.file.Files.move(newBin.toPath(), target.toPath(),
@@ -342,13 +347,19 @@ public class XrayManager {
             moved = true;
         } catch (Exception atomicFail) {
             AppLog.w("update", "atomic move failed (" + atomicFail.getMessage()
-                    + ") — fallback delete+rename");
-            if (!newBin.renameTo(target)) {
-                try { target.delete(); } catch (Exception ignored) { }
-                moved = newBin.renameTo(target);
+                    + ") — backup round-trip");
+            boolean oldKept = target.renameTo(backup); // old core parked
+            if (newBin.renameTo(target)) {
+                moved = true;
+            } else if (oldKept) {
+                // put the old core back — the update failed, not the app
+                target.delete();
+                backup.renameTo(target);
             }
         }
-        if (!moved) {
+        if (moved) {
+            try { backup.delete(); } catch (Exception ignored) { }
+        } else {
             try { newBin.delete(); } catch (Exception ignored) { }
             throw new Exception("could not move updated core into " + dir);
         }

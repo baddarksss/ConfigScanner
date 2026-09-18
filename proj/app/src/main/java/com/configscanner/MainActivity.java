@@ -888,7 +888,19 @@ public class MainActivity extends AppCompatActivity {
         for (String line : text.split("\n")) {
             String t = line.trim();
             if (t.isEmpty() || t.startsWith("#")) continue;
-            ServerSpec s = ServerSpec.parse(t);
+            ServerSpec s;
+            try {
+                s = ServerSpec.parse(t);
+            } catch (Exception pe) {
+                // recognizable but invalid/unsupported — report the reason
+                parseFail++;
+                if (parseFail <= 50) {
+                    String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
+                    failedReasons.put(t, "unsupported/invalid: " + pe.getMessage()
+                            + " — " + shortLink);
+                }
+                continue;
+            }
             if (s != null) {
                 servers.add(s);
             } else {
@@ -2531,13 +2543,16 @@ public class MainActivity extends AppCompatActivity {
                         JSONArray arr = new JSONArray(resp.body().string());
                         for (int i = 0; i < arr.length(); i++) {
                             JSONObject r = arr.getJSONObject(i);
-                            boolean prerelease = r.optBoolean("prerelease", false);
-                            if (prerelease || !r.optBoolean("draft", true)) {
-                                tag = r.getString("tag_name");
-                                zipUrl = "https://github.com/XTLS/Xray-core/releases/download/"
-                                        + tag + "/Xray-android-arm64-v8a.zip";
-                                break;
-                            }
+                            // beta mode = the NEWEST PRE-RELEASE, skipping
+                            // both drafts and stable releases (review fix:
+                            // the old condition accepted a stable release,
+                            // so beta mode never reached a pre-release)
+                            if (r.optBoolean("draft", false)) continue;
+                            if (!r.optBoolean("prerelease", false)) continue;
+                            tag = r.getString("tag_name");
+                            zipUrl = "https://github.com/XTLS/Xray-core/releases/download/"
+                                    + tag + "/Xray-android-arm64-v8a.zip";
+                            break;
                         }
                     }
                     if (tag == null) throw new Exception("pre-release not found");
@@ -2555,6 +2570,12 @@ public class MainActivity extends AppCompatActivity {
                 }
                 AppLog.i("update", "candidate " + tag + " from " + zipUrl);
 
+                // integrity: fetch the release's expected SHA-256 for this
+                // asset from the API (trusted channel = same TLS endpoint
+                // that told us the version) and verify after download
+                String expectedSha = coreAssetSha256(client, tag,
+                        "Xray-android-arm64-v8a.zip");
+
                 // never downgrade the running core
                 String cand = tag.startsWith("v") ? tag.substring(1) : tag;
                 String cur = currentCoreVersion();
@@ -2571,6 +2592,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!updDir.exists()) updDir.mkdirs();
                 File zipFile = new File(updDir, "xray-" + cand + ".zip");
 
+                String zipSha = null;
                 if (zipFile.exists() && zipFile.length() > 0 && zipHasXray(zipFile)) {
                     AppLog.i("update", "using cached zip " + zipFile.getName()
                             + " (" + zipFile.length() + " bytes) — no download");
@@ -2624,8 +2646,16 @@ public class MainActivity extends AppCompatActivity {
                         throw new Exception("empty download");
                 }
 
-                AppLog.i("update", "zip sha256=" + sha256(zipFile)
+                zipSha = sha256(zipFile);
+                AppLog.i("update", "zip sha256=" + zipSha
                         + " (tag " + tag + ", " + zipFile.length() + " bytes)");
+                if (expectedSha != null && !zipSha.equalsIgnoreCase(expectedSha)) {
+                    // wrong/corrupted artifact — remove it so the cache can
+                    // never satisfy a later install attempt
+                    zipFile.delete();
+                    throw new Exception("core zip SHA-256 mismatch (expected "
+                            + expectedSha + ", got " + zipSha + ") — download deleted");
+                }
 
                 postUi(() -> {
                     coreStatus.setText(R.string.core_update_installing);
@@ -2674,6 +2704,31 @@ public class MainActivity extends AppCompatActivity {
                 postUi(() -> syncCoreButtons());
             }
         }).start();
+    }
+
+    /** Expected SHA-256 of a release asset, from GitHub's API "digest"
+     *  field (HTTPS, same endpoint that provided the version). Returns null
+     *  when the API does not expose a digest — the install then proceeds
+     *  with the version self-check only. */
+    private static String coreAssetSha256(OkHttpClient client, String tag,
+                                          String assetName) throws Exception {
+        Request req = new Request.Builder()
+                .url("https://api.github.com/repos/XTLS/Xray-core/releases/tags/" + tag)
+                .get().build();
+        try (Response resp = client.newCall(req).execute()) {
+            if (!resp.isSuccessful() || resp.body() == null) return null;
+            JSONObject rel = new JSONObject(resp.body().string());
+            JSONArray assets = rel.optJSONArray("assets");
+            if (assets == null) return null;
+            for (int i = 0; i < assets.length(); i++) {
+                JSONObject a = assets.optJSONObject(i);
+                if (a == null || !assetName.equals(a.optString("name", ""))) continue;
+                String d = a.optString("digest", "");
+                if (d.startsWith("sha256:")) d = d.substring(7);
+                return d.isEmpty() ? null : d;
+            }
+        }
+        return null;
     }
 
     private static String sha256(File f) {
@@ -2756,19 +2811,26 @@ public class MainActivity extends AppCompatActivity {
                         });
                         return;
                     }
-                    // find the apk asset
+                    // find the apk asset — exact expected name for THIS app,
+                    // not "the first .apk in the release" (review fix)
+                    String wantApk = "ConfigScanner-v" + latest + ".apk";
                     String apkUrl = null;
+                    String apkSha = null;
                     JSONArray assets = rel.optJSONArray("assets");
                     if (assets != null) {
                         for (int i = 0; i < assets.length(); i++) {
                             JSONObject a = assets.optJSONObject(i);
-                            if (a != null && a.optString("name", "").endsWith(".apk")) {
+                            if (a == null) continue;
+                            String an = a.optString("name", "");
+                            if (wantApk.equals(an)) {
                                 apkUrl = a.optString("browser_download_url");
+                                apkSha = a.optString("digest", "");
+                                if (apkSha.startsWith("sha256:")) apkSha = apkSha.substring(7);
                                 break;
                             }
                         }
                     }
-                    if (apkUrl == null) throw new Exception("no apk asset");
+                    if (apkUrl == null) throw new Exception("no apk asset " + wantApk);
                     File ext = getExternalFilesDir(null);
                     File dir = new File(ext != null ? ext : getFilesDir(), "updates");
                     if (!dir.exists()) dir.mkdirs();
@@ -2820,6 +2882,15 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                         AppLog.i("appupdate", "apk download complete: " + apk.length() + " bytes");
+                        if (apkSha != null && !apkSha.isEmpty()) {
+                            String gotSha = sha256(apk);
+                            if (!gotSha.equalsIgnoreCase(apkSha)) {
+                                apk.delete();
+                                throw new Exception("apk SHA-256 mismatch (expected "
+                                        + apkSha + ", got " + gotSha + ") — download deleted");
+                            }
+                            AppLog.i("appupdate", "apk sha256 verified: " + gotSha);
+                        }
                         final File f = apk;
                         postUi(() -> {
                             appProgressBar.setVisibility(View.GONE);

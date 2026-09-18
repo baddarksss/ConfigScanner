@@ -176,9 +176,12 @@ public class ServerSpec {
     }
 
     /**
-     * Parses one line. Returns null if it's not a recognizable config line.
+     * Parses one line. Returns null if it's not a recognizable config line;
+     * throws when the line IS recognizable but invalid/unsupported (so the
+     * reason surfaces in the Failed block instead of the link silently
+     * disappearing).
      */
-    public static ServerSpec parse(String line) {
+    public static ServerSpec parse(String line) throws Exception {
         if (line == null) return null;
         line = line.trim();
         if (line.isEmpty()) return null;
@@ -210,6 +213,26 @@ public class ServerSpec {
         if (l.startsWith("anytls://")) return parseAnyTLS(line);
         if (l.startsWith("snic://")) return parseSNIc(line);
         return null;
+    }
+
+    /** Transport allow-list — anything else is a parse error BEFORE xray
+     *  ever sees it (review fix: 'type=banana' used to flow through). */
+    private static final java.util.Set<String> KNOWN_NETWORKS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "tcp", "raw", "ws", "http", "h2", "grpc", "grpc-full", "xhttp", "splithttp", "httpupgrade", "kcp", "quic"));
+
+    /** Security allow-list (client side). */
+    private static final java.util.Set<String> KNOWN_SECURITY = new java.util.HashSet<>(java.util.Arrays.asList(
+            "none", "tls", "reality"));
+
+    private static void validateTransport(String network, String security) throws Exception {
+        String n = network == null ? "tcp" : network.trim().toLowerCase();
+        if (!KNOWN_NETWORKS.contains(n)) {
+            throw new Exception("unsupported network: " + network);
+        }
+        String sec = security == null ? "none" : security.trim().toLowerCase();
+        if (!KNOWN_SECURITY.contains(sec)) {
+            throw new Exception("unsupported security: " + security);
+        }
     }
 
     private static ServerSpec parseVless(String line) {
@@ -282,7 +305,7 @@ public class ServerSpec {
         return s;
     }
 
-    private static ServerSpec parseVmess(String line) {
+    private static ServerSpec parseVmess(String line) throws Exception {
         ServerSpec s = new ServerSpec();
         s.raw = line;
         s.protocol = "vmess";
@@ -314,8 +337,15 @@ public class ServerSpec {
             s.network = o.optString("net", "tcp");
             if (s.network.equals("h2") || s.network.equals("http")) s.network = "tcp";
             if (o.optString("type", "").equals("none")) s.network = "tcp";
-            String tls = o.optString("tls", "none");
-            s.security = (tls.equals("tls") || tls.equals("reality")) ? tls : "none";
+            String tls = o.optString("tls", "none").trim();
+            if (!tls.isEmpty() && !"none".equalsIgnoreCase(tls)
+                    && !"tls".equalsIgnoreCase(tls) && !"reality".equalsIgnoreCase(tls)) {
+                // silent downgrade to none hid broken configs behind a
+                // different test — surface it instead (review fix)
+                throw new Exception("unsupported vmess tls: " + tls);
+            }
+            s.security = tls.equalsIgnoreCase("tls") || tls.equalsIgnoreCase("reality")
+                    ? tls.toLowerCase() : "none";
             s.sni = o.optString("sni", "");
             s.fingerprint = firstNonEmpty(o.optString("fp", ""), "chrome");
             s.alpn = firstNonEmpty(o.optString("alpn", ""), o.optString("alpns", ""));
@@ -336,7 +366,7 @@ public class ServerSpec {
         return s;
     }
 
-    private static ServerSpec parseTrojan(String line) {
+    private static ServerSpec parseTrojan(String line) throws Exception {
         ServerSpec s = new ServerSpec();
         s.raw = line;
         s.protocol = "trojan";
@@ -364,6 +394,7 @@ public class ServerSpec {
         s.network = firstNonEmpty(q.get("type"), "tcp");
         if (s.network.equals("h2") || s.network.equals("http")) s.network = "tcp";
         s.security = firstNonEmpty(q.get("security"), "tls");
+        validateTransport(s.network, s.security);
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
         s.fragmentRaw = firstNonEmpty(q.get("fm"), q.get("fragment"));
         s.ech = q.get("ech");
@@ -379,7 +410,7 @@ public class ServerSpec {
         return s;
     }
 
-    private static ServerSpec parseSS(String line) {
+    private static ServerSpec parseSS(String line) throws Exception {
         ServerSpec s = new ServerSpec();
         s.raw = line;
         s.protocol = "ss";
@@ -401,9 +432,10 @@ public class ServerSpec {
             if (qi >= 0) {
                 String query = rest.substring(qi + 1);
                 if (query.startsWith("plugin=") || query.contains("&plugin=")) {
-                    // v2-plugin shadowsocks is not what the core's ss outbound
-                    // speaks — the base ss connection is still what we can test
-                    AppLog.d("parse", "ss plugin ignored (testing base ss only)");
+                    // a plugin-obfuscated stream can NOT be tested without the
+                    // plugin — pretending to test the base connection produces
+                    // a false FAIL (review fix). Explicit unsupported.
+                    throw new Exception("unsupported: shadowsocks plugin");
                 }
                 rest = rest.substring(0, qi);
             }
