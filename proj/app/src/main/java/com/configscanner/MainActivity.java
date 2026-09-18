@@ -1141,6 +1141,14 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 // insecure=1 with plain TLS: fetch the server's leaf cert and
                 // pin it (allowInsecure no longer exists in modern Xray)
+                // insecure=1 with plain TLS: fetch the server's leaf cert and
+                // pin it (allowInsecure no longer exists in modern Xray)
+                if (s.allowInsecure && "tls".equals(s.security)) {
+                    String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
+                    s.pinnedCertHash = CertPinner.pin(s.host, s.port, sni, 8000);
+                    AppLog.d("test", "certpin " + s.host + ":" + s.port + " sni=" + sni
+                            + " hash=" + (s.pinnedCertHash.isEmpty() ? "FAILED" : s.pinnedCertHash));
+                }
                 File xrayOwnLog = new File(XrayManager.coreDir(this), "xrayw_" + port + ".log");
                 String cfg = XrayConfig.buildFull(s, port, xrayOwnLog.getAbsolutePath());
                 File cfgFile = new File(XrayManager.coreDir(this), "cfg_" + port + ".json");
@@ -1200,38 +1208,6 @@ public class MainActivity extends AppCompatActivity {
             }
             AppLog.d("test", "port " + port + " up; engine alive=" + engine.isAlive()
                     + " logSize=" + engineLog.length());
-
-            // Fetch insecure TLS certificate through the SAME Xray SOCKS route.
-            // This avoids false pinning when the destination is CDN-fronted or
-            // DNS resolves to a different backend than the proxy route.
-            if (s.allowInsecure && "tls".equals(s.security)) {
-                String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
-                s.pinnedCertHash = CertPinner.pinViaSocks(port, s.host, s.port, sni, 8000);
-                AppLog.d("test", "certpin-via-proxy " + s.host + ":" + s.port + " sni=" + sni
-                        + " hash=" + (s.pinnedCertHash.isEmpty() ? "FAILED" : s.pinnedCertHash));
-                if (s.pinnedCertHash.isEmpty()) {
-                    doneCount.incrementAndGet();
-                    unreachableCount.incrementAndGet();
-                    fail(s, getString(R.string.res_connect_failed));
-                    return;
-                }
-                // Rebuild the config with the newly obtained pin.
-                String pinnedCfg = XrayConfig.buildFull(s, port, engineLog.getAbsolutePath());
-                File pinnedCfgFile = new File(XrayManager.coreDir(this), "cfg_" + port + ".json");
-                try (FileOutputStream fos = new FileOutputStream(pinnedCfgFile)) {
-                    fos.write(pinnedCfg.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
-                XrayManager.stop(engine);
-                engine = XrayManager.start(XrayManager.binary(this), pinnedCfgFile,
-                        new File(XrayManager.coreDir(this), "xray_" + port + ".log"));
-                activeEngines.add(engine);
-                if (!XrayManager.waitForPort(port, waitMs)) {
-                    doneCount.incrementAndGet();
-                    unreachableCount.incrementAndGet();
-                    fail(s, getString(R.string.res_connect_failed));
-                    return;
-                }
-            }
 
             // geo check via SOCKS
             long t0 = System.currentTimeMillis();
