@@ -1221,18 +1221,18 @@ public class MainActivity extends AppCompatActivity {
                                 + geo.failed + "/" + geo.total
                                 + ", first: " + geo.firstError
                         : "tunnel up; country unknown — no geo provider answered in time";
-                // v1.0.60: a Cloudflare-fronted target is its own category.
+                // v1.0.62: any CDN-fronted target is its own category
+                // (Cloudflare, Fastly, CloudFront, Akamai, Google, …).
                 // These tunnels handshake fine but their network path often
                 // blocks the geo probes — that does NOT mean the config is
-                // dead. Label them ☁️ CDN (Cloudflare) instead of dropping
-                // them as "no country".
+                // dead. Label them ☁️ CDN instead of dropping them as
+                // "no country".
                 if (!looksLikeEngineError(tail)
-                        && ServerSpec.isCloudflareTarget(s.host, s.sni, s.hostHeader)) {
-                    boolean fa = "fa".equals(prefs.getString("out_lang", "en"));
+                        && ServerSpec.isCdnTarget(s.host, s.sni, s.hostHeader)) {
                     String channel = prefs.getString("channel", "");
                     boolean incCh = prefs.getBoolean("include_channel", true);
                     String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
-                    String label = fa ? "کلادفلر CDN" : "Cloudflare CDN";
+                    String label = "CDN";
                     String renamed = "\u2601\uFE0F " + label + suffix;
                     String renamedRaw = renameUri(s.raw, renamed);
                     AppLog.d("test", "OK CDN (cloudflare, geo blocked) -> " + renamed);

@@ -908,20 +908,40 @@ public class ServerSpec {
         return null;
     }
 
-    // ---- Cloudflare detection (v1.0.60) --------------------------------
-    // Tunnels fronted by Cloudflare often cannot pass a geo probe from some
+    // ---- CDN detection (v1.0.60 Cloudflare, v1.0.62 general) -----------
+    // Tunnels fronted by a CDN often cannot pass a geo probe from some
     // networks (the handshake completes but data gets reset). Instead of
-    // dropping them as "no country" the app labels them as CDN. Detection:
-    // IP literal in a Cloudflare range, a Cloudflare-only domain suffix, or
-    // a DNS resolution that lands in a Cloudflare range.
+    // dropping them as "no country" the app labels them as \u2601\uFE0F CDN.
+    // Detection: IP literal in a known CDN range, a CDN-only domain suffix,
+    // or a DNS resolution that lands in a CDN range.
 
-    private static final int[] CF_RANGES = {
-        // {network, bits} — official Cloudflare IPv4 list (2026)
+    private static final int[] CDN_RANGES = {
+        // {network, bits} pairs — curated, well-known IPv4 edge ranges
+        // Cloudflare (official list)
         ip("103.21.244.0"), 22, ip("103.22.200.0"), 22, ip("103.31.4.0"), 22,
         ip("104.16.0.0"), 13, ip("104.24.0.0"), 14, ip("108.162.192.0"), 18, ip("131.0.72.0"), 22,
         ip("141.101.64.0"), 18, ip("162.158.0.0"), 15, ip("172.64.0.0"), 13,
         ip("173.245.48.0"), 20, ip("188.114.96.0"), 20, ip("190.93.240.0"), 20,
         ip("197.234.240.0"), 22, ip("198.41.128.0"), 17,
+        // Fastly (official public list)
+        ip("23.235.32.0"), 20, ip("43.249.72.0"), 22, ip("103.244.50.0"), 24,
+        ip("103.245.222.0"), 23, ip("103.245.224.0"), 24, ip("104.156.80.0"), 20,
+        ip("140.248.64.0"), 18, ip("146.75.0.0"), 16, ip("151.101.0.0"), 16,
+        ip("157.52.64.0"), 18, ip("167.82.0.0"), 17, ip("172.111.64.0"), 18,
+        ip("185.31.16.0"), 22, ip("199.27.72.0"), 21, ip("199.232.0.0"), 16,
+        // Amazon CloudFront (stable edge blocks from AWS ip-ranges)
+        ip("13.32.0.0"), 15, ip("13.224.0.0"), 14, ip("18.160.0.0"), 12,
+        ip("52.222.128.0"), 17, ip("54.230.0.0"), 16, ip("64.252.64.0"), 18,
+        ip("65.8.0.0"), 16, ip("65.9.0.0"), 16, ip("99.84.0.0"), 16,
+        ip("108.138.0.0"), 15, ip("130.176.0.0"), 16, ip("143.204.0.0"), 16,
+        ip("144.220.0.0"), 16,
+        // Akamai (well-known edge blocks)
+        ip("2.16.0.0"), 13, ip("23.32.0.0"), 11, ip("23.192.0.0"), 11,
+        ip("88.221.0.0"), 16, ip("92.122.0.0"), 15, ip("95.100.0.0"), 15,
+        ip("104.64.0.0"), 10, ip("184.24.0.0"), 13, ip("184.84.0.0"), 14,
+        // Google frontends / global HTTP(S) LB anycast
+        ip("34.98.0.0"), 16, ip("34.117.0.0"), 16, ip("34.149.0.0"), 16,
+        ip("142.250.0.0"), 15, ip("172.217.0.0"), 16,
     };
 
     private static int ip(String dotted) {
@@ -930,28 +950,36 @@ public class ServerSpec {
                 | (Integer.parseInt(p[2]) << 8) | Integer.parseInt(p[3]);
     }
 
-    private static boolean inCfRange(byte[] a) {
+    private static boolean inCdnRange(byte[] a) {
         if (a == null || a.length != 4) return false;
         int v = ((a[0] & 0xFF) << 24) | ((a[1] & 0xFF) << 16)
                 | ((a[2] & 0xFF) << 8) | (a[3] & 0xFF);
-        for (int i = 0; i + 1 < CF_RANGES.length; i += 2) {
-            int net = CF_RANGES[i], bits = CF_RANGES[i + 1];
+        for (int i = 0; i + 1 < CDN_RANGES.length; i += 2) {
+            int net = CDN_RANGES[i], bits = CDN_RANGES[i + 1];
             int mask = bits == 0 ? 0 : (0xFFFFFFFF << (32 - bits));
             if ((v & mask) == (net & mask)) return true;
         }
         return false;
     }
 
-    private static final String[] CF_SUFFIXES = {
-        ".pages.dev", ".workers.dev", ".trycloudflare.com", ".cfargotunnel.com"
+    private static final String[] CDN_SUFFIXES = {
+        // Cloudflare
+        ".pages.dev", ".workers.dev", ".trycloudflare.com", ".cfargotunnel.com",
+        // Fastly / CloudFront / Akamai
+        ".fastly.net", ".fastlylb.net", ".cloudfront.net",
+        ".akamaized.net", ".akamaihd.net", ".edgekey.net", ".edgesuite.net",
+        // Google frontends
+        ".web.app", ".firebaseapp.com",
+        // Bunny CDN / Gcore
+        ".b-cdn.net", ".gcdn.co", ".gcorelabs.net",
     };
 
-    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> CF_RESOLVE_CACHE =
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> CDN_RESOLVE_CACHE =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** True when host/sni/hostHeader point at Cloudflare (directly or after
+    /** True when host/sni/hostHeader point at a known CDN (directly or after
      *  a short DNS lookup). Never throws; never blocks longer than ~2s. */
-    public static boolean isCloudflareTarget(String host, String sni, String hostHeader) {
+    public static boolean isCdnTarget(String host, String sni, String hostHeader) {
         java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
         if (host != null && !host.trim().isEmpty()) names.add(host.trim().toLowerCase());
         if (sni != null && !sni.trim().isEmpty()) names.add(sni.trim().toLowerCase());
@@ -969,9 +997,9 @@ public class ServerSpec {
                     if (v < 0 || v > 255) { ok = false; break; }
                     a[i] = (byte) v;
                 }
-                if (ok && inCfRange(a)) return true;
+                if (ok && inCdnRange(a)) return true;
             } else {
-                for (String suf : CF_SUFFIXES) {
+                for (String suf : CDN_SUFFIXES) {
                     if (n.endsWith(suf)) return true;
                 }
                 needResolve = true;
@@ -980,16 +1008,16 @@ public class ServerSpec {
         if (!needResolve) return false;
         for (String n : names) {
             if (n.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) continue;
-            Boolean cached = CF_RESOLVE_CACHE.get(n);
+            Boolean cached = CDN_RESOLVE_CACHE.get(n);
             if (cached != null) { if (cached) return true; continue; }
-            boolean cf = resolveIsCf(n);
-            CF_RESOLVE_CACHE.put(n, cf);
+            boolean cf = resolveIsCdn(n);
+            CDN_RESOLVE_CACHE.put(n, cf);
             if (cf) return true;
         }
         return false;
     }
 
-    private static boolean resolveIsCf(String host) {
+    private static boolean resolveIsCdn(String host) {
         java.util.concurrent.ExecutorService ex =
                 Executors.newSingleThreadExecutor();
         try {
@@ -997,7 +1025,7 @@ public class ServerSpec {
                     () -> java.net.InetAddress.getAllByName(host));
             java.net.InetAddress[] addrs = f.get(2, java.util.concurrent.TimeUnit.SECONDS);
             for (java.net.InetAddress a : addrs) {
-                if (inCfRange(a.getAddress())) return true;
+                if (inCdnRange(a.getAddress())) return true;
             }
         } catch (Exception ignored) {
         } finally {
