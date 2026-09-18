@@ -45,10 +45,17 @@ public class CertPinner {
             s.connect(new InetSocketAddress(host, port), timeoutMs);
             s.setSoTimeout(timeoutMs);
             if (sni != null && !sni.isEmpty() && !sni.equals(host)) {
-                javax.net.ssl.SSLParameters sp = s.getSSLParameters();
-                sp.setServerNames(java.util.Collections.singletonList(
-                        new javax.net.ssl.SNIHostName(sni.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
-                s.setSSLParameters(sp);
+                // exotic hostnames can make SNIHostName throw — pinning must
+                // not die on them, just proceed without an SNI hint
+                try {
+                    javax.net.ssl.SSLParameters sp = s.getSSLParameters();
+                    sp.setServerNames(java.util.Collections.singletonList(
+                            new javax.net.ssl.SNIHostName(sni.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+                    s.setSSLParameters(sp);
+                } catch (Exception sniErr) {
+                    AppLog.w("cert", "bad SNI skipped: " + sni
+                            + " (" + sniErr.getClass().getSimpleName() + ")");
+                }
             }
             s.startHandshake();
             Certificate[] chain = s.getSession().getPeerCertificates();

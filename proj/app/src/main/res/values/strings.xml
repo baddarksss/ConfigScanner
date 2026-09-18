@@ -261,7 +261,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.60
+    <string name="changelog">v1.0.61
+• Reliability: the scan now runs as a foreground service — Android can no longer kill a long scan when the screen is off or you leave the app
+• Port allocation rewritten: deterministic round-robin, no more random scan/collisions under high parallelism
+• Hysteria2 YAML: full escaping of passwords/SNI/server (quotes, backslashes, control chars)
+• Cert pinning no longer aborts on exotic SNI hostnames
+• Code cleanups: leftover debug print removed
+
+v1.0.60
 • New: servers behind Cloudflare are no longer dropped as “no country” — the tunnel is up but the network path blocks geo probes; they now enter the output as ☁️ Cloudflare CDN
 • Detection by Cloudflare IP ranges, Cloudflare-only domains (pages.dev, workers.dev, …) and DNS
 • The country stats and filter show the ☁️ CDN group like a country

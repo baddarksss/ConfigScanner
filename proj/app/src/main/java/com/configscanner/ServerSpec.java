@@ -402,7 +402,7 @@ public class ServerSpec {
                 if (query.startsWith("plugin=") || query.contains("&plugin=")) {
                     // v2-plugin shadowsocks is not what the core's ss outbound
                     // speaks — the base ss connection is still what we can test
-                    System.out.println("cfgscan: ss plugin ignored (testing base ss only)");
+                    AppLog.d("parse", "ss plugin ignored (testing base ss only)");
                 }
                 rest = rest.substring(0, qi);
             }

@@ -43,7 +43,7 @@ public class HysteriaManager {
         String serverAddr = (s.host != null && s.host.contains(":") && s.host.matches("[0-9a-fA-F:]+"))
                 ? "[" + s.host + "]:" + s.port
                 : s.host + ":" + s.port;
-        y.append("server: ").append(serverAddr).append("\n");
+        y.append("server: ").append(yamlQuote(serverAddr)).append("\n");
         y.append("auth: ").append(yamlQuote(s.password)).append("\n");
         y.append("tls:\n");
         String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
@@ -114,6 +114,25 @@ public class HysteriaManager {
 
     static String yamlQuote(String v) {
         if (v == null) return "\"\"";
-        return "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        // full double-quoted YAML scalar escaping: backslash, quote and all
+        // control characters (a raw newline inside a password would abort
+        // the whole config parse)
+        StringBuilder sb = new StringBuilder(v.length() + 8);
+        sb.append('"');
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\\\"); break;
+                case '"': sb.append("\\\""); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default:
+                    if (c < 0x20) sb.append(String.format("\\x%02x", (int) c));
+                    else sb.append(c);
+            }
+        }
+        sb.append('"');
+        return sb.toString();
     }
 }

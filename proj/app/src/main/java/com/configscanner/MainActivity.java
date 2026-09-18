@@ -24,8 +24,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
 import androidx.core.os.LocaleListCompat;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -152,7 +150,6 @@ public class MainActivity extends AppCompatActivity {
      *  counters/output of the new run. */
     private volatile int runGeneration = 0;
 
-    private static final int SCAN_NOTIF_ID = 42;
 
     private final List<String> outputLines = Collections.synchronizedList(new ArrayList<>());
     private final List<String> flagList = new ArrayList<>();
@@ -961,9 +958,16 @@ public class MainActivity extends AppCompatActivity {
             AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
                     + " xray=" + XrayManager.version(binF)
                     + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
+            // v1.0.61: hold a foreground service for the whole run — a plain
+            // notification doesn't stop Android from killing a long scan
+            // when the screen is off
+            ScanService.begin(this, servers.size());
             // the user may hit Stop while the version check above was running
             // — a stopped run must not start testing anything
-            if (runStopped || !running || gen != runGeneration) return;
+            if (runStopped || !running || gen != runGeneration) {
+                ScanService.end(this);
+                return;
+            }
             synchronized (runStartLock) {
                 if (runStopped || !running || gen != runGeneration) return;
                 ExecutorService newPool = Executors.newFixedThreadPool(parallelN);
@@ -1000,27 +1004,28 @@ public class MainActivity extends AppCompatActivity {
     /** Serializes pool creation between startRun's prep thread and stopRun */
     private final Object runStartLock = new Object();
 
+    /** Round-robin cursor for port allocation — deterministic, so parallel
+     *  workers never race for the same candidate (each call advances the
+     *  cursor under the assignedPorts lock). */
+    private int portCursor = 21000;
+
     private int findFreePort() {
         synchronized (assignedPorts) {
-            int start = 20000 + (int) (Math.random() * 500);
-            for (int p = start; p < 60000; p++) {
+            for (int i = 0; i < 30000; i++) {
+                int p = portCursor;
+                portCursor = (portCursor >= 50999) ? 21000 : portCursor + 1;
                 if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
                     assignedPorts.add(p);
                     return p;
                 }
             }
-            for (int p = 10000; p < start; p++) {
-                if (!assignedPorts.contains(p) && !XrayManager.portInUse(p)) {
-                    assignedPorts.add(p);
-                    return p;
-                }
-            }
+            // whole 21000..50999 range busy — extremely rare; let the OS pick
             try (java.net.ServerSocket ss = new java.net.ServerSocket(0)) {
                 int p = ss.getLocalPort();
                 assignedPorts.add(p);
                 return p;
             } catch (Exception e) {
-                int fallback = 21000 + (int) (Math.random() * 20000);
+                int fallback = 21000 + (portCursor++) % 30000;
                 assignedPorts.add(fallback);
                 return fallback;
             }
@@ -2288,27 +2293,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateScanNotification() {
-        int total = totalCount;
-        if (total <= 0) return;
-        int done = doneCount.get();
-        int pct = (int) (100.0 * done / total);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(this, "scan_progress")
-                .setSmallIcon(R.drawable.ic_nav_test)
-                .setContentTitle(getString(R.string.scan_notif_title))
-                .setContentText(getString(R.string.scan_notif_prog, done, total, pct))
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setShowWhen(false)
-                .setProgress(total, done, false);
-        try {
-            NotificationManagerCompat.from(this).notify(SCAN_NOTIF_ID, b.build());
-        } catch (Exception ignored) { }
+        // v1.0.61: the ongoing notification now belongs to ScanService
+        // (foreground); the activity only feeds it numbers
+        ScanService.progress(doneCount.get(), totalCount);
     }
 
     private void cancelScanNotification() {
-        try {
-            NotificationManagerCompat.from(this).cancel(SCAN_NOTIF_ID);
-        } catch (Exception ignored) { }
+        ScanService.end(this);
     }
 
     private void status(String s) {
