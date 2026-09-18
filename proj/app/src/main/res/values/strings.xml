@@ -261,41 +261,17 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.66
+    <string name="changelog">v1.0.69
+• Fixed in-app update failing with “problem parsing the package”: a half-downloaded APK could be cached and re-installed forever — updates now download to a temp file, are verified (SHA-256 / APK magic) BEFORE they can be installed, and any leftover corrupt file is detected and deleted automatically
+• versionCode 70
+
+v1.0.68
+• Cert pinning now goes through the tested SOCKS route, stronger vless/vmess link validation, cleaner ScanService lifecycle, one-day Mudfish links, multi-address cert fetch
+
+v1.0.67
 • Scan reliability: per-test files are cleaned even when a worker is stopped, geo voting no longer stops early at a 2-2 tie, and diagnostic output is more complete
 • Hysteria/Xray version diagnostics now include stderr, Mudfish uploads are size-limited, and app log tails stay UTF-8 safe
-• versionCode 67
 
-• Core updater: Beta mode now really picks the newest pre-release (it used to stop at a stable release); downloaded core zip and app APK are verified against the release SHA-256 before install
-• Core replace is crash-safe: the old binary is parked as a backup until the new one is in place — no window with no core at all
-• Link validation: unknown transport (type=…), unknown security and unknown vmess tls are rejected at parse time with a clear reason; Shadowsocks links with a plugin are reported unsupported instead of being false-failed
-• versionCode 66
-
-v1.0.64
-• Critical (review): the first server of each country was registered as Unknown in the country stats/filter — the country is now passed with the result directly, stats are exact
-• Critical (review): parse-failure info was wiped again right after being recorded — invalid configs now really show up in the Failed block and the summary
-• hy2:// links are recognized (alias of hysteria2://)
-• Ambiguous geo vote (e.g. 2×US vs 2×DE) now yields Unknown instead of an alphabetical coin flip
-• CDN DNS cache gets a 10-minute TTL; one shared DNS resolver thread pool instead of a thread per lookup
-• Stopping during run-start no longer leaks the foreground service; unknownLinks made thread-safe
-
-v1.0.63
-• Pipeline fix (review): a config that is UP but whose country cannot be detected now STAYS in the output as ❔ Unknown — healthy configs are never dropped just because geo failed
-• Country results now need 2 providers agreeing; a single provider’s answer is never shown as a country (and ties are resolved deterministically)
-• The plaintext-HTTP geo provider (ip-api.com) was removed — country data must not travel unencrypted
-• Configs that cannot be parsed are now counted and listed in the Failed block with the raw line instead of silently disappearing (“invalid” counter added to the run summary)
-• Thread-safety: the failed-reasons/process-log maps are now safe under high parallelism
-• CDN ranges tightened: the huge Akamai/Google blocks removed (no more false ☁️ CDN)
-
-v1.0.62
-• CDN detection generalized: Fastly, AWS CloudFront, Akamai, Google frontends, Bunny/GCore (plus Cloudflare) — a tunnel that is up but geo-blocked now gets the ☁️ CDN label instead of disappearing as “no country”
-• The label is provider-neutral: ☁️ CDN
-• Unsupported protocols keep their clear skip messages (unchanged by design)
-
-v1.0.61
-• Reliability: the scan now runs as a foreground service — Android can no longer kill a long scan when the screen is off or you leave the app
-• Port allocation rewritten: deterministic round-robin, no more random scan/collisions under high parallelism
-• Hysteria2 YAML: full escaping of passwords/SNI/server (quotes, backslashes, control chars)
-• Cert pinning no longer aborts on exotic SNI hostnames
-• Code cleanups: leftover debug print removed</string>
+v1.0.66
+• (previous release)</string>
 </resources>

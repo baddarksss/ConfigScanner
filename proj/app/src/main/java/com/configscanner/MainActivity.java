@@ -2736,6 +2736,22 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    /** Cheap APK sanity check: ZIP files start with the bytes "PK". */
+    private static boolean zipMagic(File f) {
+        java.io.DataInputStream in = null;
+        try {
+            in = new java.io.DataInputStream(new java.io.BufferedInputStream(
+                    new java.io.FileInputStream(f)));
+            byte[] m = new byte[2];
+            if (in.read(m) != 2) return false;
+            return m[0] == 'P' && m[1] == 'K';
+        } catch (Exception e) {
+            return false;
+        } finally {
+            try { if (in != null) in.close(); } catch (Exception ignored) { }
+        }
+    }
+
     private static String sha256(File f) {
         try (java.io.InputStream is = new FileInputStream(f)) {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
@@ -2840,6 +2856,28 @@ public class MainActivity extends AppCompatActivity {
                     File dir = new File(ext != null ? ext : getFilesDir(), "updates");
                     if (!dir.exists()) dir.mkdirs();
                     File apk = new File(dir, "ConfigScanner-v" + latest + ".apk");
+                    File part = new File(dir, apk.getName() + ".part");
+
+                    // FIELD FIX (v1.0.69): an APK left over from an interrupted
+                    // earlier download installs as garbage and the package
+                    // installer reports "problem parsing the package". Verify
+                    // ANY existing file before trusting it — delete if bad.
+                    if (apk.exists()) {
+                        boolean ok = false;
+                        try {
+                            if (apkSha != null && !apkSha.isEmpty()) {
+                                ok = sha256(apk).equalsIgnoreCase(apkSha);
+                            } else {
+                                ok = apk.length() > 1_000_000L && zipMagic(apk);
+                            }
+                        } catch (Exception ve) { ok = false; }
+                        if (!ok) {
+                            AppLog.w("appupdate", "cached apk FAILED verification — deleting "
+                                    + apk.getName() + " (" + apk.length() + " bytes)");
+                            apk.delete();
+                        }
+                    }
+
                     if (apk.exists() && apk.length() > 0) {
                         AppLog.i("appupdate", "using cached apk " + apk.getName()
                                 + " (" + apk.length() + " bytes) — no download");
@@ -2858,43 +2896,57 @@ public class MainActivity extends AppCompatActivity {
                         appProgressBar.setIndeterminate(false);
                         appProgressBar.setProgress(0);
                     });
+                    // v1.0.69: download to a .part file — an interrupted
+                    // download must never leave a half APK under the real name
                     Request dz = new Request.Builder().url(apkUrl).get().build();
-                    try (Response dr = client.newCall(dz).execute()) {
-                        if (!dr.isSuccessful() || dr.body() == null)
-                            throw new Exception("download HTTP " + dr.code());
-                        long total = dr.body().contentLength();
-                        long got = 0;
-                        int lastStep = -1;
-                        try (FileOutputStream fos = new FileOutputStream(apk);
-                             InputStream is = dr.body().byteStream()) {
-                            byte[] buf = new byte[65536];
-                            int n;
-                            while ((n = is.read(buf)) > 0) {
-                                fos.write(buf, 0, n);
-                                got += n;
-                                int step = total > 0 ? (int) (got * 1000 / total) : 0;
-                                if (step > lastStep) {
-                                    lastStep = step;
-                                    final int p = step;
-                                    final long fg = got;
-                                    final long ft = total;
-                                    postUi(() -> {
-                                        appProgressBar.setProgress(p);
-                                        appUpdateStatus.setText(getString(R.string.app_update_prog,
-                                                ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg), mb(ft)));
-                                    });
+                    try {
+                        try (Response dr = client.newCall(dz).execute()) {
+                            if (!dr.isSuccessful() || dr.body() == null)
+                                throw new Exception("download HTTP " + dr.code());
+                            long total = dr.body().contentLength();
+                            long got = 0;
+                            int lastStep = -1;
+                            try (FileOutputStream fos = new FileOutputStream(part);
+                                 InputStream is = dr.body().byteStream()) {
+                                byte[] buf = new byte[65536];
+                                int n;
+                                while ((n = is.read(buf)) > 0) {
+                                    fos.write(buf, 0, n);
+                                    got += n;
+                                    int step = total > 0 ? (int) (got * 1000 / total) : 0;
+                                    if (step > lastStep) {
+                                        lastStep = step;
+                                        final int p = step;
+                                        final long fg = got;
+                                        final long ft = total;
+                                        postUi(() -> {
+                                            appProgressBar.setProgress(p);
+                                            appUpdateStatus.setText(getString(R.string.app_update_prog,
+                                                    ft > 0 ? (int) (fg * 100 / ft) : 0, mb(fg), mb(ft)));
+                                        });
+                                    }
                                 }
                             }
-                        }
-                        AppLog.i("appupdate", "apk download complete: " + apk.length() + " bytes");
-                        if (apkSha != null && !apkSha.isEmpty()) {
-                            String gotSha = sha256(apk);
-                            if (!gotSha.equalsIgnoreCase(apkSha)) {
-                                apk.delete();
-                                throw new Exception("apk SHA-256 mismatch (expected "
-                                        + apkSha + ", got " + gotSha + ") — download deleted");
+                            AppLog.i("appupdate", "apk download complete: " + part.length() + " bytes");
+                            // verify the .part BEFORE it can become installable
+                            if (apkSha != null && !apkSha.isEmpty()) {
+                                String gotSha = sha256(part);
+                                if (!gotSha.equalsIgnoreCase(apkSha)) {
+                                    part.delete();
+                                    throw new Exception("apk SHA-256 mismatch (expected "
+                                            + apkSha + ", got " + gotSha + ") — download deleted");
+                                }
+                                AppLog.i("appupdate", "apk sha256 verified: " + gotSha);
+                            } else if (!zipMagic(part)) {
+                                part.delete();
+                                throw new Exception("downloaded file is not an APK (bad magic)");
                             }
-                            AppLog.i("appupdate", "apk sha256 verified: " + gotSha);
+                            if (part.renameTo(apk)) {
+                                AppLog.i("appupdate", "staged download moved into place");
+                            } else {
+                                java.nio.file.Files.move(part.toPath(), apk.toPath(),
+                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            }
                         }
                         final File f = apk;
                         postUi(() -> {
@@ -2903,6 +2955,10 @@ public class MainActivity extends AppCompatActivity {
                             btnAppUpdate.setEnabled(true);
                             installApk(f);
                         });
+                    } catch (Exception dlErr) {
+                        // never leave a half-written .part behind
+                        try { part.delete(); } catch (Exception ignored) { }
+                        throw dlErr;
                     }
                 }
             } catch (Exception e) {
