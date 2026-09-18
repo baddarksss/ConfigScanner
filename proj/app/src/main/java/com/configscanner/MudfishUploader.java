@@ -23,9 +23,17 @@ final class MudfishUploader {
         void done(String rawUrl, String error);
     }
 
+    static final int MAX_TEXT_BYTES = 900_000;
+
     static void upload(String text, Callback cb) {
         new Thread(() -> {
             try {
+                if (text == null) throw new IllegalArgumentException("text is null");
+                int textBytes = text.getBytes(StandardCharsets.UTF_8).length;
+                if (textBytes > MAX_TEXT_BYTES) {
+                    throw new IllegalArgumentException("text bin too large (" + textBytes
+                            + " bytes, max " + MAX_TEXT_BYTES + ")");
+                }
                 org.json.JSONObject body = new org.json.JSONObject();
                 body.put("text", text);
                 body.put("ttl", "0");

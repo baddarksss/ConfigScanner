@@ -85,6 +85,9 @@ public class HysteriaManager {
     public static String version(File bin) {
         try {
             ProcessBuilder pb = new ProcessBuilder(bin.getAbsolutePath(), "version");
+            // Hysteria may print failures to stderr. Merge it into stdout so
+            // version errors are visible instead of becoming "unknown".
+            pb.redirectErrorStream(true);
             Process p = pb.start();
             StringBuilder sb = new StringBuilder();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
