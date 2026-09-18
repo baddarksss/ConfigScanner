@@ -235,7 +235,7 @@ public class ServerSpec {
         }
     }
 
-    private static ServerSpec parseVless(String line) {
+    private static ServerSpec parseVless(String line) throws Exception {
         ServerSpec s = new ServerSpec();
         s.raw = line;
         s.protocol = "vless";
@@ -246,7 +246,7 @@ public class ServerSpec {
             body = body.substring(0, fi);
         }
         int at = body.lastIndexOf('@');
-        if (at < 0) return null;
+        if (at < 0) throw new Exception("invalid vless: missing @");
         s.uuid = urlDecode(body.substring(0, at));
         String rest = body.substring(at + 1);
         int qi = rest.indexOf('?');
@@ -301,7 +301,12 @@ public class ServerSpec {
                 || "true".equals(q.get("allowinsecure")) || "1".equals(q.get("allowinsecure")))
             s.allowInsecure = true;
 
-        if (s.host.isEmpty() || s.uuid.isEmpty()) return null;
+        validateTransport(s.network, s.security);
+        if (s.port < 1 || s.port > 65535) throw new Exception("invalid port: " + s.port);
+        if (s.host.isEmpty() || s.uuid.isEmpty()) throw new Exception("invalid vless: missing host or uuid");
+        if ("reality".equals(s.security) && (s.pbk == null || s.pbk.isEmpty())) {
+            throw new Exception("vless reality: missing pbk");
+        }
         return s;
     }
 
@@ -359,9 +364,13 @@ public class ServerSpec {
             if (s.serviceName.isEmpty() && "grpc".equals(s.network) && !s.path.isEmpty()) {
                 s.serviceName = s.path.startsWith("/") ? s.path.substring(1) : s.path;
             }
-            if (s.host.isEmpty() || s.uuid.isEmpty()) return null;
-        } catch (Exception e) {
-            return null;
+            validateTransport(s.network, s.security);
+            if (s.port < 1 || s.port > 65535) throw new Exception("invalid port: " + s.port);
+            if (s.host.isEmpty() || s.uuid.isEmpty()) {
+                throw new Exception("invalid vmess: missing host or uuid");
+            }
+        } catch (org.json.JSONException e) {
+            throw new Exception("invalid vmess JSON: " + e.getMessage(), e);
         }
         return s;
     }

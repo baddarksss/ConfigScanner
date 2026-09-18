@@ -21,6 +21,16 @@ import javax.net.ssl.SSLSocketFactory;
 public class CertPinner {
 
     public static String pin(String host, int port, String sni, int timeoutMs) {
+        return pinViaSocks(-1, host, port, sni, timeoutMs);
+    }
+
+    /**
+     * Fetch the leaf certificate through the same local SOCKS5 route that
+     * Xray uses for the test. A direct handshake can see a different CDN
+     * certificate or even a different backend than the actual proxy route.
+     * proxyPort < 0 keeps the legacy direct behavior.
+     */
+    public static String pinViaSocks(int proxyPort, String host, int port, String sni, int timeoutMs) {
         SSLSocket s = null;
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
@@ -42,15 +52,47 @@ public class CertPinner {
                     }
             }, null);
             SSLSocketFactory f = ctx.getSocketFactory();
-            // Xray may select a different address when a hostname has
-            // multiple A/AAAA records. Try every resolved address so the pin is
-            // not accidentally tied to one stale DNS answer.
-            InetAddress[] addresses = InetAddress.getAllByName(host);
             Exception last = null;
-            for (InetAddress address : addresses) {
+            if (proxyPort >= 0) {
                 try {
-                    s = (SSLSocket) f.createSocket();
-                    s.connect(new InetSocketAddress(address, port), timeoutMs);
+                    java.net.Proxy proxy = new java.net.Proxy(
+                            java.net.Proxy.Type.SOCKS,
+                            new InetSocketAddress("127.0.0.1", proxyPort));
+                    java.net.Socket raw = new java.net.Socket(proxy);
+                    raw.connect(InetSocketAddress.createUnresolved(host, port), timeoutMs);
+                    s = (SSLSocket) f.createSocket(raw, host, port, true);
+                    s.setSoTimeout(timeoutMs);
+                    if (sni != null && !sni.isEmpty()) {
+                        javax.net.ssl.SSLParameters sp = s.getSSLParameters();
+                        sp.setServerNames(java.util.Collections.singletonList(
+                                new javax.net.ssl.SNIHostName(sni)));
+                        s.setSSLParameters(sp);
+                    }
+                    s.startHandshake();
+                    Certificate[] chain = s.getSession().getPeerCertificates();
+                    if (chain != null && chain.length > 0 && chain[0] instanceof X509Certificate) {
+                        byte[] der = ((X509Certificate) chain[0]).getEncoded();
+                        byte[] h = MessageDigest.getInstance("SHA-256").digest(der);
+                        StringBuilder sb = new StringBuilder(h.length * 2);
+                        for (byte b : h) sb.append(String.format("%02x", b));
+                        return sb.toString();
+                    }
+                } catch (Exception e) {
+                    last = e;
+                } finally {
+                    if (s != null) {
+                        try { s.close(); } catch (Exception ignored) { }
+                        s = null;
+                    }
+                }
+            } else {
+                // Legacy direct fallback. Xray may select a different address
+                // when a hostname has multiple A/AAAA records, so try all.
+                InetAddress[] addresses = InetAddress.getAllByName(host);
+                for (InetAddress address : addresses) {
+                    try {
+                        s = (SSLSocket) f.createSocket();
+                        s.connect(new InetSocketAddress(address, port), timeoutMs);
                     s.setSoTimeout(timeoutMs);
                     if (sni != null && !sni.isEmpty()) {
                         try {
@@ -79,6 +121,7 @@ public class CertPinner {
                         try { s.close(); } catch (Exception ignored) { }
                         s = null;
                     }
+                }
                 }
             }
             if (last != null) throw last;

@@ -1079,6 +1079,7 @@ public class MainActivity extends AppCompatActivity {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
         synchronized (assignedPorts) { assignedPorts.clear(); }
+        ScanService.end(this);
         cancelScanNotification();
         postUi(() -> {
             syncCoreButtons();
@@ -1138,6 +1139,8 @@ public class MainActivity extends AppCompatActivity {
                 engineLog = new File(XrayManager.coreDir(this), "hy2_" + port + ".log");
                 engine = HysteriaManager.start(this, s, port, engineLog);
             } else {
+                // insecure=1 with plain TLS: fetch the server's leaf cert and
+                // pin it (allowInsecure no longer exists in modern Xray)
                 // insecure=1 with plain TLS: fetch the server's leaf cert and
                 // pin it (allowInsecure no longer exists in modern Xray)
                 if (s.allowInsecure && "tls".equals(s.security)) {
@@ -1338,6 +1341,7 @@ public class MainActivity extends AppCompatActivity {
             if (pool != null) pool.shutdownNow(); // no leaked idle threads per run
             // Retain recent engine logs for post-run diagnostics and trim older ones.
             cleanupEngineLogs(XrayManager.coreDir(this));
+            ScanService.end(this);
             cancelScanNotification();
             final String summary = buildRunSummary();
             AppLog.i("run", "finished: " + summary);
