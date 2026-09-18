@@ -1079,8 +1079,6 @@ public class MainActivity extends AppCompatActivity {
             try { p.destroyForcibly(); } catch (Exception ignored) { }
         }
         synchronized (assignedPorts) { assignedPorts.clear(); }
-        // Preserve the most recent failure logs for diagnostics, but cap storage.
-        cleanupEngineLogs(XrayManager.coreDir(this));
         cancelScanNotification();
         postUi(() -> {
             syncCoreButtons();
@@ -1217,6 +1215,7 @@ public class MainActivity extends AppCompatActivity {
                     + " ip=" + geo.ip + " ok=" + geo.ok
                     + " votes=" + geo.votes + "/" + geo.answered
                     + (geo.singleVote ? " (single-vote, low confidence)" : "")
+                    + (geo.ipConflict ? " (providers used different exit IPs)" : "")
                     + " took=" + took + "s");
 
             if (geo.ok && !geo.code.isEmpty()) {
