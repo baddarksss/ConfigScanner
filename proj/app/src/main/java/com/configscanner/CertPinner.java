@@ -1,5 +1,6 @@
 package com.configscanner;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
@@ -41,31 +42,46 @@ public class CertPinner {
                     }
             }, null);
             SSLSocketFactory f = ctx.getSocketFactory();
-            s = (SSLSocket) f.createSocket();
-            s.connect(new InetSocketAddress(host, port), timeoutMs);
-            s.setSoTimeout(timeoutMs);
-            if (sni != null && !sni.isEmpty() && !sni.equals(host)) {
-                // exotic hostnames can make SNIHostName throw — pinning must
-                // not die on them, just proceed without an SNI hint
+            // Xray may select a different address when a hostname has
+            // multiple A/AAAA records. Try every resolved address so the pin is
+            // not accidentally tied to one stale DNS answer.
+            InetAddress[] addresses = InetAddress.getAllByName(host);
+            Exception last = null;
+            for (InetAddress address : addresses) {
                 try {
-                    javax.net.ssl.SSLParameters sp = s.getSSLParameters();
-                    sp.setServerNames(java.util.Collections.singletonList(
-                            new javax.net.ssl.SNIHostName(sni.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
-                    s.setSSLParameters(sp);
-                } catch (Exception sniErr) {
-                    AppLog.w("cert", "bad SNI skipped: " + sni
-                            + " (" + sniErr.getClass().getSimpleName() + ")");
+                    s = (SSLSocket) f.createSocket();
+                    s.connect(new InetSocketAddress(address, port), timeoutMs);
+                    s.setSoTimeout(timeoutMs);
+                    if (sni != null && !sni.isEmpty()) {
+                        try {
+                            javax.net.ssl.SSLParameters sp = s.getSSLParameters();
+                            sp.setServerNames(java.util.Collections.singletonList(
+                                    new javax.net.ssl.SNIHostName(sni)));
+                            s.setSSLParameters(sp);
+                        } catch (Exception sniErr) {
+                            AppLog.w("cert", "bad SNI skipped: " + sni
+                                    + " (" + sniErr.getClass().getSimpleName() + ")");
+                        }
+                    }
+                    s.startHandshake();
+                    Certificate[] chain = s.getSession().getPeerCertificates();
+                    if (chain != null && chain.length > 0 && chain[0] instanceof X509Certificate) {
+                        byte[] der = ((X509Certificate) chain[0]).getEncoded();
+                        byte[] h = MessageDigest.getInstance("SHA-256").digest(der);
+                        StringBuilder sb = new StringBuilder(h.length * 2);
+                        for (byte b : h) sb.append(String.format("%02x", b));
+                        return sb.toString();
+                    }
+                } catch (Exception one) {
+                    last = one;
+                } finally {
+                    if (s != null) {
+                        try { s.close(); } catch (Exception ignored) { }
+                        s = null;
+                    }
                 }
             }
-            s.startHandshake();
-            Certificate[] chain = s.getSession().getPeerCertificates();
-            if (chain != null && chain.length > 0 && chain[0] instanceof X509Certificate) {
-                byte[] der = ((X509Certificate) chain[0]).getEncoded();
-                byte[] h = MessageDigest.getInstance("SHA-256").digest(der);
-                StringBuilder sb = new StringBuilder(h.length * 2);
-                for (byte b : h) sb.append(String.format("%02x", b));
-                return sb.toString();
-            }
+            if (last != null) throw last;
             return "";
         } catch (Exception e) {
             AppLog.w("certpin", "pin failed " + host + ":" + port
