@@ -39,9 +39,19 @@ public class AppLog {
                 byte[] part = new byte[(int) (len - from)];
                 raf.readFully(part);
                 raf.close();
+
+                // The read starts in the middle of a line and possibly in the
+                // middle of a UTF-8 character. Start after the first newline
+                // so the decoded tail can never begin with a replacement char.
+                int start = 0;
+                if (from > 0) {
+                    while (start < part.length && part[start] != (byte) '\\n') start++;
+                    if (start < part.length) start++;
+                }
                 synchronized (LOCK) {
                     if (BUF.length() == 0) {
-                        BUF.append(new String(part, java.nio.charset.StandardCharsets.UTF_8));
+                        BUF.append(new String(part, start, part.length - start,
+                                java.nio.charset.StandardCharsets.UTF_8));
                     }
                 }
             }
@@ -103,8 +113,14 @@ public class AppLog {
             byte[] rest = new byte[(int) keep];
             raf.readFully(rest);
             raf.close();
+
+            // Align the retained tail to a complete UTF-8 line.
+            int start = 0;
+            while (start < rest.length && rest[start] != (byte) '\\n') start++;
+            if (start < rest.length) start++;
             FileWriter fw = new FileWriter(logFile, false);
-            fw.write(new String(rest, java.nio.charset.StandardCharsets.UTF_8));
+            fw.write(new String(rest, start, rest.length - start,
+                    java.nio.charset.StandardCharsets.UTF_8));
             fw.close();
         } catch (Exception ignored) {
         }
