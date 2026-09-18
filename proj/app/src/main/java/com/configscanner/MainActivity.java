@@ -1141,11 +1141,11 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 // insecure=1 with plain TLS: fetch the server's leaf cert and
                 // pin it (allowInsecure no longer exists in modern Xray)
-                // insecure=1 with plain TLS: fetch the server's leaf cert and
-                // pin it (allowInsecure no longer exists in modern Xray)
                 if (s.allowInsecure && "tls".equals(s.security)) {
                     String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
-                    s.pinnedCertHash = CertPinner.pin(s.host, s.port, sni, 8000);
+                    // pin THROUGH the local socks port — the cert must be the
+                    // one the actual tunnel route sees, not the direct route
+                    s.pinnedCertHash = CertPinner.pinViaSocks(port, s.host, s.port, sni, 8000);
                     AppLog.d("test", "certpin " + s.host + ":" + s.port + " sni=" + sni
                             + " hash=" + (s.pinnedCertHash.isEmpty() ? "FAILED" : s.pinnedCertHash));
                 }
