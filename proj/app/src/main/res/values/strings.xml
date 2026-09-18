@@ -261,7 +261,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.65
+    <string name="changelog">v1.0.66
+• Scan reliability: per-test files are cleaned even when a worker is stopped, geo voting no longer stops early at a 2-2 tie, and diagnostic output is more complete
+• Hysteria/Xray version diagnostics now include stderr, Mudfish uploads are size-limited, and app log tails stay UTF-8 safe
+• versionCode 67
+
 • Core updater: Beta mode now really picks the newest pre-release (it used to stop at a stable release); downloaded core zip and app APK are verified against the release SHA-256 before install
 • Core replace is crash-safe: the old binary is parked as a backup until the new one is in place — no window with no core at all
 • Link validation: unknown transport (type=…), unknown security and unknown vmess tls are rejected at parse time with a clear reason; Shadowsocks links with a plugin are reported unsupported instead of being false-failed
