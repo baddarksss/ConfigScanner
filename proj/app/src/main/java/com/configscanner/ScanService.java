@@ -106,7 +106,6 @@ public class ScanService extends Service {
 
     @Override public void onDestroy() {
         h.removeCallbacks(tick);
-        sRequested = false;
         try {
             NotificationManager n = nm();
             if (n != null) n.cancel(NOTIF_ID);
