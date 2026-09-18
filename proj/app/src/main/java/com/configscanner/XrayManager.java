@@ -185,6 +185,7 @@ public class XrayManager {
     public static String version(File bin) {
         try {
             ProcessBuilder pb = pbOf(bin, "version");
+            pb.redirectErrorStream(true);
             Process p = pb.start();
             String out = readAll(p);
             if (out.trim().isEmpty()) out = readError(p);
@@ -213,6 +214,7 @@ public class XrayManager {
      */
     public static String verify(File bin) throws Exception {
         ProcessBuilder pb = pbOf(bin, "version");
+        pb.redirectErrorStream(true);
         Process p = pb.start();
         String out = readAll(p);
         if (out.trim().isEmpty()) out = readError(p);
@@ -239,6 +241,7 @@ public class XrayManager {
         ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
                 "cd " + shellQuote(dir.getAbsolutePath())
                         + " && " + shellQuote(bin.getAbsolutePath()) + " version");
+        pb.redirectErrorStream(true);
         Process p = pb.start();
         String out = readAll(p);
         if (out.trim().isEmpty()) out = readError(p);
