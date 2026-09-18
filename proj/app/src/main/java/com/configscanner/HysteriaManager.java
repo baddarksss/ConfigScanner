@@ -28,6 +28,18 @@ public class HysteriaManager {
         return new File(ctx.getApplicationInfo().nativeLibraryDir, BIN_NAME);
     }
 
+    /** Hysteria is shipped as a native library, so fail clearly on an ABI
+     * without a packaged binary instead of producing a misleading connection
+     * failure later. */
+    public static boolean isSupportedAbi() {
+        String[] abis = android.os.Build.SUPPORTED_ABIS;
+        if (abis == null) return false;
+        for (String abi : abis) {
+            if ("arm64-v8a".equals(abi)) return true;
+        }
+        return false;
+    }
+
     public static File coreDir(Context ctx) {
         return XrayManager.coreDir(ctx);
     }
@@ -37,6 +49,13 @@ public class HysteriaManager {
      * client with a local SOCKS5 listener on `port`. Returns the process.
      */
     public static Process start(Context ctx, ServerSpec s, int port, File logFile) throws Exception {
+        if (!isSupportedAbi()) {
+            throw new Exception("Hysteria2 is unavailable on this CPU ABI. Supported ABI: arm64-v8a");
+        }
+        File bin = binary(ctx);
+        if (!bin.isFile() || !bin.canExecute()) {
+            throw new Exception("Hysteria2 native binary is missing for this device");
+        }
         StringBuilder y = new StringBuilder();
         // a bare IPv6 literal ("server: 2001:db8::1:443") is invalid — the
         // client needs brackets: [2001:db8::1]:443
@@ -71,7 +90,7 @@ public class HysteriaManager {
         AppLog.d("hy2", "cfg " + cfg.getName() + ":\n" + y);
 
         ProcessBuilder pb = new ProcessBuilder(
-                binary(ctx).getAbsolutePath(), "client", "-c", cfg.getAbsolutePath(), "-l", "debug");
+                bin.getAbsolutePath(), "client", "-c", cfg.getAbsolutePath(), "-l", "debug");
         pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile));
         pb.redirectError(ProcessBuilder.Redirect.appendTo(logFile));
         try {
