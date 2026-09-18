@@ -85,11 +85,18 @@ public class ScanService extends Service {
                     NotificationManager.IMPORTANCE_LOW);
             nm().createNotificationChannel(ch);
         }
-        startForeground(NOTIF_ID, notif());
-        h.postDelayed(tick, 1000);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        // Do not promote a service that was stopped while startForegroundService()
+        // was still being delivered. This closes the begin()/end() lifecycle race.
+        if (!sRequested) {
+            stopSelfResult(startId);
+            return START_NOT_STICKY;
+        }
+        startForeground(NOTIF_ID, notif());
+        h.removeCallbacks(tick);
+        h.postDelayed(tick, 1000);
         return START_NOT_STICKY;
     }
 
@@ -99,6 +106,10 @@ public class ScanService extends Service {
 
     @Override public void onDestroy() {
         h.removeCallbacks(tick);
+        try {
+            NotificationManager n = nm();
+            if (n != null) n.cancel(NOTIF_ID);
+        } catch (Exception ignored) { }
         super.onDestroy();
     }
 }

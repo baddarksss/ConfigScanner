@@ -43,6 +43,8 @@ public class GeoChecker {
         public int failed = 0;
         public int total = 0;
         public String firstError = "";
+        /** true when successful providers reported more than one exit IP */
+        public boolean ipConflict = false;
     }
 
     /** {url, countryField, codeField, successField (nullable)} */
@@ -112,6 +114,7 @@ public class GeoChecker {
 
         Result r = makeResult(votes);
         r.total = SERVICES.length;
+        r.ipConflict = hasIpConflict(votes);
         synchronized (errors) {
             r.failed = errors.size();
             for (String[] e : errors) {
@@ -121,6 +124,16 @@ public class GeoChecker {
             }
         }
         return r;
+    }
+
+    private static boolean hasIpConflict(List<String[]> votes) {
+        java.util.HashSet<String> ips = new java.util.HashSet<>();
+        for (String[] v : votes) {
+            if (v == null || v.length < 3 || v[2] == null) continue;
+            String ip = v[2].trim();
+            if (!ip.isEmpty()) ips.add(ip);
+        }
+        return ips.size() > 1;
     }
 
     private static int topVote(List<String[]> votes) {

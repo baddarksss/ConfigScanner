@@ -24,6 +24,10 @@ final class MudfishUploader {
     }
 
     static final int MAX_TEXT_BYTES = 900_000;
+    // Avoid publishing configs forever. The Text Bin API interprets this as
+    // the lifetime in seconds. One day is long enough for normal sharing and
+    // prevents old scan results from becoming permanent public data.
+    static final String TTL_SECONDS = "86400";
 
     static void upload(String text, Callback cb) {
         new Thread(() -> {
@@ -36,7 +40,7 @@ final class MudfishUploader {
                 }
                 org.json.JSONObject body = new org.json.JSONObject();
                 body.put("text", text);
-                body.put("ttl", "0");
+                body.put("ttl", TTL_SECONDS);
                 byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
 
                 HttpURLConnection c = (HttpURLConnection) new URL(

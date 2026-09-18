@@ -1215,6 +1215,7 @@ public class MainActivity extends AppCompatActivity {
                     + " ip=" + geo.ip + " ok=" + geo.ok
                     + " votes=" + geo.votes + "/" + geo.answered
                     + (geo.singleVote ? " (single-vote, low confidence)" : "")
+                    + (geo.ipConflict ? " (providers used different exit IPs)" : "")
                     + " took=" + took + "s");
 
             if (geo.ok && !geo.code.isEmpty()) {
@@ -1316,21 +1317,9 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // Every test owns these files by port. Delete them here even when
-            // Stop interrupts the worker, otherwise repeated scans slowly fill
-            // filesDir/core with stale logs and configs.
-            File core = XrayManager.coreDir(this);
-            String[] tempNames = {
-                    "xray_" + port + ".log",
-                    "xrayw_" + port + ".log",
-                    "hy2_" + port + ".log",
-                    "cfg_" + port + ".json",
-                    "hy2_" + port + ".yaml"
-            };
-            for (String name : tempNames) {
-                try { new File(core, name).delete(); } catch (Exception ignored) { }
-            }
-
+            // Keep per-test logs/configs until the run is over so a failed
+            // connection remains diagnosable. cleanupEngineLogs() trims the
+            // directory after the run or when Stop is pressed.
             // only the workers of the CURRENT run drive progress/completion —
             // a stale worker of a stopped/superseded run must stay silent
             if (gen == runGeneration) {
@@ -1347,6 +1336,8 @@ public class MainActivity extends AppCompatActivity {
         if (runStopped) return; // a stopped run never "finishes"
         if (runFinished.compareAndSet(false, true)) {
             if (pool != null) pool.shutdownNow(); // no leaked idle threads per run
+            // Retain recent engine logs for post-run diagnostics and trim older ones.
+            cleanupEngineLogs(XrayManager.coreDir(this));
             cancelScanNotification();
             final String summary = buildRunSummary();
             AppLog.i("run", "finished: " + summary);
