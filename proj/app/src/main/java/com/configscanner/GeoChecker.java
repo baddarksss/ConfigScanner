@@ -54,6 +54,11 @@ public class GeoChecker {
             {"https://api.country.is/", "", "country", null},
             {"https://api.ip.sb/geoip", "country", "country_code", null},
             {"https://ipinfo.io/json", "", "country", null},
+            // v1.0.70: two more independent HTTPS sources — several servers
+            // (e.g. Alexhost/Moldova-announced ranges) failed or were
+            // rate-limited on every old source and ended up "unknown"
+            {"https://get.geojs.io/v1/ip/geo.json", "", "country_code", null},
+            {"https://ifconfig.co/json", "", "country_iso", null},
             // ip-api.com removed (v1.0.63): plaintext HTTP — the geo answer
             // (which becomes the server remark) must not travel unencrypted
     };
@@ -67,17 +72,26 @@ public class GeoChecker {
         long deadline = System.currentTimeMillis() + timeout * 1000L;
 
         List<String[]> votes = new ArrayList<>();
-        final List<String[]> errors = java.util.Collections.synchronizedList(new ArrayList<>());
+        // v1.0.70: per-service failure tracking (identity-keyed) — drives the
+        // retry round and the failure diagnostics without double counting
+        final java.util.concurrent.ConcurrentMap<String[], String[]> errBySvc =
+                new java.util.concurrent.ConcurrentHashMap<>();
         ExecutorService ex = Executors.newFixedThreadPool(SERVICES.length);
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
 
         // ONE client for every geo probe (was: a new OkHttpClient per
         // service = 6 clients/sockets per server tested)
         OkHttpClient client = newProxyClient(proxyPort, timeout);
+        final long hardEnd = deadline;
 
         try {
             for (final String[] svc : SERVICES) {
-                cs.submit(() -> query(client, svc));
+                cs.submit(() -> {
+                    String[] res = query(client, svc);
+                    if (res == null || res[0] == null || res[0].isEmpty())
+                        errBySvc.putIfAbsent(svc, res);
+                    return res;
+                });
             }
 
             for (int i = 0; i < SERVICES.length; i++) {
@@ -96,34 +110,71 @@ public class GeoChecker {
                         votes.add(res);
                         // If 2 or more services agree on the same country, we
                         // can return early
-                        // Stop only at 3 votes. With 5 providers, 3 is a strict majority.
-                        // Stopping at 2 could hide a later 2-2 tie and resurrect the old wrong country pick.
+                        // Stop only at 3 votes. With 7 providers, 3 is a strict majority.
+                        // Stopping at 2 could hide a later tie and resurrect the old wrong country pick.
                         if (topVote(votes) >= 3) break;
                         // v1.0.59: one vote in hand — only wait a short grace
                         // for a confirming second vote, not the full deadline
                         deadline = Math.min(deadline,
                                 System.currentTimeMillis() + 6000L);
-                    } else if (res != null && res[3] != null && !res[3].isEmpty()) {
-                        errors.add(res);
                     }
                 } catch (Exception ignored) { }
             }
+
+            Result r = makeResult(votes);
+
+            // v1.0.70: retry round — no country decided yet, so give every
+            // provider that errored ONE more shot inside the same hard
+            // deadline. Fresh tunnels often fail their first probes
+            // (slow TLS handshake, one-off rate limit); a retry frequently
+            // turns "unknown" into a confirmed country.
+            if (!r.ok && !errBySvc.isEmpty()) {
+                deadline = Math.min(hardEnd, System.currentTimeMillis() + 6000L);
+                for (final String[] svc : errBySvc.keySet().toArray(new String[0][])) {
+                    cs.submit(() -> {
+                        String[] res = query(client, svc);
+                        if (res != null && res[0] != null && !res[0].isEmpty())
+                            errBySvc.remove(svc);
+                        else
+                            errBySvc.put(svc, res);
+                        return res;
+                    });
+                }
+                for (int i = 0; i < errBySvc.size() + 1; i++) {
+                    long left = deadline - System.currentTimeMillis();
+                    if (left <= 0) break;
+                    Future<String[]> f;
+                    try {
+                        f = cs.poll(left, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    if (f == null) break;
+                    try {
+                        String[] res = f.get();
+                        if (res != null && res[0] != null && !res[0].isEmpty()) {
+                            votes.add(res);
+                            if (topVote(votes) >= 3) break;
+                        }
+                    } catch (Exception ignored) { }
+                }
+                r = makeResult(votes);
+            }
+
+            r.total = SERVICES.length;
+            r.ipConflict = hasIpConflict(votes);
+            r.failed = errBySvc.size();
+            for (String[] svc : SERVICES) {
+                String[] e = errBySvc.get(svc);
+                if (e != null && e[3] != null && !e[3].isEmpty()) {
+                    r.firstError = e[3];
+                    break;
+                }
+            }
+            return r;
         } finally {
             ex.shutdownNow();
         }
-
-        Result r = makeResult(votes);
-        r.total = SERVICES.length;
-        r.ipConflict = hasIpConflict(votes);
-        synchronized (errors) {
-            r.failed = errors.size();
-            for (String[] e : errors) {
-                if (r.firstError.isEmpty() && e[3] != null && !e[3].isEmpty()) {
-                    r.firstError = e[3];
-                }
-            }
-        }
-        return r;
     }
 
     private static boolean hasIpConflict(List<String[]> votes) {
@@ -139,7 +190,7 @@ public class GeoChecker {
     private static int topVote(List<String[]> votes) {
         Map<String, Integer> count = new HashMap<>();
         for (String[] v : votes) {
-            if (v == null || v[0] == null || v[0].isEmpty()) continue;
+            if (v == null || v.length == 0 || v[0] == null || v[0].isEmpty()) continue;
             count.merge(v[0].toUpperCase(), 1, Integer::sum);
         }
         int top = 0;
@@ -151,7 +202,7 @@ public class GeoChecker {
         Map<String, Integer> count = new HashMap<>();
         int answered = 0;
         for (String[] v : votes) {
-            if (v == null || v[0] == null || v[0].isEmpty()) continue;
+            if (v == null || v.length == 0 || v[0] == null || v[0].isEmpty()) continue;
             answered++;
             String code = v[0].toUpperCase();
             count.put(code, count.getOrDefault(code, 0) + 1);

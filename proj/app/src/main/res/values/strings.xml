@@ -196,8 +196,8 @@
     <string name="caption_count_caption">Adds a compact line like “📦 Configs: 30” right after the flags row. Place it manually with {{COUNT}}. {{LINK}} puts the Mudfish RAW link (after 🌍 upload).</string>
     <string name="caption_count_fmt">📦 Configs: %1$d</string>
     <string name="caption_count_fmt_fa">📦 تعداد کانفیگ: %1$d</string>
-    <string name="include_unknown_title">Servers whose country was not detected</string>
-    <string name="include_unknown_caption">These servers connected but no country could be detected, so they are NOT in the output above (no name or channel tag). Turn this on to keep a copy of their raw links for manual review.</string>
+    <string name="include_unknown_title">Show servers whose country was not detected</string>
+    <string name="include_unknown_caption">When OFF (default), servers that connect but whose country cannot be detected stay out of the output box, the flag strip, the copied links and the caption (they still count in the run summary). Turn ON to list them with a \u2754 Unknown marker.</string>
 
     <!-- Output tools: per-country stats + filters -->
     <string name="country_stats_title">🌍 Servers by country</string>
@@ -261,17 +261,15 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.69
+    <string name="changelog">v1.0.70
+• Country detection is much more reliable: two more independent geo sources and an automatic retry round — servers that used to end up \u2754 Unknown (all geo probes failed or were rate-limited) now usually resolve to their real country
+• The \u2754 Unknown toggle now really works everywhere: when OFF, unknown-country servers are hidden from the output box, the flag strip, the summary and copied links; when ON they are listed with the \u2754 marker
+• versionCode 71
+
+v1.0.69
 • Fixed in-app update failing with “problem parsing the package”: a half-downloaded APK could be cached and re-installed forever — updates now download to a temp file, are verified (SHA-256 / APK magic) BEFORE they can be installed, and any leftover corrupt file is detected and deleted automatically
 • versionCode 70
 
 v1.0.68
-• Cert pinning now goes through the tested SOCKS route, stronger vless/vmess link validation, cleaner ScanService lifecycle, one-day Mudfish links, multi-address cert fetch
-
-v1.0.67
-• Scan reliability: per-test files are cleaned even when a worker is stopped, geo voting no longer stops early at a 2-2 tie, and diagnostic output is more complete
-• Hysteria/Xray version diagnostics now include stderr, Mudfish uploads are size-limited, and app log tails stay UTF-8 safe
-
-v1.0.66
-• (previous release)</string>
+• Cert pinning now goes through the tested SOCKS route, stronger vless/vmess link validation, cleaner ScanService lifecycle, one-day Mudfish links, multi-address cert fetch</string>
 </resources>

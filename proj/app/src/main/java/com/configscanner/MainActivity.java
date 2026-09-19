@@ -469,8 +469,15 @@ public class MainActivity extends AppCompatActivity {
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
                 .setChecked(prefs.getBoolean("include_unknown_in_links", false));
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
-                .setOnCheckedChangeListener((b, checked) ->
-                        prefs.edit().putBoolean("include_unknown_in_links", checked).apply());
+                .setOnCheckedChangeListener((b, checked) -> {
+                    prefs.edit().putBoolean("include_unknown_in_links", checked).apply();
+                    // v1.0.70: the toggle now governs EVERY surface unknowns
+                    // can reach — output box, flag strip, country summary,
+                    // copied links, filter dialog
+                    refreshOutput();
+                    updateFlagStrip();
+                    refreshCaptionTab();
+                });
 
         // caption count toggle (v1.0.52): compact «📦 Configs: N» line,
         // controlled by the checkbox or a {{COUNT}} placeholder
@@ -1377,16 +1384,49 @@ public class MainActivity extends AppCompatActivity {
         synchronized (outEntries) {
             outEntries.add(new OutEntry(renamedLine, iso == null ? "" : iso));
         }
-        if (flag != null && !flag.isEmpty()) {
-            final List<String> copy;
-            synchronized (flagList) {
-                if (!flagList.contains(flag)) flagList.add(flag); // one per country
-                copy = new ArrayList<>(flagList);
+        // v1.0.70 fix: actually track unknown links — this list existed but
+        // was never filled, so the hide-unknowns filter could never work
+        if (iso == null || iso.isEmpty()) {
+            synchronized (unknownLinks) {
+                if (!unknownLinks.contains(renamedLine)) unknownLinks.add(renamedLine);
             }
-            postUi(() -> flagStrip.setText(String.join(" ", copy)));
+        }
+        if (flag != null && !flag.isEmpty()) {
+            // keep the question mark off the flag strip while unknowns hide
+            if (showUnknowns() || !UNKNOWN_FLAG.equals(flag)) {
+                synchronized (flagList) {
+                    if (!flagList.contains(flag)) flagList.add(flag); // one per country
+                }
+                updateFlagStrip();
+            }
         }
         refreshOutput();
         autoScroll();
+    }
+
+    /** v1.0.70: the marker used for country-unknown entries. */
+    private static final String UNKNOWN_FLAG = "\u2754"; // white question mark
+
+    /** Toggle "show servers whose country was not detected" — v1.0.70 it
+     *  governs the output box, flag strip, country summary, copied links
+     *  and the filter dialog, not just the copy-links fallback. */
+    private boolean showUnknowns() {
+        return prefs.getBoolean("include_unknown_in_links", false);
+    }
+
+    /** Rebuild the flag strip above the output box; the question mark is
+     *  filtered out while unknowns are hidden. */
+    private void updateFlagStrip() {
+        final List<String> copy;
+        synchronized (flagList) {
+            copy = new ArrayList<>();
+            for (String fl : flagList) {
+                if (!showUnknowns() && UNKNOWN_FLAG.equals(fl)) continue;
+                copy.add(fl);
+            }
+        }
+        final String txt = String.join(" ", copy);
+        postUi(() -> flagStrip.setText(txt));
     }
 
     private void fail(ServerSpec s, String reason) {
@@ -2093,6 +2133,15 @@ public class MainActivity extends AppCompatActivity {
         synchronized (outEntries) {
             src = new ArrayList<>(outEntries);
         }
+        // v1.0.70: unknown-country entries are hidden entirely while the
+        // toggle is off — box, summary, copies and caption all read this
+        if (!showUnknowns()) {
+            List<OutEntry> f = new ArrayList<>();
+            for (OutEntry e : src) {
+                if (e.iso != null && !e.iso.isEmpty()) f.add(e);
+            }
+            src = f;
+        }
         if (selectedCountries != null) {
             List<OutEntry> f = new ArrayList<>();
             for (OutEntry e : src) {
@@ -2172,7 +2221,11 @@ public class MainActivity extends AppCompatActivity {
         }
         // count per country, preserving first-seen order
         java.util.LinkedHashMap<String, Integer> counts = new java.util.LinkedHashMap<>();
-        for (OutEntry e : snapshot) counts.merge(e.iso, 1, Integer::sum);
+        for (OutEntry e : snapshot) {
+            // v1.0.70: no question-mark row while the toggle hides unknowns
+            if (!showUnknowns() && (e.iso == null || e.iso.isEmpty())) continue;
+            counts.merge(e.iso, 1, Integer::sum);
+        }
         String unkLabel = getString(R.string.country_unknown_label);
 
         LinearLayout box = new LinearLayout(this);
@@ -2353,18 +2406,30 @@ public class MainActivity extends AppCompatActivity {
         @Override public void run() {
             final boolean filtered = (selectedCountries != null && !selectedCountries.isEmpty())
                     || outLimit > 0;
-            final int n;
+            int nLines;
             StringBuilder sb = new StringBuilder();
             if (filtered) {
                 List<OutEntry> vis = visibleEntries();
-                n = vis.size();
+                nLines = vis.size();
                 for (OutEntry e : vis) sb.append(e.line).append("\n");
             } else {
+                // v1.0.70 fix: the raw (unfiltered) path used to ignore the
+                // hide-unknowns toggle — skip those lines here as well
+                final java.util.HashSet<String> unk;
+                synchronized (unknownLinks) {
+                    unk = new java.util.HashSet<>(unknownLinks);
+                }
+                final boolean hideUnk = !showUnknowns();
                 synchronized (outputLines) {
-                    n = outputLines.size();
-                    for (String l : outputLines) sb.append(l).append("\n");
+                    nLines = 0;
+                    for (String l : outputLines) {
+                        if (hideUnk && !unk.isEmpty() && unk.contains(l)) continue;
+                        sb.append(l).append("\n");
+                        nLines++;
+                    }
                 }
             }
+            final int n = nLines;
             // Never scroll programmatically while a run is in progress — the
             // ScrollView keeps the user's viewport where they left it.
             final String summary = countrySummaryText();
