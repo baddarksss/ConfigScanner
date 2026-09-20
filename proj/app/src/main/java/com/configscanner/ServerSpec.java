@@ -364,6 +364,12 @@ public class ServerSpec {
             if (s.serviceName.isEmpty() && "grpc".equals(s.network) && !s.path.isEmpty()) {
                 s.serviceName = s.path.startsWith("/") ? s.path.substring(1) : s.path;
             }
+            // v1.0.71: JSON dumps carry the no-verify flag as allowInsecure
+            // or verify_cert:false — strict cert checking otherwise
+            String ai = firstNonEmpty(o.optString("allowInsecure", ""),
+                    o.optString("allowinsecure", ""));
+            if ("true".equalsIgnoreCase(ai) || "1".equals(ai)) s.allowInsecure = true;
+            if (!o.optBoolean("verify_cert", true)) s.allowInsecure = true;
             validateTransport(s.network, s.security);
             if (s.port < 1 || s.port > 65535) throw new Exception("invalid port: " + s.port);
             if (s.host.isEmpty() || s.uuid.isEmpty()) {

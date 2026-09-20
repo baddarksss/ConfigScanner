@@ -261,7 +261,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.70
+    <string name="changelog">v1.0.71
+• NEW: JSON configs are now understood — paste Xray/v2ray-core configs, sing-box configs, v2rayN JSON dumps, Clash proxy lists or JSON arrays of links and every server inside them is extracted and scanned like a normal link (one paste can now carry hundreds of servers)
+• versionCode 72
+
+v1.0.70
 • Country detection is much more reliable: two more independent geo sources and an automatic retry round — servers that used to end up \u2754 Unknown (all geo probes failed or were rate-limited) now usually resolve to their real country
 • The \u2754 Unknown toggle now really works everywhere: when OFF, unknown-country servers are hidden from the output box, the flag strip, the summary and copied links; when ON they are listed with the \u2754 marker
 • versionCode 71

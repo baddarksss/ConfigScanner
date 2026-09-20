@@ -884,11 +884,33 @@ public class MainActivity extends AppCompatActivity {
         // Failed block instead of silently disappearing (review fix v1.0.63)
         parseFailCount.set(0);
         failedReasons.clear();
-        List<ServerSpec> servers = new ArrayList<>();
-        int parseFail = 0;
+        // v1.0.71: JSON config dumps (Xray / sing-box / v2rayN / Clash) in
+        // the paste are pulled apart into the proxy URIs they contain and
+        // join the regular line scan — many servers from one paste
+        List<String> scanLines = new ArrayList<>();
+        boolean jsonFound = false;
+        try {
+            List<String> fromJson = JsonConfigs.extract(text);
+            if (!fromJson.isEmpty()) {
+                jsonFound = true;
+                scanLines.addAll(fromJson);
+                AppLog.i("run", "json configs: extracted " + fromJson.size()
+                        + " server(s) from JSON in the input");
+            }
+        } catch (Exception je) {
+            AppLog.w("run", "json config extraction failed: " + je.getMessage());
+        }
         for (String line : text.split("\n")) {
             String t = line.trim();
             if (t.isEmpty() || t.startsWith("#")) continue;
+            // with JSON configs present, bare non-link lines are residue of
+            // the pretty-printed JSON documents — not user errors
+            if (jsonFound && !isProxyLink(t)) continue;
+            scanLines.add(t);
+        }
+        List<ServerSpec> servers = new ArrayList<>();
+        int parseFail = 0;
+        for (String t : scanLines) {
             ServerSpec s;
             try {
                 s = ServerSpec.parse(t);
