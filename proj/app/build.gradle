@@ -26,8 +26,8 @@ android {
         // ("blocked by device"). The legacy targetSdk keeps exec() allowed,
         // same approach Termux/NekoBox use. App is sideloaded (no Play).
         targetSdk 28
-        versionCode 72
-        versionName "1.0.71"
+        versionCode 73
+        versionName "1.0.72"
     }
 
     signingConfigs {

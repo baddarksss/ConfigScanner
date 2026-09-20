@@ -81,13 +81,82 @@ public class ServerSpec {
      */
     static String unescapeHtml(String s) {
         if (s == null || s.indexOf('&') < 0) return s;
-        return s.replace("&amp;", "\u0001")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replace("&apos;", "'")
-                .replace("\u0001", "&");
+        for (int round = 0; round < 3 && s.indexOf('&') >= 0; round++) {
+            String prev = s;
+            s = s.replace("&amp;", "\u0001")
+                 .replace("&lt;", "<")
+                 .replace("&gt;", ">")
+                 .replace("&quot;", "\"")
+                 .replace("&#39;", "'")
+                 .replace("&apos;", "'")
+                 .replace("\u0001", "&");
+            if (s.equals(prev)) break; // stable
+        }
+        return s;
+    }
+
+    /**
+     * v1.0.72: percent-encodes characters that make third-party clients
+     * (v2rayN, v2rayNG, Hiddify, ...) reject a shared link's query string:
+     * space/control, quotes, brackets/braces, pipe, backslash, caret,
+     * backtick, '+' (Android Uri decodes a raw '+' as SPACE) and non-ASCII.
+     * Existing %XX sequences are NEVER touched, so nothing is
+     * double-encoded; '&' and the first '=' stay structural.
+     */
+    public static String encodeQueryUnsafe(String v) {
+        StringBuilder sb = new StringBuilder(v.length() + 8);
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            boolean unsafe = c < 0x21 || c > 0x7E || c == '"' || c == '\''
+                    || c == '<' || c == '>' || c == '[' || c == ']'
+                    || c == '{' || c == '}' || c == '|' || c == '\\'
+                    || c == '^' || c == '`' || c == '+';
+            if (unsafe) {
+                if (c <= 0x7F) {
+                    sb.append('%').append(String.format(java.util.Locale.US, "%02X", (int) c));
+                } else {
+                    // non-ASCII: percent-encode the UTF-8 bytes
+                    for (byte b : String.valueOf(c).getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+                        sb.append('%').append(String.format(java.util.Locale.US, "%02X", b & 0xFF));
+                    }
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * v1.0.72: normalizes the QUERY part of an exported proxy link so every
+     * client accepts it ("problem: only some servers import"). The fragment
+     * and everything before '?' pass through unchanged.
+     */
+    public static String sanitizeForClients(String uri) {
+        if (uri == null) return null;
+        int q = uri.indexOf('?');
+        if (q < 0) return uri;
+        int f = uri.indexOf('#');
+        if (f >= 0 && f < q) return uri; // '?' belongs to the fragment
+        String head = uri.substring(0, q);
+        String query = f >= 0 ? uri.substring(q + 1, f) : uri.substring(q + 1);
+        String tail = f >= 0 ? uri.substring(f) : "";
+        StringBuilder sb = new StringBuilder(query.length() + 16);
+        for (String kv : query.split("&")) {
+            if (kv.isEmpty()) continue;
+            int eq = kv.indexOf('=');
+            if (eq < 0) {
+                sb.append(encodeQueryUnsafe(kv));
+            } else {
+                sb.append(encodeQueryUnsafe(kv.substring(0, eq))).append('=')
+                  .append(encodeQueryUnsafe(kv.substring(eq + 1)));
+            }
+            sb.append('&');
+        }
+        if (sb.length() > 0 && sb.charAt(sb.length() - 1) == '&') {
+            sb.setLength(sb.length() - 1);
+        }
+        return head + "?" + sb + tail;
     }
 
     public static String b64decode(String s) {

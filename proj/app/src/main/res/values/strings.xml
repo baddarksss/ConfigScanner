@@ -261,19 +261,16 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.71
+    <string name="changelog">v1.0.72
+• Fixed exported links being rejected by some clients (only part of the servers imported): query values like alpn=[&quot;h2&quot;] are now percent-encoded on output, a raw plus sign is written as %2B (several clients turn a raw plus into a space), and double-escaped &amp;amp;amp; input now scans and exports correctly
+• versionCode 73
+
+v1.0.71
 • NEW: JSON configs are now understood — paste Xray/v2ray-core configs, sing-box configs, v2rayN JSON dumps, Clash proxy lists or JSON arrays of links and every server inside them is extracted and scanned like a normal link (one paste can now carry hundreds of servers)
 • versionCode 72
 
 v1.0.70
 • Country detection is much more reliable: two more independent geo sources and an automatic retry round — servers that used to end up \u2754 Unknown (all geo probes failed or were rate-limited) now usually resolve to their real country
 • The \u2754 Unknown toggle now really works everywhere: when OFF, unknown-country servers are hidden from the output box, the flag strip, the summary and copied links; when ON they are listed with the \u2754 marker
-• versionCode 71
-
-v1.0.69
-• Fixed in-app update failing with “problem parsing the package”: a half-downloaded APK could be cached and re-installed forever — updates now download to a temp file, are verified (SHA-256 / APK magic) BEFORE they can be installed, and any leftover corrupt file is detected and deleted automatically
-• versionCode 70
-
-v1.0.68
-• Cert pinning now goes through the tested SOCKS route, stronger vless/vmess link validation, cleaner ScanService lifecycle, one-day Mudfish links, multi-address cert fetch</string>
+• versionCode 71</string>
 </resources>

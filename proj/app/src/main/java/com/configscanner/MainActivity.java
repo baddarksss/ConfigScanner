@@ -1483,8 +1483,10 @@ public class MainActivity extends AppCompatActivity {
         }
         String enc = encodeFragment(newName);
         int i = raw.lastIndexOf('#');
-        if (i < 0) return raw + "#" + enc;
-        return raw.substring(0, i + 1) + enc;
+        // v1.0.72: the exported query must be client-safe — raw ["h2"]-style
+        // values made strict clients (v2rayN, ...) silently drop the server
+        String head = i < 0 ? raw : raw.substring(0, i);
+        return ServerSpec.sanitizeForClients(head) + "#" + enc;
     }
 
     // ---------------------------------------------------- caption / country codes
