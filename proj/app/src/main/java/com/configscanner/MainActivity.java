@@ -164,6 +164,9 @@ public class MainActivity extends AppCompatActivity {
     /** lines that ServerSpec.parse could not parse (reported, never silent) */
     private final java.util.concurrent.atomic.AtomicInteger parseFailCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
+    /** v1.0.73: true when the last run's input was entirely JSON configs —
+     *  copy-links then exports a JSON array of full client configs. */
+    private boolean runAllJsonInput = false;
     private final List<String> unknownLinks =
             java.util.Collections.synchronizedList(new ArrayList<String>());
 
@@ -884,31 +887,42 @@ public class MainActivity extends AppCompatActivity {
         // Failed block instead of silently disappearing (review fix v1.0.63)
         parseFailCount.set(0);
         failedReasons.clear();
-        // v1.0.71: JSON config dumps (Xray / sing-box / v2rayN / Clash) in
-        // the paste are pulled apart into the proxy URIs they contain and
-        // join the regular line scan — many servers from one paste
-        List<String> scanLines = new ArrayList<>();
+        // v1.0.71/73: JSON config dumps (Xray / sing-box / v2rayN / Clash)
+        // in the paste are pulled apart into the proxy URIs they contain.
+        // Plain links are scanned FIRST and win dedup — the raw link is the
+        // richest form of a server the user pasted; extracted JSON servers
+        // join after, so a server pasted as BOTH a link and JSON is
+        // scanned once, from its original link.
+        List<String> fromJson = new ArrayList<>();
         boolean jsonFound = false;
         try {
-            List<String> fromJson = JsonConfigs.extract(text);
+            fromJson = JsonConfigs.extract(text);
             if (!fromJson.isEmpty()) {
                 jsonFound = true;
-                scanLines.addAll(fromJson);
                 AppLog.i("run", "json configs: extracted " + fromJson.size()
                         + " server(s) from JSON in the input");
             }
         } catch (Exception je) {
             AppLog.w("run", "json config extraction failed: " + je.getMessage());
         }
+        List<String> scanLines = new ArrayList<>();
+        int plainLinks = 0;
         for (String line : text.split("\n")) {
             String t = line.trim();
             if (t.isEmpty() || t.startsWith("#")) continue;
             // with JSON configs present, bare non-link lines are residue of
             // the pretty-printed JSON documents — not user errors
             if (jsonFound && !isProxyLink(t)) continue;
+            if (isProxyLink(t)) plainLinks++;
             scanLines.add(t);
         }
-        List<ServerSpec> servers = new ArrayList<>();
+        if (jsonFound) scanLines.addAll(fromJson);
+
+        // v1.0.73: dedup by protocol+host+port+credential+transport —
+        // identical endpoints from a pasted link AND a pasted JSON config
+        // must not be tested (and exported) twice
+        java.util.LinkedHashMap<String, ServerSpec> uniq =
+                new java.util.LinkedHashMap<>();
         int parseFail = 0;
         for (String t : scanLines) {
             ServerSpec s;
@@ -925,7 +939,18 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
             if (s != null) {
-                servers.add(s);
+                String key = s.protocol + "|" + s.host.toLowerCase()
+                        + "|" + s.port
+                        + "|" + ServerSpec.firstNonEmpty(s.uuid, s.password)
+                        + "|" + s.network + "|" + s.security
+                        + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName);
+                ServerSpec prev = uniq.get(key);
+                if (prev == null) {
+                    uniq.put(key, s);
+                } else {
+                    AppLog.d("run", "duplicate skipped: " + s.protocol
+                            + " " + s.host + ":" + s.port);
+                }
             } else {
                 parseFail++;
                 if (parseFail <= 50) {
@@ -934,6 +959,11 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+        List<ServerSpec> servers = new ArrayList<>(uniq.values());
+        // v1.0.73: remember that this run came purely from JSON configs —
+        // "Copy links only" then exports a JSON array of full client
+        // configs instead of plain links
+        runAllJsonInput = jsonFound && plainLinks == 0 && !servers.isEmpty();
         parseFailCount.set(parseFail);
         if (servers.isEmpty()) {
             toast(getString(R.string.toast_no_config));
@@ -2546,6 +2576,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (runAllJsonInput) {
+            // v1.0.73: an all-JSON input exports as a JSON array of full
+            // client configs — one self-contained config per server,
+            // nothing merged, importable by v2rayN/v2rayNG batch import
+            String json = JsonConfigs.exportJsonArray(new ArrayList<>(links));
+            cm.setPrimaryClip(ClipData.newPlainText("configs", json));
+            toast(getString(R.string.toast_json_copied, links.size()));
+            return;
+        }
         cm.setPrimaryClip(ClipData.newPlainText("configs",
                 String.join("\n", links)));
         toast(getString(R.string.toast_links_copied, links.size()));

@@ -302,7 +302,19 @@ public final class JsonConfigs {
         if (sh != null) {
             t.net = first(t.net, "xhttp");
             t.path = sh.optString("path", "");
-            t.hostHeader = first(headersHost(sh.optJSONObject("host")), t.hostHeader);
+            // v1.0.73 fix: "host" is a plain STRING in xhttpSettings (some
+            // panels nest it as a headers object instead). Only reading the
+            // object form dropped the Host header of CDN-fronted servers.
+            String hh = sh.optString("host", "");
+            if (!hh.isEmpty()) t.hostHeader = hh;
+            else t.hostHeader = first(headersHost(sh.optJSONObject("headers")),
+                    t.hostHeader);
+            String m2 = sh.optString("mode", "");
+            if ("auto".equals(m2) || "stream-one".equals(m2)) t.mode = m2;
+            // v1.0.73 fix: the padding/obfs block (extra) is REQUIRED by
+            // servers that enforce it — dropping it broke the exported link
+            JSONObject ex = sh.optJSONObject("extra");
+            if (ex != null) t.extra = ex.toString();
         }
         return t;
     }
@@ -347,8 +359,14 @@ public final class JsonConfigs {
                 net = "tcp";
                 path = tr.optString("path", "");
                 hostHdr = headersHost(tr.optJSONObject("headers"));
+            } else if ("splithttp".equals(tt) || "xhttp".equals(tt)) {
+                net = "xhttp";
+                path = tr.optString("path", "");
+                String hh = tr.optString("host", "");
+                hostHdr = !hh.isEmpty() ? hh
+                        : headersHost(tr.optJSONObject("headers"));
             } else if (!"tcp".equals(tt)) {
-                net = tt; // xhttp/splithttp and friends pass through
+                net = tt; // anything else passes through
             }
         }
         String name = first(o.optString("tag", ""), host + ":" + port);
@@ -615,6 +633,7 @@ public final class JsonConfigs {
         for (int i = 0; i < v.length(); i++) {
             char c = v.charAt(i);
             if (c == '%' || c == '&' || c == '#' || c == ' ' || c == '+'
+                    || c == '"' || c == '{' || c == '}'
                     || c < 0x20 || c == 0x7F) {
                 sb.append('%').append(String.format(Locale.US, "%02X", (int) c));
             } else {
@@ -708,6 +727,213 @@ public final class JsonConfigs {
         return p < 1 || p > 65535;
     }
 
+    // --------------------------------------------------- full client export
+
+    /**
+     * v1.0.73: builds a complete, importable Xray-style CLIENT config for
+     * one proxy URI - the shape v2rayN/v2rayNG import (remarks + log +
+     * inbounds + outbounds + dns + routing), exactly one self-contained
+     * config per server so nothing gets mixed together. Returns null for
+     * protocols that have no Xray outbound (hysteria2, ssr, tuic, ...) -
+     * callers keep the share link for those.
+     */
+    public static JSONObject clientConfig(String uri, String remark) {
+        try {
+            ServerSpec s = ServerSpec.parse(uri);
+            if (s == null) return null;
+            String proto = s.protocol;
+
+            JSONObject proxy = new JSONObject();
+            proxy.put("tag", "proxy");
+            JSONObject settings = new JSONObject();
+            if ("vless".equals(proto) || "vmess".equals(proto)) {
+                JSONObject u = new JSONObject();
+                u.put("id", s.uuid);
+                u.put("level", 8);
+                if ("vless".equals(proto)) {
+                    u.put("encryption", s.vlessEncryption == null
+                            || s.vlessEncryption.isEmpty()
+                            ? "none" : s.vlessEncryption);
+                    if (s.flow != null && !s.flow.isEmpty()) u.put("flow", s.flow);
+                } else {
+                    u.put("alterId", s.alterId);
+                    u.put("security", s.cipher == null || s.cipher.isEmpty()
+                            ? "auto" : s.cipher);
+                }
+                JSONObject vnext = new JSONObject();
+                vnext.put("address", s.host);
+                vnext.put("port", s.port);
+                vnext.put("users", new JSONArray().put(u));
+                settings.put("vnext", new JSONArray().put(vnext));
+                proxy.put("protocol", proto);
+            } else if ("trojan".equals(proto)) {
+                JSONObject sv = new JSONObject();
+                sv.put("address", s.host);
+                sv.put("port", s.port);
+                sv.put("password", s.password);
+                sv.put("level", 8);
+                settings.put("servers", new JSONArray().put(sv));
+                proxy.put("protocol", "trojan");
+            } else if ("ss".equals(proto)) {
+                JSONObject sv = new JSONObject();
+                sv.put("address", s.host);
+                sv.put("port", s.port);
+                sv.put("method", s.method);
+                sv.put("password", s.password);
+                settings.put("servers", new JSONArray().put(sv));
+                proxy.put("protocol", "shadowsocks");
+            } else {
+                return null; // no Xray outbound exists for this protocol
+            }
+            proxy.put("settings", settings);
+            proxy.put("streamSettings", streamJson(s));
+            proxy.put("mux", new JSONObject().put("enabled", false)
+                    .put("concurrency", -1));
+
+            JSONObject cfg = new JSONObject();
+            cfg.put("remarks", remark == null || remark.isEmpty()
+                    ? s.host + ":" + s.port : remark);
+            cfg.put("log", new JSONObject().put("loglevel", "warning"));
+
+            JSONObject sniffing = new JSONObject()
+                    .put("enabled", true)
+                    .put("destOverride", new JSONArray()
+                            .put("http").put("tls").put("quic"))
+                    .put("routeOnly", false);
+            JSONObject socksIn = new JSONObject()
+                    .put("tag", "socks")
+                    .put("port", 10808)
+                    .put("protocol", "socks")
+                    .put("settings", new JSONObject()
+                            .put("auth", "noauth")
+                            .put("udp", true)
+                            .put("userLevel", 8))
+                    .put("sniffing", sniffing);
+            cfg.put("inbounds", new JSONArray().put(socksIn));
+
+            cfg.put("outbounds", new JSONArray()
+                    .put(proxy)
+                    .put(new JSONObject()
+                            .put("tag", "direct")
+                            .put("protocol", "freedom")
+                            .put("settings", new JSONObject()
+                                    .put("domainStrategy", "UseIP")))
+                    .put(new JSONObject()
+                            .put("tag", "block")
+                            .put("protocol", "blackhole")
+                            .put("settings", new JSONObject()
+                                    .put("response", new JSONObject()
+                                            .put("type", "http")))));
+
+            cfg.put("dns", new JSONObject()
+                    .put("servers", new JSONArray().put("1.1.1.1"))
+                    .put("queryStrategy", "UseIPv4"));
+            cfg.put("routing", new JSONObject()
+                    .put("domainStrategy", "AsIs")
+                    .put("rules", new JSONArray()));
+            return cfg;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** ServerSpec -> Xray streamSettings for the client export. */
+    private static JSONObject streamJson(ServerSpec s) throws Exception {
+        JSONObject st = new JSONObject();
+        String net = s.network == null || s.network.isEmpty() ? "tcp" : s.network;
+        String sec = s.security == null || s.security.isEmpty() ? "none" : s.security;
+        st.put("network", net);
+        st.put("security", sec);
+        if ("tls".equals(sec) || "reality".equals(sec)) {
+            JSONObject t = new JSONObject();
+            if (s.sni != null && !s.sni.isEmpty()) t.put("serverName", s.sni);
+            if (s.fingerprint != null && !s.fingerprint.isEmpty())
+                t.put("fingerprint", s.fingerprint);
+            if (s.alpn != null && !s.alpn.isEmpty()) t.put("alpn", s.alpn);
+            if (s.allowInsecure) t.put("allowInsecure", true);
+            if ("reality".equals(sec)) {
+                t.put("publicKey", s.pbk);
+                if (s.sid != null && !s.sid.isEmpty()) t.put("shortId", s.sid);
+                if (s.spx != null && !s.spx.isEmpty()) t.put("spiderX", s.spx);
+                st.put("realitySettings", t);
+            } else {
+                st.put("tlsSettings", t);
+            }
+        }
+        if ("ws".equals(net)) {
+            JSONObject w = new JSONObject();
+            if (s.path != null && !s.path.isEmpty()) w.put("path", s.path);
+            if (s.hostHeader != null && !s.hostHeader.isEmpty()) {
+                w.put("headers", new JSONObject().put("Host", s.hostHeader));
+            }
+            st.put("wsSettings", w);
+        } else if ("grpc".equals(net)) {
+            if (s.serviceName != null && !s.serviceName.isEmpty()) {
+                st.put("grpcSettings", new JSONObject()
+                        .put("serviceName", s.serviceName));
+            }
+        } else if ("httpupgrade".equals(net)) {
+            JSONObject h = new JSONObject();
+            if (s.path != null && !s.path.isEmpty()) h.put("path", s.path);
+            if (s.hostHeader != null && !s.hostHeader.isEmpty())
+                h.put("host", s.hostHeader);
+            st.put("httpupgradeSettings", h);
+        } else if ("xhttp".equals(net) || "splithttp".equals(net)) {
+            JSONObject x = new JSONObject();
+            if (s.path != null && !s.path.isEmpty()) x.put("path", s.path);
+            if (s.hostHeader != null && !s.hostHeader.isEmpty())
+                x.put("host", s.hostHeader);
+            if (s.xhttpMode != null && !s.xhttpMode.isEmpty())
+                x.put("mode", s.xhttpMode);
+            if (s.extraRaw != null && !s.extraRaw.isEmpty()) {
+                try {
+                    x.put("extra", new JSONObject(s.extraRaw)); // nested object
+                } catch (Exception ignored) {
+                    x.put("extra", s.extraRaw);
+                }
+            }
+            st.put("xhttpSettings", x);
+        }
+        return st;
+    }
+
+    /**
+     * v1.0.73: renders a batch of exported links as a JSON array of full
+     * client configs (one element per server, nothing merged). Protocols
+     * without an Xray outbound stay in the array as share-link entries so
+     * no server is lost.
+     */
+    public static String exportJsonArray(List<String> uris) {
+        JSONArray arr = new JSONArray();
+        int n = 1;
+        for (String uri : uris) {
+            String remark = fragmentDecoded(uri);
+            if (remark.isEmpty()) remark = "Config " + n;
+            JSONObject c = clientConfig(uri, remark);
+            if (c != null) {
+                arr.put(c);
+            } else {
+                try {
+                    arr.put(new JSONObject().put("remarks", remark)
+                            .put("link", uri));
+                } catch (Exception ignored) { }
+            }
+            n++;
+        }
+        try {
+            return arr.toString(2);
+        } catch (Exception e) {
+            return arr.toString();
+        }
+    }
+
+    private static String fragmentDecoded(String uri) {
+        if (uri == null) return "";
+        int i = uri.lastIndexOf('#');
+        if (i < 0 || i + 1 >= uri.length()) return "";
+        return ServerSpec.urlDecode(uri.substring(i + 1));
+    }
+
     /** normalized transport fields shared by the Xray/sing-box builders */
     private static final class Transport {
         String net = "tcp";
@@ -722,6 +948,8 @@ public final class JsonConfigs {
         String hostHeader = "";
         String serviceName = "";
         boolean insecure = false;
+        String mode = "";   // xhttp mode (auto / stream-one)
+        String extra = "";  // xhttp padding/obfs JSON (required by some servers)
 
         Map<String, String> params() {
             Map<String, String> q = new LinkedHashMap<>();
@@ -733,9 +961,11 @@ public final class JsonConfigs {
             if (!sid.isEmpty()) q.put("sid", sid);
             if (!spx.isEmpty()) q.put("spx", spx);
             if (!alpn.isEmpty()) q.put("alpn", alpn);
+            if (!mode.isEmpty()) q.put("mode", mode);
             if (!path.isEmpty()) q.put("path", path);
             if (!hostHeader.isEmpty()) q.put("host", hostHeader);
             if (!serviceName.isEmpty()) q.put("serviceName", serviceName);
+            if (!extra.isEmpty()) q.put("extra", extra);
             if (insecure) q.put("allowInsecure", "1");
             return q;
         }

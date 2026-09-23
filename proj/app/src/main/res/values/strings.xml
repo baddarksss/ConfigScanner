@@ -150,6 +150,7 @@
     <string name="toast_save_error">Failed to save: %1$s</string>
     <string name="toast_copy_done">Copied ✓</string>
     <string name="toast_links_copied">%1$d link(s) copied</string>
+    <string name="toast_json_copied">JSON configs copied: %1$d — paste into the batch import of your client (v2rayN / v2rayNG)</string>
     <string name="toast_output_empty">Output is empty</string>
     <string name="toast_core_missing">Core binary not found</string>
     <string name="toast_core_ok">Core is OK: %1$s</string>
@@ -261,16 +262,17 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.72
+    <string name="changelog">v1.0.73
+• Fixed servers exported from JSON configs losing their xhttp settings: mode, the padding/obfs extra block and the Host header were dropped, so the renamed link stopped working in clients while the original did (CDN-fronted servers like xnforo-style configs)
+• NEW: when the input is entirely JSON configs, Copy links now exports a JSON array of full client configs — one self-contained importable config per server, nothing merged; protocols without an Xray outbound stay as link entries
+• The same server pasted as a link AND inside a JSON is now scanned once (dedup), keeping the original link form
+• versionCode 74
+
+v1.0.72
 • Fixed exported links being rejected by some clients (only part of the servers imported): query values like alpn=[&quot;h2&quot;] are now percent-encoded on output, a raw plus sign is written as %2B (several clients turn a raw plus into a space), and double-escaped &amp;amp;amp; input now scans and exports correctly
 • versionCode 73
 
 v1.0.71
 • NEW: JSON configs are now understood — paste Xray/v2ray-core configs, sing-box configs, v2rayN JSON dumps, Clash proxy lists or JSON arrays of links and every server inside them is extracted and scanned like a normal link (one paste can now carry hundreds of servers)
-• versionCode 72
-
-v1.0.70
-• Country detection is much more reliable: two more independent geo sources and an automatic retry round — servers that used to end up \u2754 Unknown (all geo probes failed or were rate-limited) now usually resolve to their real country
-• The \u2754 Unknown toggle now really works everywhere: when OFF, unknown-country servers are hidden from the output box, the flag strip, the summary and copied links; when ON they are listed with the \u2754 marker
-• versionCode 71</string>
+• versionCode 72</string>
 </resources>
