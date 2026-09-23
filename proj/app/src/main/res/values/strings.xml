@@ -150,6 +150,14 @@
     <string name="toast_save_error">Failed to save: %1$s</string>
     <string name="toast_copy_done">Copied ✓</string>
     <string name="toast_links_copied">%1$d link(s) copied</string>
+    <string name="btn_output_type_fmt">Output: %1$s</string>
+    <string name="out_mode_link">Links</string>
+    <string name="out_mode_json">JSON</string>
+    <string name="out_mode_file">Save file</string>
+    <string name="out_mode_url">Short URL</string>
+    <string name="btn_clear_out">Clear</string>
+    <string name="btn_copy">Copy</string>
+    <string name="output_type_title">Output type</string>
     <string name="toast_json_copied">JSON configs copied: %1$d — paste into the batch import of your client (v2rayN / v2rayNG)</string>
     <string name="toast_output_empty">Output is empty</string>
     <string name="toast_core_missing">Core binary not found</string>
@@ -262,7 +270,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.73
+    <string name="changelog">v1.0.74
+• Fixed broken trojan/vless/hysteria2 links whose path contains @ characters: the password/host split now happens before the query, so panel paths like /---@name---@name/ no longer produce garbage configs; mangled hosts (containing &amp; ? = @) land in the Failed block instead of being exported dead
+• One tidy output menu replaces the crowded buttons: pick Links or JSON as the copy type; Save file, Short URL, country filter and count limit live in the same menu; a Clear button empties the output box
+• Caption tab slimmed down: only last-run and message-for-users stay; country-name language, the unknown-servers toggle, country-code backup, caption templates and the count toggle moved to Settings
+• The per-country counts line got its own separator; the input paste button label is fixed
+• versionCode 75
+
+v1.0.73
 • Fixed servers exported from JSON configs losing their xhttp settings: mode, the padding/obfs extra block and the Host header were dropped, so the renamed link stopped working in clients while the original did (CDN-fronted servers like xnforo-style configs)
 • NEW: when the input is entirely JSON configs, Copy links now exports a JSON array of full client configs — one self-contained importable config per server, nothing merged; protocols without an Xray outbound stay as link entries
 • The same server pasted as a link AND inside a JSON is now scanned once (dedup), keeping the original link form
@@ -270,9 +285,5 @@
 
 v1.0.72
 • Fixed exported links being rejected by some clients (only part of the servers imported): query values like alpn=[&quot;h2&quot;] are now percent-encoded on output, a raw plus sign is written as %2B (several clients turn a raw plus into a space), and double-escaped &amp;amp;amp; input now scans and exports correctly
-• versionCode 73
-
-v1.0.71
-• NEW: JSON configs are now understood — paste Xray/v2ray-core configs, sing-box configs, v2rayN JSON dumps, Clash proxy lists or JSON arrays of links and every server inside them is extracted and scanned like a normal link (one paste can now carry hundreds of servers)
-• versionCode 72</string>
+• versionCode 73</string>
 </resources>

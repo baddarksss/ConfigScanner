@@ -9,7 +9,7 @@
     <string name="servers_title">📥 سرورها</string>
     <string name="input_hint">کانفیگ‌ها رو اینجا بچسبون...\nvless://...\ntrojan://...</string>
     <string name="btn_file">📄 از فایل</string>
-    <string name="btn_paste">📋 پست</string>
+    <string name="btn_paste">📋 پیست</string>
     <string name="btn_clear">🗑 پاک</string>
     <string name="protocols_footer">پشتیبانی: VLESS (Reality/TLS/WS/gRPC/xHTTP + رمز PQC) • VMess • Trojan • Shadowsocks • Hysteria2 (کلاینت بومی + Salamander/Gecko) • SSR • TUIC • ShadowTLS • AnyTLS • SNIc (پارس می‌شن؛ بعضی توی هسته Xray نیستن)</string>
 
@@ -150,6 +150,14 @@
     <string name="toast_save_error">خطا در ذخیره: %1$s</string>
     <string name="toast_copy_done">کپی شد ✓</string>
     <string name="toast_links_copied">%1$d لینک کپی شد</string>
+    <string name="btn_output_type_fmt">خروجی: %1$s</string>
+    <string name="out_mode_link">لینک</string>
+    <string name="out_mode_json">جیسون</string>
+    <string name="out_mode_file">ذخیره فایل</string>
+    <string name="out_mode_url">لینک کوتاه</string>
+    <string name="btn_clear_out">پاکسازی</string>
+    <string name="btn_copy">کپی</string>
+    <string name="output_type_title">نوع خروجی</string>
     <string name="toast_json_copied">کانفیگ‌های جیسون کپی شد: %1$d — در ایمپورت گروهی کلاینت (v2rayN / v2rayNG) پیست کنید</string>
     <string name="toast_output_empty">اول نتیجه باید باشد</string>
     <string name="toast_core_missing">هسته پیدا نشد</string>
@@ -261,7 +269,14 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-<string name="changelog">v1.0.73
+<string name="changelog">v1.0.74
+• فیکس لینک‌های تروجان/ولس/هیستریا۲ که در path کاراکتر @ دارند: تفکیک password/host حالا قبل از query انجام می‌شود و pathهای پنلی مثل /---@name---@name/ دیگر کانفیگ خراب نمی‌سازند؛ هاست‌های به‌هم‌ریخته (شامل &amp; ? = @) به بلوک Failed می‌روند به‌جای اینکه مرده اکسپورت شوند
+• یک منوی مرتب جای دکمه‌های شلوغ خروجی: نوع کپی را لینک یا جیسون انتخاب کنید؛ ذخیره فایل، لینک کوتاه، فیلتر کشور و تعداد هم در همان منو هستند؛ دکمه پاکسازی کادر خروجی را خالی می‌کند
+• تب کپشن سبک شد: فقط آخرین اجرا و پیام برای کاربران مانده؛ زبان اسم کشور، کلید ناشناس‌ها، بکاپ کدهای کشور، قالب‌های کپشن و کلید شمارنده به تنظیمات منتقل شدند
+• خط شمارش کشورها جدا شد؛ برچسب دکمه پیست ورودی اصلاح شد
+• versionCode 75
+
+v1.0.73
 • فیکس حذف شدن تنظیمات xhttp سرورهای خروجی از کانفیگ جیسون: mode، بلوک padding/obfs (extra) و هدر Host جا می‌افتادند و لینک تغییرنام‌شده در کلاینت کار نمی‌کرد در حالی که لینک اصلی کار می‌کرد (سرورهای پشت CDN مثل کانفیگ‌های سبک xnforo)
 • جدید: وقتی ورودی کاملاً کانفیگ جیسون باشد، «کپی لینک‌ها» یک آرایه‌ی جیسون از کانفیگ‌های کامل کلاینت می‌دهد — برای هر سرور یک کانفیگ مستقل و قابل ایمپورت، بدون قاطی شدن؛ پروتکل‌های بدون خروجی Xray به شکل لینک در همان آرایه می‌مانند
 • سروری که هم به شکل لینک و هم داخل جیسون پیست شده حالا فقط یک‌بار اسکن می‌شود (dedup) و شکل لینک اصلی‌اش نگه داشته می‌شود
@@ -269,9 +284,5 @@
 
 v1.0.72
 • فیکس رد شدن لینک‌های خروجی در بعضی کلاینت‌ها (فقط بخشی از سرورها ایمپورت می‌شد): مقادیری مثل alpn=["h2"] حالا در خروجی percent-encode می‌شوند، علامت + به %2B نوشته می‌شود (+ خام در چند کلاینت به فاصله تبدیل می‌شود) و ورودی دوبار-escape شده (&amp;amp;) هم درست اسکن و خروجی می‌دهد
-• versionCode 73
-
-v1.0.71
-• جدید: کانفیگ جیسون حالا خوانده می‌شود — کانفیگ Xray/v2ray-core، کانفیگ sing-box، خروجی جیسون v2rayN، لیست پروکسی Clash یا آرایه‌ی جیسونِ لینک‌ها را پیست کنید؛ همه‌ی سرورهای داخلش استخراج و مثل لینک معمولی اسکن می‌شوند (یک پیست می‌تواند صدها سرور داشته باشد)
-• versionCode 72</string>
+• versionCode 73</string>
 </resources>

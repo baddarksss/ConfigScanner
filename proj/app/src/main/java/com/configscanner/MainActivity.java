@@ -81,8 +81,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView progressPercent;
     private android.widget.LinearLayout countryStatsBox;
     private android.widget.LinearLayout countryStatsList;
-    private MaterialButton btnFilterCountries;
-    private MaterialButton btnLimitCount;
     private HorizontalScrollView filterChipsScroll;
     private android.widget.LinearLayout filterChipsBox;
     private ScrollView pageTest;
@@ -248,8 +246,6 @@ public class MainActivity extends AppCompatActivity {
         progressPercent = findViewById(R.id.progressPercent);
         countryStatsBox = findViewById(R.id.countryStatsBox);
         countryStatsList = findViewById(R.id.countryStatsList);
-        btnFilterCountries = findViewById(R.id.btnFilterCountries);
-        btnLimitCount = findViewById(R.id.btnLimitCount);
         filterChipsScroll = findViewById(R.id.filterChipsScroll);
         filterChipsBox = findViewById(R.id.filterChipsBox);
         pageTest = findViewById(R.id.pageTest);
@@ -467,8 +463,7 @@ public class MainActivity extends AppCompatActivity {
             updateStartState();
         });
         ((MaterialButton) findViewById(R.id.btnCopyLinks)).setOnClickListener(v -> copyLinksOnly());
-        btnFilterCountries.setOnClickListener(v -> showFilterDialog());
-        btnLimitCount.setOnClickListener(v -> showLimitDialog());
+        setupOutputTypeButton();
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
                 .setChecked(prefs.getBoolean("include_unknown_in_links", false));
         ((android.widget.CheckBox) findViewById(R.id.chkIncludeUnknown))
@@ -497,17 +492,6 @@ public class MainActivity extends AppCompatActivity {
             outputScroll.setLayoutParams(outputScroll.getLayoutParams());
             btnOutExpand.setText(outExpanded ? R.string.out_collapse
                                              : R.string.out_expand);
-        });
-        ((MaterialButton) findViewById(R.id.btnSave)).setOnClickListener(v -> {
-            boolean empty;
-            synchronized (outputLines) { empty = outputLines.isEmpty(); }
-            if (empty) {
-                toast(getString(R.string.toast_output_empty));
-                return;
-            }
-            String fn = "configs_" + new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
-                    .format(new java.util.Date()) + ".txt";
-            fileExportLauncher.launch(fn);
         });
         ((MaterialButton) findViewById(R.id.btnClearOut)).setOnClickListener(v -> {
             synchronized (outputLines) {
@@ -598,7 +582,6 @@ public class MainActivity extends AppCompatActivity {
             fullChevron.setText(open ? "\u2303" : "\u2304");
         });
         // 🌍 Mudfish: upload the (filtered) output, get the RAW link back
-        findViewById(R.id.btnMudfish).setOnClickListener(v -> uploadToMudfish());
 
         findViewById(R.id.btnCopyCaptionCompact).setOnClickListener(v -> {
             android.content.ClipboardManager cm =
@@ -964,6 +947,11 @@ public class MainActivity extends AppCompatActivity {
         // "Copy links only" then exports a JSON array of full client
         // configs instead of plain links
         runAllJsonInput = jsonFound && plainLinks == 0 && !servers.isEmpty();
+        if (runAllJsonInput) {
+            outputMode = "json";
+            prefs.edit().putString("output_mode", outputMode).apply();
+            refreshOutputTypeLabel();
+        }
         parseFailCount.set(parseFail);
         if (servers.isEmpty()) {
             toast(getString(R.string.toast_no_config));
@@ -2576,10 +2564,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (runAllJsonInput) {
-            // v1.0.73: an all-JSON input exports as a JSON array of full
-            // client configs — one self-contained config per server,
-            // nothing merged, importable by v2rayN/v2rayNG batch import
+        if ("json".equals(outputMode)) {
+            // v1.0.73/74: JSON mode exports a JSON array of full client
+            // configs — one self-contained config per server, nothing
+            // merged, importable by v2rayN/v2rayNG batch import
             String json = JsonConfigs.exportJsonArray(new ArrayList<>(links));
             cm.setPrimaryClip(ClipData.newPlainText("configs", json));
             toast(getString(R.string.toast_json_copied, links.size()));
@@ -2588,6 +2576,84 @@ public class MainActivity extends AppCompatActivity {
         cm.setPrimaryClip(ClipData.newPlainText("configs",
                 String.join("\n", links)));
         toast(getString(R.string.toast_links_copied, links.size()));
+    }
+
+    // ------------------------------------------------ output type menu (v1.0.74)
+
+    /** Selected export type: "link" (default) or "json". File / URL /
+     *  country-filter / count are immediate actions inside the menu. */
+    private String outputMode = "link";
+
+    private void setupOutputTypeButton() {
+        outputMode = prefs.getString("output_mode", "link");
+        refreshOutputTypeLabel();
+        ((MaterialButton) findViewById(R.id.btnOutputType))
+                .setOnClickListener(v -> showOutputTypeDialog());
+    }
+
+    private void refreshOutputTypeLabel() {
+        MaterialButton b = findViewById(R.id.btnOutputType);
+        if (b == null) return;
+        String name = "json".equals(outputMode)
+                ? getString(R.string.out_mode_json)
+                : getString(R.string.out_mode_link);
+        b.setText(getString(R.string.btn_output_type_fmt, name));
+    }
+
+    private void showOutputTypeDialog() {
+        CharSequence[] items = {
+                getString(R.string.out_mode_link),
+                getString(R.string.out_mode_json),
+                getString(R.string.out_mode_file),
+                getString(R.string.out_mode_url),
+                getString(R.string.filter_countries),
+                getString(R.string.limit_count)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.btn_output_type_fmt,
+                        "json".equals(outputMode)
+                                ? getString(R.string.out_mode_json)
+                                : getString(R.string.out_mode_link)))
+                .setItems(items, (d, w) -> {
+                    switch (w) {
+                        case 0:
+                            outputMode = "link";
+                            prefs.edit().putString("output_mode", outputMode).apply();
+                            refreshOutputTypeLabel();
+                            break;
+                        case 1:
+                            outputMode = "json";
+                            prefs.edit().putString("output_mode", outputMode).apply();
+                            refreshOutputTypeLabel();
+                            break;
+                        case 2:
+                            exportToFile();
+                            break;
+                        case 3:
+                            uploadToMudfish();
+                            break;
+                        case 4:
+                            showFilterDialog();
+                            break;
+                        case 5:
+                            showLimitDialog();
+                            break;
+                    }
+                })
+                .show();
+    }
+
+    /** Save the visible output as a .txt file (SAF picker). */
+    private void exportToFile() {
+        boolean empty;
+        synchronized (outputLines) { empty = outputLines.isEmpty(); }
+        if (empty) {
+            toast(getString(R.string.toast_output_empty));
+            return;
+        }
+        String fn = "configs_" + new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+                .format(new java.util.Date()) + ".txt";
+        fileExportLauncher.launch(fn);
     }
 
     private void copyAll() {

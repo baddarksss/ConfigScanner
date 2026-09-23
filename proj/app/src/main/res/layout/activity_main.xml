@@ -349,6 +349,14 @@
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
 
+                        <!-- v1.0.74: the per-country counts must not blend
+                             into the output lines below -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="6dp"
+                            android:background="@color/stroke" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -363,22 +371,12 @@
                                 android:layout_marginEnd="6dp"
                                 android:layout_weight="1"
                                 android:maxLines="1"
-                                android:text="@string/btn_copy_only"
+                                android:text="@string/btn_copy"
                                 android:textColor="@color/btn_text"
                                 android:textSize="12sp"
                                 app:cornerRadius="12dp"
                                 app:strokeColor="@color/stroke" />
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnSave"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/btn_save"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnClearOut"
@@ -386,11 +384,11 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="2dp"
-                                android:text="🗑"
+                                android:text="@string/btn_clear_out"
                                 android:textSize="13sp" />
                         </LinearLayout>
 
-                        <!-- ================= output tools: country filter + count ================= -->
+                        <!-- ================= output tools: one menu for everything ================= -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -398,50 +396,18 @@
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnFilterCountries"
+                                android:id="@+id/btnOutputType"
                                 style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
                                 android:maxLines="1"
-                                android:text="@string/filter_countries"
-                                android:textColor="@color/btn_text"
-                                android:textSize="12sp"
-                                app:cornerRadius="12dp"
-                                app:strokeColor="@color/stroke" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnLimitCount"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:layout_weight="1"
-                                android:maxLines="1"
-                                android:text="@string/limit_count"
+                                android:text="@string/btn_output_type_fmt"
                                 android:textColor="@color/btn_text"
                                 android:textSize="12sp"
                                 app:cornerRadius="12dp"
                                 app:strokeColor="@color/stroke" />
                         </LinearLayout>
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnMudfish"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
-                            android:maxLines="1"
-                            android:text="@string/btn_mudfish"
-                            android:textColor="@color/btn_text"
-                            android:textSize="12sp"
-                            android:insetLeft="8dp"
-                            android:insetRight="8dp"
-                            android:paddingStart="8dp"
-                            android:paddingEnd="8dp"
-                            app:cornerRadius="12dp"
-                            app:strokeColor="@color/stroke" />
 
                         <!-- active chips showing the applied output filters -->
                         <HorizontalScrollView
@@ -1142,27 +1108,9 @@
                 </com.google.android.material.card.MaterialCardView>
 
 
-            </LinearLayout>
-        </ScrollView>
-
-        <!-- ================= PAGE: CAPTION ================= -->
-        <ScrollView
-            android:id="@+id/pageCaption"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="16dp">
-
-                <!-- Output country-name language -->
+                <!-- ======== caption & output preferences (moved from the
+                     caption tab in v1.0.74) ======== -->
+<!-- Output country-name language -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1226,7 +1174,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Include country-unknown servers in Copy links only -->
+<!-- Include country-unknown servers in Copy links only -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1259,102 +1207,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Country emoji codes (collapsible) -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:cardBackgroundColor="@color/glass_card"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="0dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="14dp">
-
-                        <LinearLayout
-                            android:id="@+id/captionCountryHeader"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:background="?attr/selectableItemBackground"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:paddingTop="6dp"
-                            android:paddingBottom="6dp">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/caption_country_title"
-                                android:textColor="@color/text_bright"
-                                android:textSize="15sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/countryListCount"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:layout_marginEnd="6dp"
-                                android:text=""
-                                android:textColor="@color/accent"
-                                android:textSize="12.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/captionCountryChevron"
-                                android:layout_width="22dp"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:text="⌄"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="15sp" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/captionCountryOptions"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:visibility="gone">
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:text="@string/caption_country_caption"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="10.5sp" />
-
-                            <EditText
-                                android:id="@+id/captionSearch"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:background="@drawable/bg_input"
-                                android:hint="@string/caption_search_hint"
-                                android:imeOptions="actionSearch"
-                                android:inputType="text"
-                                android:maxLines="1"
-                                android:padding="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="12.5sp" />
-
-                            <LinearLayout
-                                android:id="@+id/countryListContainer"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp"
-                                android:orientation="vertical" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- Backup -->
+<!-- Backup -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1432,7 +1285,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Caption template -->
+<!-- Caption template -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1529,7 +1382,138 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Message for users -->
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/chkCaptionCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/caption_count_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="13.5sp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/caption_count_caption"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="10.5sp" />
+
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ================= PAGE: CAPTION ================= -->
+        <ScrollView
+            android:id="@+id/pageCaption"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="16dp">
+
+                                                <!-- Country emoji codes (collapsible) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardBackgroundColor="@color/glass_card"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:id="@+id/captionCountryHeader"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/caption_country_title"
+                                android:textColor="@color/text_bright"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/countryListCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
+                                android:layout_marginEnd="6dp"
+                                android:text=""
+                                android:textColor="@color/accent"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/captionCountryChevron"
+                                android:layout_width="22dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="⌄"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="15sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/captionCountryOptions"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/caption_country_caption"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="10.5sp" />
+
+                            <EditText
+                                android:id="@+id/captionSearch"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/bg_input"
+                                android:hint="@string/caption_search_hint"
+                                android:imeOptions="actionSearch"
+                                android:inputType="text"
+                                android:maxLines="1"
+                                android:padding="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12.5sp" />
+
+                            <LinearLayout
+                                android:id="@+id/countryListContainer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:orientation="vertical" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                                                <!-- Message for users -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1776,20 +1760,6 @@
                             android:orientation="vertical"
                             android:visibility="gone">
 
-                            <com.google.android.material.checkbox.MaterialCheckBox
-                                android:id="@+id/chkCaptionCount"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/caption_count_title"
-                                android:textColor="@color/text_bright"
-                                android:textSize="13.5sp" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="@string/caption_count_caption"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="10.5sp" />
 
                             <TextView
                                 android:id="@+id/captionFullBox"

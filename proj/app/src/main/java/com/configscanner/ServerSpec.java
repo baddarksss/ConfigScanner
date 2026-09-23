@@ -69,6 +69,40 @@ public class ServerSpec {
 
     // ------------------------------------------------------------------
 
+    /**
+     * v1.0.74: the userinfo '@' separator must be searched ONLY in the
+     * authority section (before the first '?'). Links whose path/query
+     * contain raw '@' characters (panel-generated paths like
+     * "/---@user---@user/") used to split at the LAST '@' inside the path
+     * and produced garbage specs (password = half the query, host = path
+     * fragments) that then propagated into exports.
+     */
+    static int userinfoAt(String body) {
+        int q = body.indexOf('?');
+        String auth = q >= 0 ? body.substring(0, q) : body;
+        return auth.lastIndexOf('@');
+    }
+
+    /**
+     * v1.0.74: a parsed host must look like a host. Hosts containing query/
+     * fragment/entity characters can only come from mangled input (e.g.
+     * address fields of a broken link-to-JSON conversion) — rejecting them
+     * lands the config in the Failed block instead of exporting a
+     * guaranteed-dead server.
+     */
+    static void validateHost(String host) throws Exception {
+        if (host == null || host.isEmpty()) return;
+        String h = host.toLowerCase();
+        for (int i = 0; i < h.length(); i++) {
+            char c = h.charAt(i);
+            if (c == '&' || c == '?' || c == '=' || c == '@' || c == ' '
+                    || c == '"' || c == '\'' || c == '<' || c == '>'
+                    || c == '#' || c < 0x20) {
+                throw new Exception("invalid host: " + host);
+            }
+        }
+    }
+
     public static String urlDecode(String s) {
         if (s == null) return "";
         try { return URLDecoder.decode(s, "UTF-8"); } catch (Exception e) { return s; }
@@ -314,7 +348,7 @@ public class ServerSpec {
             s.name = urlDecode(body.substring(fi + 1));
             body = body.substring(0, fi);
         }
-        int at = body.lastIndexOf('@');
+        int at = userinfoAt(body);
         if (at < 0) throw new Exception("invalid vless: missing @");
         s.uuid = urlDecode(body.substring(0, at));
         String rest = body.substring(at + 1);
@@ -371,6 +405,7 @@ public class ServerSpec {
             s.allowInsecure = true;
 
         validateTransport(s.network, s.security);
+        validateHost(s.host);
         if (s.port < 1 || s.port > 65535) throw new Exception("invalid port: " + s.port);
         if (s.host.isEmpty() || s.uuid.isEmpty()) throw new Exception("invalid vless: missing host or uuid");
         if ("reality".equals(s.security) && (s.pbk == null || s.pbk.isEmpty())) {
@@ -440,6 +475,7 @@ public class ServerSpec {
             if ("true".equalsIgnoreCase(ai) || "1".equals(ai)) s.allowInsecure = true;
             if (!o.optBoolean("verify_cert", true)) s.allowInsecure = true;
             validateTransport(s.network, s.security);
+            validateHost(s.host);
             if (s.port < 1 || s.port > 65535) throw new Exception("invalid port: " + s.port);
             if (s.host.isEmpty() || s.uuid.isEmpty()) {
                 throw new Exception("invalid vmess: missing host or uuid");
@@ -460,7 +496,7 @@ public class ServerSpec {
             s.name = urlDecode(body.substring(fi + 1));
             body = body.substring(0, fi);
         }
-        int at = body.lastIndexOf('@');
+        int at = userinfoAt(body);
         if (at < 0) return null;
         s.password = urlDecode(body.substring(0, at));
         String rest = body.substring(at + 1);
@@ -490,6 +526,7 @@ public class ServerSpec {
                 || "true".equals(q.get("allowinsecure")) || "1".equals(q.get("allowinsecure")))
             s.allowInsecure = true;
 
+        validateHost(s.host);
         if (s.host.isEmpty() || s.password.isEmpty()) return null;
         return s;
     }
@@ -545,6 +582,7 @@ public class ServerSpec {
             s.host = parts[parts.length - 2];
             try { s.port = Integer.parseInt(parts[parts.length - 1]); } catch (Exception e) { return null; }
         }
+        validateHost(s.host);
         if (s.host.isEmpty() || s.method.isEmpty()) return null;
         return s;
     }
@@ -756,7 +794,7 @@ public class ServerSpec {
         return s;
     }
 
-    private static ServerSpec parseHysteria(String line) {
+    private static ServerSpec parseHysteria(String line) throws Exception {
         ServerSpec s = new ServerSpec();
         s.raw = line;
         s.protocol = "hysteria2";
@@ -767,7 +805,7 @@ public class ServerSpec {
             s.name = urlDecode(body.substring(fi + 1));
             body = body.substring(0, fi);
         }
-        int at = body.lastIndexOf('@');
+        int at = userinfoAt(body);
         if (at < 0) return null;
         s.password = urlDecode(body.substring(0, at));
         String rest = body.substring(at + 1);
@@ -796,6 +834,7 @@ public class ServerSpec {
                 || "true".equals(q.get("allowinsecure")) || "1".equals(q.get("allowinsecure")))
             s.allowInsecure = true;
 
+        validateHost(s.host);
         if (s.host.isEmpty() || s.password.isEmpty()) return null;
         return s;
     }
