@@ -165,6 +165,9 @@ public class MainActivity extends AppCompatActivity {
     /** v1.0.73: true when the last run's input was entirely JSON configs —
      *  copy-links then exports a JSON array of full client configs. */
     private boolean runAllJsonInput = false;
+    /** v1.0.75: identical endpoints dropped by dedup — counted + reported */    private final java.util.concurrent.atomic.AtomicInteger dupCount =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     private final List<String> unknownLinks =
             java.util.Collections.synchronizedList(new ArrayList<String>());
 
@@ -922,15 +925,24 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
             if (s != null) {
+                // v1.0.75: fragment (fm) in the key — two configs that only
+                // differ in their fragmentation ARE different configs
                 String key = s.protocol + "|" + s.host.toLowerCase()
                         + "|" + s.port
                         + "|" + ServerSpec.firstNonEmpty(s.uuid, s.password)
                         + "|" + s.network + "|" + s.security
-                        + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName);
+                        + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName)
+                        + "|" + ServerSpec.firstNonEmpty(s.fragmentRaw)
+                        + "|" + ServerSpec.firstNonEmpty(s.alpn);
                 ServerSpec prev = uniq.get(key);
                 if (prev == null) {
                     uniq.put(key, s);
                 } else {
+                    // v1.0.75: a duplicate is REPORTED, never silently
+                    // dropped — the 30-in/25-out mystery
+                    dupCount.incrementAndGet();
+                    failedReasons.put(t, "duplicate — endpoint already in the scan: "
+                            + s.protocol + " " + s.host + ":" + s.port);
                     AppLog.d("run", "duplicate skipped: " + s.protocol
                             + " " + s.host + ":" + s.port);
                 }
@@ -992,6 +1004,7 @@ public class MainActivity extends AppCompatActivity {
         noCountryCount.set(0);
         unreachableCount.set(0);
         skipCount.set(0);
+        dupCount.set(0);
         failedCount.set(0);
         procLogs.clear();
         // NOTE: parseFailCount and failedReasons are cleared BEFORE the parse
@@ -2125,7 +2138,8 @@ public class MainActivity extends AppCompatActivity {
 
     private String buildRunSummary() {
         return getString(R.string.run_summary, okCount.get(), noCountryCount.get(),
-                unreachableCount.get(), skipCount.get(), parseFailCount.get());
+                unreachableCount.get(), skipCount.get(), parseFailCount.get(),
+                dupCount.get());
     }
 
     // ------------------------------------------------------- run stats & output tools

@@ -185,7 +185,7 @@
     <string name="core_update_busy">One moment — another core operation is in progress</string>
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
-    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped · %5$d invalid</string>
+    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped · %5$d invalid · %6$d duplicate</string>
     <string name="tpl_add">New caption</string>
     <string name="tpl_active_fmt">Active: %1$s</string>
     <string name="tpl_hint">{{FLAGS}} = flag row · {{COUNT}} = config count · {{LINK}} = the Mudfish RAW link</string>
@@ -270,7 +270,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.74
+    <string name="changelog">v1.0.75
+• Fixed every server timing out after processing JSON configs: the TCP-fragment setting (fm) that Cloudflare-fronted servers need was dropped when reading JSON — it is now carried through extraction, the exported links and the exported JSON configs (as sockopt.fragment, chained when there are several fragments)
+• Fixed duplicated servers disappearing without a trace: the summary now shows a duplicate count and every duplicate is listed in the Failed block; configs that differ only in fragmentation are no longer merged
+• Fixed alpn being written as a raw JSON array into exported links — it is now the standard comma form
+• versionCode 76
+
+v1.0.74
 • Fixed broken trojan/vless/hysteria2 links whose path contains @ characters: the password/host split now happens before the query, so panel paths like /---@name---@name/ no longer produce garbage configs; mangled hosts (containing &amp; ? = @) land in the Failed block instead of being exported dead
 • One tidy output menu replaces the crowded buttons: pick Links or JSON as the copy type; Save file, Short URL, country filter and count limit live in the same menu; a Clear button empties the output box
 • Caption tab slimmed down: only last-run and message-for-users stay; country-name language, the unknown-servers toggle, country-code backup, caption templates and the count toggle moved to Settings
@@ -281,9 +287,5 @@ v1.0.73
 • Fixed servers exported from JSON configs losing their xhttp settings: mode, the padding/obfs extra block and the Host header were dropped, so the renamed link stopped working in clients while the original did (CDN-fronted servers like xnforo-style configs)
 • NEW: when the input is entirely JSON configs, Copy links now exports a JSON array of full client configs — one self-contained importable config per server, nothing merged; protocols without an Xray outbound stay as link entries
 • The same server pasted as a link AND inside a JSON is now scanned once (dedup), keeping the original link form
-• versionCode 74
-
-v1.0.72
-• Fixed exported links being rejected by some clients (only part of the servers imported): query values like alpn=[&quot;h2&quot;] are now percent-encoded on output, a raw plus sign is written as %2B (several clients turn a raw plus into a space), and double-escaped &amp;amp;amp; input now scans and exports correctly
-• versionCode 73</string>
+• versionCode 74</string>
 </resources>

@@ -136,6 +136,26 @@ public final class JsonConfigs {
         JSONObject o = (JSONObject) node;
         if (o.length() == 0) return;
 
+        // v1.0.75: an outbounds ARRAY is converted with doc-level context so
+        // the TCP-fragment chain (sockopt.fragment / dialerProxy hops) that
+        // Cloudflare-fronted servers NEED can be re-attached to the link as
+        // its fm= parameter. Losing it made every exported server time out.
+        JSONArray obs = o.optJSONArray("outbounds");
+        if (obs != null) {
+            walkOutbounds(obs, out, budget, depth + 1);
+            // recurse into every OTHER value (routing/dns may hold link
+            // arrays) but never into the outbounds array again — those
+            // servers are already added above, WITH their fm chain
+            Iterator<String> it2 = o.keys();
+            while (it2.hasNext() && budget[0] > 0 && out.size() < MAX_SERVERS) {
+                String k = it2.next();
+                Object v = o.opt(k);
+                if (v == obs) continue;
+                walk(v, out, budget, depth + 1);
+            }
+            return;
+        }
+
         String uri = convert(o);
         if (uri != null) {
             out.add(uri);
@@ -146,6 +166,83 @@ public final class JsonConfigs {
         while (it.hasNext() && budget[0] > 0 && out.size() < MAX_SERVERS) {
             walk(o.opt(it.next()), out, budget, depth + 1);
         }
+    }
+
+    /**
+     * v1.0.75: converts an outbounds array; for every server that has a
+     * fragment chain (own sockopt.fragment and/or dialerProxy hops pointing
+     * at fragment outbounds) the chain is serialized back into the fm=
+     * share parameter in list order, exactly the format the link had.
+     */
+    private static void walkOutbounds(JSONArray obs, LinkedHashSet<String> out,
+                                      int[] budget, int depth) {
+        // tag -> {fragment object, dialerProxy target} for the whole doc
+        Map<String, JSONObject> fragByTag = new LinkedHashMap<>();
+        Map<String, String> dialByTag = new LinkedHashMap<>();
+        for (int i = 0; i < obs.length(); i++) {
+            JSONObject ob = obs.optJSONObject(i);
+            if (ob == null) continue;
+            String tag = ob.optString("tag", "");
+            JSONObject st = ob.optJSONObject("streamSettings");
+            JSONObject sock = st == null ? null : st.optJSONObject("sockopt");
+            if (sock != null && !tag.isEmpty()) {
+                JSONObject f = sock.optJSONObject("fragment");
+                if (f != null) fragByTag.put(tag, f);
+                String dp = sock.optString("dialerProxy", "");
+                if (!dp.isEmpty()) dialByTag.put(tag, dp);
+            }
+        }
+        for (int i = 0; i < obs.length() && budget[0] > 0
+                && out.size() < MAX_SERVERS; i++) {
+            JSONObject ob = obs.optJSONObject(i);
+            if (ob == null) continue;
+            String uri = convert(ob);
+            if (uri == null) continue;
+            // assemble the fragment chain starting at THIS outbound
+            List<JSONObject> chain = new ArrayList<>();
+            JSONObject own = ownFragment(ob);
+            if (own != null) chain.add(own);
+            String hop = ob.optJSONObject("streamSettings") == null ? ""
+                    : first(ob.optJSONObject("streamSettings")
+                        .optJSONObject("sockopt") == null ? ""
+                        : ob.optJSONObject("streamSettings")
+                            .optJSONObject("sockopt").optString("dialerProxy", ""),
+                    "");
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            while (!hop.isEmpty() && seen.add(hop)
+                    && chain.size() < 8) {
+                JSONObject f = fragByTag.get(hop);
+                if (f != null) chain.add(f);
+                hop = dialByTag.getOrDefault(hop, "");
+            }
+            if (!chain.isEmpty() && !uri.contains("fm=")) {
+                try {
+                    JSONArray tcp = new JSONArray();
+                    for (JSONObject f : chain) {
+                        tcp.put(new JSONObject()
+                                .put("type", "fragment")
+                                .put("settings", new JSONObject(f.toString())));
+                    }
+                    String fm = new JSONObject().put("tcp", tcp).toString();
+                    String param = "fm=" + qEnc(fm);
+                    int fi = uri.indexOf('#');
+                    // the query ends at the fragment — insert BEFORE it
+                    uri = fi < 0
+                            ? uri + "&" + param
+                            : uri.substring(0, fi) + "&" + param
+                                    + uri.substring(fi);
+                } catch (Exception ignored) { }
+            }
+            out.add(uri);
+            budget[0]--;
+        }
+    }
+
+    /** the outbound's own streamSettings.sockopt.fragment, or null */
+    private static JSONObject ownFragment(JSONObject ob) {
+        JSONObject st = ob.optJSONObject("streamSettings");
+        JSONObject sock = st == null ? null : st.optJSONObject("sockopt");
+        return sock == null ? null : sock.optJSONObject("fragment");
     }
 
     private static boolean isProxyScheme(String t) {
@@ -266,7 +363,7 @@ public final class JsonConfigs {
             t.sni = first(tlsS.optString("serverName", ""),
                     tlsS.optString("server_name", ""));
             t.fingerprint = tlsS.optString("fingerprint", "");
-            t.alpn = tlsS.optString("alpn", "");
+            t.alpn = alpnText(tlsS.opt("alpn"));
             t.insecure = tlsS.optBoolean("allowInsecure", false)
                     || tlsS.optBoolean("allow_insecure", false);
         }
@@ -336,6 +433,7 @@ public final class JsonConfigs {
             JSONObject u = tls.optJSONObject("utls");
             if (u != null) fp = u.optString("fingerprint", "");
         }
+        String alpnStr = tls == null ? "" : alpnText(tls.opt("alpn"));
         String pbk = "", sid = "";
         if (tls != null) {
             JSONObject r = tls.optJSONObject("reality");
@@ -380,6 +478,7 @@ public final class JsonConfigs {
             q.put("security", sec);
             if (!sni.isEmpty()) q.put("sni", sni);
             if (!fp.isEmpty()) q.put("fp", fp);
+            if (!alpnStr.isEmpty()) q.put("alpn", alpnStr);
             if (!pbk.isEmpty()) q.put("pbk", pbk);
             if (!sid.isEmpty()) q.put("sid", sid);
             if (!path.isEmpty()) q.put("path", path);
@@ -409,6 +508,7 @@ public final class JsonConfigs {
                 v.put("tls", tlsOn ? "tls" : "");
                 if (!sni.isEmpty()) v.put("sni", sni);
                 if (!fp.isEmpty()) v.put("fp", fp);
+                if (!alpnStr.isEmpty()) v.put("alpn", alpnStr);
                 if (insecure) v.put("allowInsecure", "1");
             } catch (Exception ignored) { }
             return "vmess://" + b64(v.toString());
@@ -633,7 +733,7 @@ public final class JsonConfigs {
         for (int i = 0; i < v.length(); i++) {
             char c = v.charAt(i);
             if (c == '%' || c == '&' || c == '#' || c == ' ' || c == '+'
-                    || c == '"' || c == '{' || c == '}'
+                    || c == '"' || c == '{' || c == '}' || c == '[' || c == ']'
                     || c < 0x20 || c == 0x7F) {
                 sb.append('%').append(String.format(Locale.US, "%02X", (int) c));
             } else {
@@ -700,6 +800,25 @@ public final class JsonConfigs {
                 .encodeToString(s.getBytes(StandardCharsets.UTF_8));
     }
 
+    /** v1.0.75: ALPN may arrive as a JSON array (["h2","http/1.1"]) —
+     *  share links carry it comma-joined; optString on an array would
+     *  produce a broken \"[\\\"...\\\"]\" string. */
+    private static String alpnText(Object v) {
+        if (v == null) return "";
+        if (v instanceof JSONArray) {
+            JSONArray a = (JSONArray) v;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < a.length(); i++) {
+                String e = String.valueOf(a.opt(i)).trim();
+                if (e.isEmpty()) continue;
+                if (sb.length() > 0) sb.append(',');
+                sb.append(e);
+            }
+            return sb.toString();
+        }
+        return String.valueOf(v).trim();
+    }
+
     private static String headersHost(JSONObject headers) {
         if (headers == null) return "";
         return first(headers.optString("Host", ""), headers.optString("host", ""));
@@ -742,6 +861,10 @@ public final class JsonConfigs {
             ServerSpec s = ServerSpec.parse(uri);
             if (s == null) return null;
             String proto = s.protocol;
+            // v1.0.75: the TCP-fragment chain (fm=) travels back into the
+            // config as sockopt.fragment — directly on the outbound for a
+            // single entry, as a dialerProxy hop chain for several entries
+            List<JSONObject> frags = fmEntries(s.fragmentRaw);
 
             JSONObject proxy = new JSONObject();
             proxy.put("tag", "proxy");
@@ -786,7 +909,21 @@ public final class JsonConfigs {
                 return null; // no Xray outbound exists for this protocol
             }
             proxy.put("settings", settings);
-            proxy.put("streamSettings", streamJson(s));
+            if (!frags.isEmpty()) {
+                JSONObject sock = new JSONObject();
+                if (frags.size() == 1) {
+                    sock.put("fragment", frags.get(0));
+                } else {
+                    // first fragment rides the first hop; the proxy just
+                    // points into the chain
+                    sock.put("dialerProxy", "fragment-1");
+                }
+                JSONObject st = streamJson(s);
+                st.put("sockopt", sock);
+                proxy.put("streamSettings", st);
+            } else {
+                proxy.put("streamSettings", streamJson(s));
+            }
             proxy.put("mux", new JSONObject().put("enabled", false)
                     .put("concurrency", -1));
 
@@ -811,19 +948,37 @@ public final class JsonConfigs {
                     .put("sniffing", sniffing);
             cfg.put("inbounds", new JSONArray().put(socksIn));
 
-            cfg.put("outbounds", new JSONArray()
-                    .put(proxy)
-                    .put(new JSONObject()
-                            .put("tag", "direct")
-                            .put("protocol", "freedom")
-                            .put("settings", new JSONObject()
-                                    .put("domainStrategy", "UseIP")))
-                    .put(new JSONObject()
-                            .put("tag", "block")
-                            .put("protocol", "blackhole")
-                            .put("settings", new JSONObject()
-                                    .put("response", new JSONObject()
-                                            .put("type", "http")))));
+            JSONArray outs = new JSONArray().put(proxy);
+            // chained fragment hops: fragment-i applies entry i-1 and dials
+            // through fragment-(i+1); traffic order proxy -> f1 -> f2 -> net
+            for (int i = 1; i <= frags.size(); i++) {
+                JSONObject hop = new JSONObject()
+                        .put("tag", "fragment-" + i)
+                        .put("protocol", "freedom")
+                        .put("settings", new JSONObject()
+                                .put("domainStrategy", ""));
+                JSONObject hst = new JSONObject();
+                JSONObject hsock = new JSONObject()
+                        .put("fragment", frags.get(i - 1));
+                if (i < frags.size()) {
+                    hsock.put("dialerProxy", "fragment-" + (i + 1));
+                }
+                hst.put("sockopt", hsock);
+                hop.put("streamSettings", hst);
+                outs.put(hop);
+            }
+            outs.put(new JSONObject()
+                    .put("tag", "direct")
+                    .put("protocol", "freedom")
+                    .put("settings", new JSONObject()
+                            .put("domainStrategy", "UseIP")));
+            outs.put(new JSONObject()
+                    .put("tag", "block")
+                    .put("protocol", "blackhole")
+                    .put("settings", new JSONObject()
+                            .put("response", new JSONObject()
+                                    .put("type", "http"))));
+            cfg.put("outbounds", outs);
 
             cfg.put("dns", new JSONObject()
                     .put("servers", new JSONArray().put("1.1.1.1"))
@@ -835,6 +990,31 @@ public final class JsonConfigs {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * v1.0.75: parses the fm= share parameter back into its fragment
+     * settings entries ({"tcp":[{"type":"fragment","settings":{...}}]}),
+     * in list order. Returns an empty list for absent/invalid fm.
+     */
+    private static List<JSONObject> fmEntries(String fmRaw) {
+        List<JSONObject> res = new ArrayList<>();
+        if (fmRaw == null || fmRaw.isEmpty()) return res;
+        try {
+            JSONObject fm = new JSONObject(fmRaw);
+            JSONArray tcp = fm.optJSONArray("tcp");
+            if (tcp == null) return res;
+            for (int i = 0; i < tcp.length() && res.size() < 8; i++) {
+                JSONObject e = tcp.optJSONObject(i);
+                if (e == null) continue;
+                if (!"fragment".equals(e.optString("type", ""))) continue;
+                JSONObject set = e.optJSONObject("settings");
+                if (set != null && set.length() > 0) {
+                    res.add(new JSONObject(set.toString()));
+                }
+            }
+        } catch (Exception ignored) { }
+        return res;
     }
 
     /** ServerSpec -> Xray streamSettings for the client export. */
