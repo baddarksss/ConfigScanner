@@ -198,10 +198,16 @@ public final class JsonConfigs {
             if (ob == null) continue;
             String uri = convert(ob);
             if (uri == null) continue;
-            // assemble the fragment chain starting at THIS outbound
-            List<JSONObject> chain = new ArrayList<>();
-            JSONObject own = ownFragment(ob);
-            if (own != null) chain.add(own);
+            // assemble the fragment chain starting at THIS outbound.
+            // v1.0.77: finalmask (newer clients write the mask chain there
+            // instead of sockopt.fragment) takes priority — configs using it
+            // previously exported with NO fragment at all and every
+            // Cloudflare-fronted server then died
+            List<JSONObject> chain = finalmaskEntries(ob);
+            if (chain.isEmpty()) {
+                JSONObject own = ownFragment(ob);
+                if (own != null) chain.add(own);
+            }
             String hop = ob.optJSONObject("streamSettings") == null ? ""
                     : first(ob.optJSONObject("streamSettings")
                         .optJSONObject("sockopt") == null ? ""
@@ -243,6 +249,30 @@ public final class JsonConfigs {
         JSONObject st = ob.optJSONObject("streamSettings");
         JSONObject sock = st == null ? null : st.optJSONObject("sockopt");
         return sock == null ? null : sock.optJSONObject("fragment");
+    }
+
+    /**
+     * v1.0.77: fragment entries from streamSettings.finalmask.tcp[] — the
+     * mask chain shape newer clients use (same {type:fragment,settings:{}}
+     * entries as the fm= parameter), in list order.
+     */
+    private static List<JSONObject> finalmaskEntries(JSONObject ob) {
+        List<JSONObject> res = new ArrayList<>();
+        JSONObject st = ob.optJSONObject("streamSettings");
+        JSONObject fm = st == null ? null : st.optJSONObject("finalmask");
+        JSONArray tcp = fm == null ? null : fm.optJSONArray("tcp");
+        if (tcp == null) return res;
+        for (int i = 0; i < tcp.length() && res.size() < 8; i++) {
+            JSONObject e = tcp.optJSONObject(i);
+            if (e == null || !"fragment".equals(e.optString("type", ""))) continue;
+            JSONObject set = e.optJSONObject("settings");
+            if (set != null && set.length() > 0) {
+                try {
+                    res.add(new JSONObject(set.toString()));
+                } catch (Exception ignored) { }
+            }
+        }
+        return res;
     }
 
     private static boolean isProxyScheme(String t) {
@@ -861,9 +891,12 @@ public final class JsonConfigs {
             ServerSpec s = ServerSpec.parse(uri);
             if (s == null) return null;
             String proto = s.protocol;
-            // v1.0.75: the TCP-fragment chain (fm=) travels back into the
-            // config as sockopt.fragment — directly on the outbound for a
-            // single entry, as a dialerProxy hop chain for several entries
+            // v1.0.77: the TCP-fragment chain (fm=) travels back into the
+            // config in the NATIVE finalmask shape the newer clients write
+            // (streamSettings.finalmask.tcp = [{type:fragment,settings:{}},
+            // ...] — the array itself is the chain). sockopt.fragment +
+            // dialerProxy hops were the pre-finalmask workaround; writing
+            // both would fragment the handshake twice on current cores.
             List<JSONObject> frags = fmEntries(s.fragmentRaw);
 
             JSONObject proxy = new JSONObject();
@@ -910,16 +943,14 @@ public final class JsonConfigs {
             }
             proxy.put("settings", settings);
             if (!frags.isEmpty()) {
-                JSONObject sock = new JSONObject();
-                if (frags.size() == 1) {
-                    sock.put("fragment", frags.get(0));
-                } else {
-                    // first fragment rides the first hop; the proxy just
-                    // points into the chain
-                    sock.put("dialerProxy", "fragment-1");
+                JSONArray tcpArr = new JSONArray();
+                for (JSONObject f : frags) {
+                    tcpArr.put(new JSONObject()
+                            .put("type", "fragment")
+                            .put("settings", f));
                 }
                 JSONObject st = streamJson(s);
-                st.put("sockopt", sock);
+                st.put("finalmask", new JSONObject().put("tcp", tcpArr));
                 proxy.put("streamSettings", st);
             } else {
                 proxy.put("streamSettings", streamJson(s));
@@ -949,24 +980,6 @@ public final class JsonConfigs {
             cfg.put("inbounds", new JSONArray().put(socksIn));
 
             JSONArray outs = new JSONArray().put(proxy);
-            // chained fragment hops: fragment-i applies entry i-1 and dials
-            // through fragment-(i+1); traffic order proxy -> f1 -> f2 -> net
-            for (int i = 1; i <= frags.size(); i++) {
-                JSONObject hop = new JSONObject()
-                        .put("tag", "fragment-" + i)
-                        .put("protocol", "freedom")
-                        .put("settings", new JSONObject()
-                                .put("domainStrategy", ""));
-                JSONObject hst = new JSONObject();
-                JSONObject hsock = new JSONObject()
-                        .put("fragment", frags.get(i - 1));
-                if (i < frags.size()) {
-                    hsock.put("dialerProxy", "fragment-" + (i + 1));
-                }
-                hst.put("sockopt", hsock);
-                hop.put("streamSettings", hst);
-                outs.put(hop);
-            }
             outs.put(new JSONObject()
                     .put("tag", "direct")
                     .put("protocol", "freedom")

@@ -955,10 +955,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         List<ServerSpec> servers = new ArrayList<>(uniq.values());
-        // v1.0.73: remember that this run came purely from JSON configs —
-        // "Copy links only" then exports a JSON array of full client
-        // configs instead of plain links
-        runAllJsonInput = jsonFound && plainLinks == 0 && !servers.isEmpty();
+        // v1.0.77: ANY JSON config found in the input forces JSON output —
+        // v1.0.73 only switched on a PURELY-JSON paste, so a mixed batch
+        // (JSON docs + a few share links) kept output_mode=link and "copy"
+        // handed back plain links that a fragment-aware client can't use
+        runAllJsonInput = jsonFound && !servers.isEmpty();
         if (runAllJsonInput) {
             outputMode = "json";
             prefs.edit().putString("output_mode", outputMode).apply();

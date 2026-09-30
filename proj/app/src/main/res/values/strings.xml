@@ -270,7 +270,12 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.76
+    <string name="changelog">v1.0.77
+• Fixed half the servers dying after processing the new JSON config batches: those carry the TCP-fragment chain in streamSettings.finalmask instead of sockopt, which was not read — the fragment never reached the scan or the exports, so every Cloudflare-fronted server failed. finalmask is now parsed everywhere and the native mask shape is written back into exported JSON configs, chained masks in order
+• Fixed the output type: pasting ANY JSON config now forces JSON output — a mixed paste (JSON docs plus share links) used to keep link mode and copy handed back plain links
+• versionCode 78
+
+v1.0.76
 • Fixed the config count missing from the caption when every server resolved to CDN: the count line was anchored to the flags row, which is empty in an all-CDN run, so it was silently never inserted. The count now always lands right after the location line; the CDN cloud also shows in the caption flags
 • versionCode 77
 
@@ -278,12 +283,5 @@ v1.0.75
 • Fixed every server timing out after processing JSON configs: the TCP-fragment setting (fm) that Cloudflare-fronted servers need was dropped when reading JSON — it is now carried through extraction, the exported links and the exported JSON configs (as sockopt.fragment, chained when there are several fragments)
 • Fixed duplicated servers disappearing without a trace: the summary now shows a duplicate count and every duplicate is listed in the Failed block; configs that differ only in fragmentation are no longer merged
 • Fixed alpn being written as a raw JSON array into exported links — it is now the standard comma form
-• versionCode 76
-
-v1.0.74
-• Fixed broken trojan/vless/hysteria2 links whose path contains @ characters: the password/host split now happens before the query, so panel paths like /---@name---@name/ no longer produce garbage configs; mangled hosts (containing &amp; ? = @) land in the Failed block instead of being exported dead
-• One tidy output menu replaces the crowded buttons: pick Links or JSON as the copy type; Save file, Short URL, country filter and count limit live in the same menu; a Clear button empties the output box
-• Caption tab slimmed down: only last-run and message-for-users stay; country-name language, the unknown-servers toggle, country-code backup, caption templates and the count toggle moved to Settings
-• The per-country counts line got its own separator; the input paste button label is fixed
-• versionCode 75</string>
+• versionCode 76</string>
 </resources>
