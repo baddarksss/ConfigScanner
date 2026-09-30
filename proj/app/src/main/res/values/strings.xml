@@ -270,7 +270,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.75
+    <string name="changelog">v1.0.76
+• Fixed the config count missing from the caption when every server resolved to CDN: the count line was anchored to the flags row, which is empty in an all-CDN run, so it was silently never inserted. The count now always lands right after the location line; the CDN cloud also shows in the caption flags
+• versionCode 77
+
+v1.0.75
 • Fixed every server timing out after processing JSON configs: the TCP-fragment setting (fm) that Cloudflare-fronted servers need was dropped when reading JSON — it is now carried through extraction, the exported links and the exported JSON configs (as sockopt.fragment, chained when there are several fragments)
 • Fixed duplicated servers disappearing without a trace: the summary now shows a duplicate count and every duplicate is listed in the Failed block; configs that differ only in fragmentation are no longer merged
 • Fixed alpn being written as a raw JSON array into exported links — it is now the standard comma form
@@ -281,11 +285,5 @@ v1.0.74
 • One tidy output menu replaces the crowded buttons: pick Links or JSON as the copy type; Save file, Short URL, country filter and count limit live in the same menu; a Clear button empties the output box
 • Caption tab slimmed down: only last-run and message-for-users stay; country-name language, the unknown-servers toggle, country-code backup, caption templates and the count toggle moved to Settings
 • The per-country counts line got its own separator; the input paste button label is fixed
-• versionCode 75
-
-v1.0.73
-• Fixed servers exported from JSON configs losing their xhttp settings: mode, the padding/obfs extra block and the Host header were dropped, so the renamed link stopped working in clients while the original did (CDN-fronted servers like xnforo-style configs)
-• NEW: when the input is entirely JSON configs, Copy links now exports a JSON array of full client configs — one self-contained importable config per server, nothing merged; protocols without an Xray outbound stay as link entries
-• The same server pasted as a link AND inside a JSON is now scanned once (dedup), keeping the original link form
-• versionCode 74</string>
+• versionCode 75</string>
 </resources>

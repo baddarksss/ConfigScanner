@@ -1696,6 +1696,8 @@ public class MainActivity extends AppCompatActivity {
         StringBuilder sb = new StringBuilder();
         synchronized (runCountryCodes) {
             for (String iso : runCountryCodes) {
+                // v1.0.76: CDN entries show the cloud in the caption flags
+                if ("CDN".equals(iso)) { sb.append("\u2601\uFE0F"); continue; }
                 String code = emojiCodes.get(iso);
                 if (code != null && !code.isEmpty()) sb.append('[').append(code).append(']');
             }
@@ -1882,9 +1884,31 @@ public class MainActivity extends AppCompatActivity {
         String flags = buildFlagsLine();
         // caption ONLY — the users message is a separate block with its own
         // copy button (mixing the two made the bot-caption dirty)
-        String out = tpl.contains("{{FLAGS}}")
-                ? tpl.replace("{{FLAGS}}", flags)
-                : tpl + "\n" + flags;
+        //
+        // v1.0.76 fix: the count line used to be inserted "after the flags
+        // row" by searching for the flags text — but an all-CDN run has an
+        // EMPTY flags row (CDN carries no country code), the anchor was ""
+        // and the count was silently never inserted. The anchor is now the
+        // template line that held {{FLAGS}} (kept BEFORE replacing), so the
+        // count lands right after the location line even with no flags.
+        String anchorLine = null;
+        String out;
+        if (tpl.contains("{{FLAGS}}")) {
+            for (String ln : tpl.split("\n")) {
+                if (ln.contains("{{FLAGS}}")) {
+                    // the anchor must be the line AS IT APPEARS IN THE OUTPUT
+                    // ({{FLAGS}} already substituted) — searching for the raw
+                    // template line would never match
+                    anchorLine = ln.replace("{{FLAGS}}", flags);
+                    break;
+                }
+            }
+            out = tpl.replace("{{FLAGS}}", flags);
+        } else {
+            // no dangling empty line when the flags row is empty
+            out = flags.isEmpty() ? tpl : tpl + "\n" + flags;
+            anchorLine = flags;
+        }
         // config count (v1.0.52): a {{COUNT}} placeholder wins for manual
         // placement; otherwise the toggle adds a compact line right after
         // the flags row. An empty count leaves no empty line behind.
@@ -1901,7 +1925,7 @@ public class MainActivity extends AppCompatActivity {
                 out = out.replace("{{COUNT}}", count);
             }
         } else if (!count.isEmpty()) {
-            out = insertAfterLine(out, flags, count);
+            out = insertAfterLine(out, anchorLine, count);
         }
         // Mudfish RAW link (v1.0.52): {{LINK}} marks the exact spot; a line
         // holding ONLY the placeholder disappears cleanly while no link or
@@ -1937,16 +1961,25 @@ public class MainActivity extends AppCompatActivity {
     private static String insertAfterLine(String text, String anchor, String add) {
         String[] ls = text.split("\n", -1);
         StringBuilder sb = new StringBuilder();
-        boolean done = anchor == null || anchor.isEmpty();
+        // v1.0.76 fix: an empty (or not-found) anchor used to either skip
+        // the insertion silently or, worse, drop the whole text — the loop
+        // now always rebuilds the caption and appends at the end as the
+        // last-resort fallback
+        boolean emptyAnchor = anchor == null || anchor.isEmpty();
+        boolean done = false;
         for (int i = 0; i < ls.length; i++) {
             sb.append(ls[i]);
-            if (!done && ls[i].contains(anchor)) {
+            if (!emptyAnchor && ls[i].contains(anchor)) {
                 sb.append('\n').append(add);
                 done = true;
+                emptyAnchor = true; // only the first match
             }
             if (i < ls.length - 1) sb.append('\n');
         }
-        if (!done) sb.append('\n').append(add);
+        if (emptyAnchor && !done) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(add);
+        }
         return sb.toString();
     }
 
