@@ -270,7 +270,11 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.77
+    <string name="changelog">v1.0.78
+• The output box itself now shows the real JSON configs in JSON mode — the same paste-ready array the copy button puts on the clipboard. Links mode still shows plain links; the box flips live when you switch the output type
+• versionCode 79
+
+v1.0.77
 • Fixed half the servers dying after processing the new JSON config batches: those carry the TCP-fragment chain in streamSettings.finalmask instead of sockopt, which was not read — the fragment never reached the scan or the exports, so every Cloudflare-fronted server failed. finalmask is now parsed everywhere and the native mask shape is written back into exported JSON configs, chained masks in order
 • Fixed the output type: pasting ANY JSON config now forces JSON output — a mixed paste (JSON docs plus share links) used to keep link mode and copy handed back plain links
 • versionCode 78

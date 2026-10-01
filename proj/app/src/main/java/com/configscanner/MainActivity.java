@@ -964,6 +964,7 @@ public class MainActivity extends AppCompatActivity {
             outputMode = "json";
             prefs.edit().putString("output_mode", outputMode).apply();
             refreshOutputTypeLabel();
+            refreshOutput(); // v1.0.78: the box shows the JSON array too
         }
         parseFailCount.set(parseFail);
         if (servers.isEmpty()) {
@@ -2519,6 +2520,21 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
+            // v1.0.78: in JSON mode the box itself shows the paste-ready
+            // JSON array of full client configs — what you see IS what the
+            // copy button puts on the clipboard. Nothing scanned OK -> keep
+            // the plain view so failed reasons stay visible.
+            String boxText = sb.toString();
+            if ("json".equals(outputMode)) {
+                List<OutEntry> vis = visibleEntries();
+                if (!vis.isEmpty()) {
+                    java.util.LinkedHashSet<String> jl = new java.util.LinkedHashSet<>();
+                    for (OutEntry e : vis) jl.add(e.line);
+                    try {
+                        boxText = JsonConfigs.exportJsonArray(new ArrayList<>(jl));
+                    } catch (Exception ignored) { boxText = sb.toString(); }
+                }
+            }
             final int n = nLines;
             // Never scroll programmatically while a run is in progress — the
             // ScrollView keeps the user's viewport where they left it.
@@ -2529,8 +2545,9 @@ public class MainActivity extends AppCompatActivity {
                             doneCount.get(), totalCount)
                     + "  ·  " + getString(R.string.counter_failed,
                             failedCount.get());
+            final String boxFinal = boxText;
             postUi(() -> {
-                outputView.setText(sb.toString());
+                outputView.setText(boxFinal);
                 outCount.setText(counter);
                 outCountrySummary.setText(summary);
                 outCountrySummary.setVisibility(
@@ -2668,11 +2685,13 @@ public class MainActivity extends AppCompatActivity {
                             outputMode = "link";
                             prefs.edit().putString("output_mode", outputMode).apply();
                             refreshOutputTypeLabel();
+                            refreshOutput(); // v1.0.78: flip the box back to links
                             break;
                         case 1:
                             outputMode = "json";
                             prefs.edit().putString("output_mode", outputMode).apply();
                             refreshOutputTypeLabel();
+                            refreshOutput(); // v1.0.78: render the box as JSON
                             break;
                         case 2:
                             exportToFile();
