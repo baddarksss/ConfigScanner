@@ -45,6 +45,10 @@ jobs:
             echo "CFGSCAN_KEYSTORE_BASE64 not set — APK will be debug-signed"
           fi
 
+      - name: Run unit tests
+        working-directory: proj
+        run: gradle testDebugUnitTest --no-daemon
+
       - name: Build release APK
         working-directory: proj
         env:

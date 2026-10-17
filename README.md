@@ -18,14 +18,14 @@ ready-to-post output.
   **VMess**, **Trojan**, **Shadowsocks**, **Hysteria2** (native client with
   Salamander / Gecko obfs), plus parsing-only reporting for SSR, TUIC,
   ShadowTLS, AnyTLS, SNIc
-- Bundled **Xray-core** (updatable in-app) + native **Hysteria** client
+- Bundled **Xray-core v26.10.17** (upstream pre-release; updatable in-app) + native **Hysteria** client
 - TCP fragment (`fm=`), ECH, xhttp padding — panel extras are carried over
 - Parallel testing (1–10 workers), per-server timeout, atomic port allocation
 - Self-signed servers: the leaf certificate is pinned automatically
 
 **Results & output**
 - Working links renamed to `🇩🇪 Country | your-channel` (clean, no counters)
-- Exit country voted by **6 geo services** in parallel — no single-service flukes
+- Exit country voted by **7 geo services** in parallel; a country still needs at least 2 matching sources. IPv6 checks allow a longer response window, without trusting a single vote
 - Copy all links / working links only / save as `.txt`
 
 **Caption builder** (Caption tab)
@@ -118,7 +118,9 @@ exactly where the in-app updater looks.
 - **The app kills the scan in the background** — disable battery optimization
   for ConfigScanner; a progress notification keeps the run alive.
 - **A server is marked ❌ but works in my client** — the test opens a full
-  tunnel and queries 6 geo services; some servers only allow browser-like
+  tunnel and queries 7 geo services; IPv6 probes get a longer response window,
+  but the app still requires two matching sources to avoid a wrong country.
+  Some servers only allow browser-like
   traffic. Raise the timeout and try again.
 - **"Core update blocked"** — your device refuses to execute updated binaries
   from app storage (SELinux). Install the newest app release instead; it ships

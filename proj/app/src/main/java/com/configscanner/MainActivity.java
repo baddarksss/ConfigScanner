@@ -1273,13 +1273,14 @@ public class MainActivity extends AppCompatActivity {
 
             // geo check via SOCKS
             long t0 = System.currentTimeMillis();
-            GeoChecker.Result geo = GeoChecker.check(port, timeoutSec);
+            boolean ipv6Target = s.host != null && s.host.indexOf(':') >= 0;
+            GeoChecker.Result geo = GeoChecker.check(port, timeoutSec, ipv6Target);
             long took = (System.currentTimeMillis() - t0) / 1000;
             if (gen != runGeneration) return; // run stopped during geo check
             AppLog.d("test", "geo code=" + geo.code + " country=" + geo.country
                     + " ip=" + geo.ip + " ok=" + geo.ok
                     + " votes=" + geo.votes + "/" + geo.answered
-                    + (geo.singleVote ? " (single-vote, low confidence)" : "")
+                    + (geo.singleVote ? " (no country has 2 votes)" : "")
                     + (geo.ipConflict ? " (providers used different exit IPs)" : "")
                     + " took=" + took + "s");
 
@@ -1311,11 +1312,15 @@ public class MainActivity extends AppCompatActivity {
                         + tail + "]");
                 // v1.0.59: the geo providers' verdict is the diagnostic that
                 // matters here (tunnel is up — requests just don't pass)
+                String geoVotes = "geo votes " + geo.votes + "/" + geo.answered
+                        + " (need 2 matching; " + geo.total + " providers)";
                 String geoDiag = geo.failed > 0
-                        ? "tunnel up; country unknown — geo providers failed "
-                                + geo.failed + "/" + geo.total
-                                + ", first: " + geo.firstError
-                        : "tunnel up; country unknown — no geo provider answered in time";
+                        ? "tunnel up; country unknown — " + geoVotes
+                                + "; providers failed " + geo.failed + "/" + geo.total
+                                + (geo.firstError.isEmpty() ? ""
+                                        : ", first: " + geo.firstError)
+                        : "tunnel up; country unknown — " + geoVotes
+                                + "; no clear 2-source consensus";
                 // v1.0.62: any CDN-fronted target is its own category
                 // (Cloudflare, Fastly, CloudFront, Akamai, Google, …).
                 // These tunnels handshake fine but their network path often
@@ -3034,11 +3039,11 @@ public class MainActivity extends AppCompatActivity {
         btnCoreTest.setEnabled(!busy);
     }
 
-    /** Numeric version of the currently active core binary, e.g. "26.7.28". */
+    /** Numeric version of the currently active core binary, e.g. "26.10.17". */
     private String currentCoreVersion() {
         try {
             File bin = XrayManager.binary(this);
-            String v = XrayManager.version(bin); // e.g. "26.7.28"
+            String v = XrayManager.version(bin); // e.g. "26.10.17"
             return (v != null && v.matches("\\d+(\\.\\d+)*")) ? v : null;
         } catch (Exception e) {
             return null;

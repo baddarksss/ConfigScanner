@@ -270,7 +270,13 @@
 
     <!-- About / changelog -->
     <string name="about_title">Config Scanner v%1$s</string>
-    <string name="changelog">v1.0.78
+    <string name="changelog">v1.0.79
+• Updated bundled Xray-core to v26.10.17 (upstream pre-release)
+• IPv6 country checks get a longer response window and late first-round replies are collected; the country still requires 2 matching geo services. Unknown results now show the vote count
+• Full Xray JSON imports preserve document remarks as the fallback name when an outbound tag is generic
+• versionCode 80
+
+v1.0.78
 • The output box itself now shows the real JSON configs in JSON mode — the same paste-ready array the copy button puts on the clipboard. Links mode still shows plain links; the box flips live when you switch the output type
 • versionCode 79
 

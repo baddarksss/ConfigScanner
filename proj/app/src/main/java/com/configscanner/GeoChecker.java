@@ -36,7 +36,7 @@ public class GeoChecker {
         public int votes = 0;
         public int answered = 0;
         public boolean deadTunnel = false;
-        /** true when exactly ONE service answered */
+        /** true when no country code received at least two votes */
         public boolean singleVote = false;
         /** v1.0.59: how many providers failed + the first failure reason —
          *  this is what makes "country unknown" diagnosable */
@@ -64,12 +64,19 @@ public class GeoChecker {
     };
 
     public static Result check(int proxyPort, int connectTimeoutSec) {
-        // v1.0.59: hard cap at 15s. Country detection never needed more —
-        // providers that CAN answer do so in <5s; the old behavior waited
-        // the full user timeout (30s+) for the remaining dead providers on
-        // EVERY unroutable tunnel, turning a 50-server run into 15 minutes.
-        int timeout = Math.min(15, Math.max(8, connectTimeoutSec));
+        return check(proxyPort, connectTimeoutSec, false);
+    }
+
+    /** IPv6 targets get a longer geo window: routes and geo providers often
+     *  finish later over IPv6 than the proxy's own handshake does. The country
+     *  quorum is unchanged; one provider still cannot assign a country. */
+    public static Result check(int proxyPort, int connectTimeoutSec, boolean ipv6Target) {
+        // Keep IPv4's existing hard cap. For IPv6, allow five extra seconds
+        // (12–20s total) so slow first-hop and geo-provider responses can still
+        // reach the same two-source consensus used for every other target.
+        int timeout = geoTimeoutSeconds(connectTimeoutSec, ipv6Target);
         long deadline = System.currentTimeMillis() + timeout * 1000L;
+        final long firstAnswerGraceMs = firstAnswerGraceMillis(ipv6Target);
 
         List<String[]> votes = new ArrayList<>();
         // v1.0.70: per-service failure tracking (identity-keyed) — drives the
@@ -80,7 +87,7 @@ public class GeoChecker {
         CompletionService<String[]> cs = new ExecutorCompletionService<>(ex);
 
         // ONE client for every geo probe (was: a new OkHttpClient per
-        // service = 6 clients/sockets per server tested)
+        // service = 7 clients/sockets per server tested)
         OkHttpClient client = newProxyClient(proxyPort, timeout);
         final long hardEnd = deadline;
 
@@ -94,6 +101,7 @@ public class GeoChecker {
                 });
             }
 
+            int completedFirstRound = 0;
             for (int i = 0; i < SERVICES.length; i++) {
                 long left = deadline - System.currentTimeMillis();
                 if (left <= 0) break;
@@ -104,33 +112,32 @@ public class GeoChecker {
                     break;
                 }
                 if (f == null) break;
+                completedFirstRound++;
                 try {
                     String[] res = f.get();
                     if (res != null && res[0] != null && !res[0].isEmpty()) {
                         votes.add(res);
-                        // If 2 or more services agree on the same country, we
-                        // can return early
                         // Stop only at 3 votes. With 7 providers, 3 is a strict majority.
                         // Stopping at 2 could hide a later tie and resurrect the old wrong country pick.
                         if (topVote(votes) >= 3) break;
-                        // v1.0.59: one vote in hand — only wait a short grace
-                        // for a confirming second vote, not the full deadline
+                        // Give the first answer time to get confirmation. IPv6 gets
+                        // a longer grace because its geo-provider responses often lag.
                         deadline = Math.min(deadline,
-                                System.currentTimeMillis() + 6000L);
+                                System.currentTimeMillis() + firstAnswerGraceMs);
                     }
                 } catch (Exception ignored) { }
             }
 
             Result r = makeResult(votes);
 
-            // v1.0.70: retry round — no country decided yet, so give every
-            // provider that errored ONE more shot inside the same hard
-            // deadline. Fresh tunnels often fail their first probes
-            // (slow TLS handshake, one-off rate limit); a retry frequently
-            // turns "unknown" into a confirmed country.
-            if (!r.ok && !errBySvc.isEmpty()) {
+            // v1.0.70: retry completed failures once. Also keep collecting
+            // first-round requests that were still in flight when the short
+            // vote window ended; previously those late answers were dropped.
+            int remainingFirstRound = SERVICES.length - completedFirstRound;
+            String[][] retryServices = errBySvc.keySet().toArray(new String[0][]);
+            if (!r.ok && (retryServices.length > 0 || remainingFirstRound > 0)) {
                 deadline = Math.min(hardEnd, System.currentTimeMillis() + 6000L);
-                for (final String[] svc : errBySvc.keySet().toArray(new String[0][])) {
+                for (final String[] svc : retryServices) {
                     cs.submit(() -> {
                         String[] res = query(client, svc);
                         if (res != null && res[0] != null && !res[0].isEmpty())
@@ -140,7 +147,12 @@ public class GeoChecker {
                         return res;
                     });
                 }
-                for (int i = 0; i < errBySvc.size() + 1; i++) {
+                // A retry can coexist with first-round calls still in flight.
+                // Poll for both sets; using errBySvc.size() here was unstable
+                // because successful retries shrink that map while this loop runs.
+                int pollsLeft = completionPollBudget(
+                        SERVICES.length, completedFirstRound, retryServices.length);
+                for (int i = 0; i < pollsLeft; i++) {
                     long left = deadline - System.currentTimeMillis();
                     if (left <= 0) break;
                     Future<String[]> f;
@@ -177,6 +189,22 @@ public class GeoChecker {
         }
     }
 
+    static int geoTimeoutSeconds(int connectTimeoutSec, boolean ipv6Target) {
+        return ipv6Target
+                ? Math.min(20, Math.max(12, connectTimeoutSec + 5))
+                : Math.min(15, Math.max(8, connectTimeoutSec));
+    }
+
+    static long firstAnswerGraceMillis(boolean ipv6Target) {
+        return ipv6Target ? 12_000L : 6_000L;
+    }
+
+    static int completionPollBudget(int totalServices, int completedFirstRound,
+                                    int retryServiceCount) {
+        return Math.max(0, totalServices - completedFirstRound)
+                + Math.max(0, retryServiceCount);
+    }
+
     private static boolean hasIpConflict(List<String[]> votes) {
         java.util.HashSet<String> ips = new java.util.HashSet<>();
         for (String[] v : votes) {
@@ -198,7 +226,7 @@ public class GeoChecker {
         return top;
     }
 
-    private static Result makeResult(List<String[]> votes) {
+    static Result makeResult(List<String[]> votes) {
         Map<String, Integer> count = new HashMap<>();
         int answered = 0;
         for (String[] v : votes) {
@@ -229,6 +257,7 @@ public class GeoChecker {
 
         Result r = new Result();
         r.answered = answered;
+        r.votes = bestN; // retain the leading vote count even when no consensus exists
         // v1.0.63: ONE provider alone never decides the country.
         // v1.0.64 (review fix): an AMBIGUOUS tie (e.g. US 2 / DE 2) is not a
         // result either — no alphabetical coin flip may pick a country.
@@ -250,7 +279,7 @@ public class GeoChecker {
         } else {
             // single vote (no confirmation) or an ambiguous tie — kept for
             // diagnostics only, never trusted as a result
-            r.singleVote = (bestN < 2);
+            r.singleVote = (bestN == 1);
             r.code = "";
         }
         return r;

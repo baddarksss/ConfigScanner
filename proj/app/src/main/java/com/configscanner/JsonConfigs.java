@@ -142,7 +142,9 @@ public final class JsonConfigs {
         // its fm= parameter. Losing it made every exported server time out.
         JSONArray obs = o.optJSONArray("outbounds");
         if (obs != null) {
-            walkOutbounds(obs, out, budget, depth + 1);
+            String docName = first(o.optString("remarks", ""),
+                    o.optString("name", ""), o.optString("ps", "")).trim();
+            walkOutbounds(obs, out, budget, depth + 1, docName);
             // recurse into every OTHER value (routing/dns may hold link
             // arrays) but never into the outbounds array again — those
             // servers are already added above, WITH their fm chain
@@ -175,7 +177,7 @@ public final class JsonConfigs {
      * share parameter in list order, exactly the format the link had.
      */
     private static void walkOutbounds(JSONArray obs, LinkedHashSet<String> out,
-                                      int[] budget, int depth) {
+                                      int[] budget, int depth, String docName) {
         // tag -> {fragment object, dialerProxy target} for the whole doc
         Map<String, JSONObject> fragByTag = new LinkedHashMap<>();
         Map<String, String> dialByTag = new LinkedHashMap<>();
@@ -196,7 +198,7 @@ public final class JsonConfigs {
                 && out.size() < MAX_SERVERS; i++) {
             JSONObject ob = obs.optJSONObject(i);
             if (ob == null) continue;
-            String uri = convert(ob);
+            String uri = convert(ob, docName);
             if (uri == null) continue;
             // assemble the fragment chain starting at THIS outbound.
             // v1.0.77: finalmask (newer clients write the mask chain there
@@ -289,8 +291,12 @@ public final class JsonConfigs {
 
     /** One JSON object -> canonical proxy URI, or null if not a server. */
     static String convert(JSONObject o) {
+        return convert(o, "");
+    }
+
+    private static String convert(JSONObject o, String docName) {
         if (o.has("protocol") && o.has("settings")) {
-            try { return fromXray(o); } catch (Exception e) { return null; }
+            try { return fromXray(o, docName); } catch (Exception e) { return null; }
         }
         if (o.has("type") && o.has("server")) {
             try {
@@ -306,7 +312,7 @@ public final class JsonConfigs {
 
     // ------------------------------------------------------- Xray / v2ray-core
 
-    private static String fromXray(JSONObject ob) {
+    private static String fromXray(JSONObject ob, String docName) {
         String proto = ob.optString("protocol", "");
         JSONObject settings = ob.optJSONObject("settings");
         if (settings == null) return null;
@@ -326,7 +332,7 @@ public final class JsonConfigs {
             if (badHost(host) || badPort(port) || id.isEmpty()) return null;
 
             Transport t = readStream(ob.optJSONObject("streamSettings"));
-            String name = first(tag, host + ":" + port);
+            String name = xrayName(tag, docName, host + ":" + port);
             if ("vless".equals(proto)) {
                 Map<String, String> q = t.params();
                 String flow = user.optString("flow", "");
@@ -367,7 +373,7 @@ public final class JsonConfigs {
             String host = srv.optString("address", "").trim();
             int port = srv.optInt("port", 0);
             if (badHost(host) || badPort(port)) return null;
-            String name = first(tag, host + ":" + port);
+            String name = xrayName(tag, docName, host + ":" + port);
             if ("trojan".equals(proto)) {
                 String pass = srv.optString("password", "");
                 if (pass.isEmpty()) return null;
@@ -380,6 +386,18 @@ public final class JsonConfigs {
             return ssUri(host, port, method, pass, name);
         }
         return null; // freedom / blackhole / dns / wireguard / ...
+    }
+
+    /** Preserve a document-level remarks/name when the outbound tag is generic. */
+    private static String xrayName(String tag, String docName, String fallback) {
+        String cleanTag = tag == null ? "" : tag.trim();
+        String cleanDocName = docName == null ? "" : docName.trim();
+        String lowerTag = cleanTag.toLowerCase(Locale.US);
+        boolean genericTag = cleanTag.isEmpty() || "proxy".equals(lowerTag)
+                || "proxy-out".equals(lowerTag) || "proxy_out".equals(lowerTag)
+                || "outbound".equals(lowerTag) || "default".equals(lowerTag);
+        if (genericTag && !cleanDocName.isEmpty()) return cleanDocName;
+        return first(cleanTag, fallback);
     }
 
     /** streamSettings (Xray) -> normalized transport fields. */
