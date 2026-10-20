@@ -174,6 +174,18 @@ public class MainActivity extends AppCompatActivity {
             java.util.Collections.synchronizedList(new ArrayList<String>());
 
     // ------------------------- output model / filtering -------------------------
+    /** v81: label suffix with the client fingerprint — only when it is set
+     *  and not the default "chrome". Two copies of one server with different
+     *  fingerprints are two servers now (v2rayNG-style dedup) and must be
+     *  distinguishable in the output. */
+    private static String fpTag(ServerSpec s) {
+        if (s == null) return "";
+        String fp = s.fingerprintRaw;
+        if (fp == null || fp.isEmpty()) return "";
+        if ("chrome".equalsIgnoreCase(fp)) return "";
+        return " | " + fp;
+    }
+
     /** One successful output entry: the renamed link + its ISO country ("" = unknown). */
     static final class OutEntry {
         final String line;
@@ -966,15 +978,18 @@ public class MainActivity extends AppCompatActivity {
                             + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName)
                             + "|" + ServerSpec.firstNonEmpty(s.fragmentRaw)
                             + "|" + ServerSpec.firstNonEmpty(s.alpn)
-                            // v81: SNI + REALITY key are part of the identity —
-                            // the same host:port can serve a DIFFERENT
-                            // reality/tls server (different key, different
-                            // site). Dropping those as "duplicates" lost real
-                            // configs. The fingerprint stays OUT of the key:
-                            // chrome vs firefox for one server is one server.
+                            // v81: the dedup identity now matches v2rayNG's:
+                            // the whole server profile (minus the name) has to
+                            // be equal. sni + reality key + the RAW client
+                            // fingerprint are part of it, so a "chrome" copy
+                            // and a "firefox" copy of the same endpoint are
+                            // two DIFFERENT servers here too — exactly how
+                            // v2rayNG treats them (its duplicateIdentity()
+                            // keeps the fingerprint).
                             + "|" + ServerSpec.firstNonEmpty(s.sni)
                             + "|" + ServerSpec.firstNonEmpty(s.pbk)
-                            + "|" + ServerSpec.firstNonEmpty(s.sid);
+                            + "|" + ServerSpec.firstNonEmpty(s.sid)
+                            + "|" + ServerSpec.firstNonEmpty(s.fingerprintRaw);
                     ServerSpec prev = uniq.get(key);
                     if (prev == null) {
                         uniq.put(key, s);
@@ -1408,7 +1423,12 @@ public class MainActivity extends AppCompatActivity {
                 boolean incCh = prefs.getBoolean("include_channel", true);
                 String suffix = (incCh && !channel.isEmpty())
                         ? " | " + channel : "";
-                String renamed = flag + " " + countryName + suffix;
+                // v81: two copies of one server with a different client
+                // fingerprint are two different servers now (v2rayNG-style
+                // dedup) — show the fingerprint in the label so they can be
+                // told apart in the output
+                String fpSuffix = fpTag(s);
+                String renamed = flag + " " + countryName + suffix + fpSuffix;
                 String renamedRaw = renameUri(s.raw, renamed);
                 AppLog.d("test", "OK " + geo.code + " -> " + renamed);
                 doneCount.incrementAndGet();
@@ -1445,7 +1465,7 @@ public class MainActivity extends AppCompatActivity {
                     boolean incCh = prefs.getBoolean("include_channel", true);
                     String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
                     String label = "CDN";
-                    String renamed = "\u2601\uFE0F " + label + suffix;
+                    String renamed = "\u2601\uFE0F " + label + suffix + fpTag(s);
                     String renamedRaw = renameUri(s.raw, renamed);
                     AppLog.d("test", "OK CDN (cloudflare, geo blocked) -> " + renamed);
                     status(String.format("\u2601 [%d/%d] %s = CDN",
@@ -1473,7 +1493,7 @@ public class MainActivity extends AppCompatActivity {
                     String suffix = (incCh && !channel.isEmpty()) ? " | " + channel : "";
                     String base = s.name.isEmpty() ? hostport : s.name;
                     String renamed = "❔ " + (fa ? "ناشناس" : "Unknown")
-                            + suffix + " | " + base;
+                            + suffix + " | " + base + fpTag(s);
                     String renamedRaw = renameUri(s.raw, renamed);
                     AppLog.d("test", "UNKNOWN (tunnel up, country undetected) -> " + renamed);
                     status(String.format("❔ [%d/%d] %s = ? country",

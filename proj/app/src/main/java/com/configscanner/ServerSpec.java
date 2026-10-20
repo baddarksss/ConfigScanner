@@ -35,6 +35,11 @@ public class ServerSpec {
     public String security = "";      // none | tls | reality
     public String sni = "";
     public String fingerprint = "";
+    /** v81: the fingerprint EXACTLY as it came in ("" when the link carried
+     *  none). v2rayNG compares the raw value, so a config without "fp" and
+     *  one with "fp=chrome" are two different servers there. The defaulted
+     *  {@link #fingerprint} ("chrome") stays for the actual Xray config. */
+    public String fingerprintRaw = "";
     public String pbk = "";
     public String sid = "";
     public String spx = "";
@@ -397,6 +402,7 @@ public class ServerSpec {
         s.sid = q.get("sid");
         s.spx = q.get("spx");
         s.fingerprint = firstNonEmpty(q.get("fp"), "chrome");
+        s.fingerprintRaw = firstNonEmpty(q.get("fp"), "");
         s.path = q.get("path");
         s.hostHeader = q.get("host");
         s.serviceName = q.get("servicename");
@@ -457,6 +463,7 @@ public class ServerSpec {
                     ? tls.toLowerCase() : "none";
             s.sni = o.optString("sni", "");
             s.fingerprint = firstNonEmpty(o.optString("fp", ""), "chrome");
+            s.fingerprintRaw = firstNonEmpty(o.optString("fp", ""), "");
             s.alpn = firstNonEmpty(o.optString("alpn", ""), o.optString("alpns", ""));
             s.fragmentRaw = firstNonEmpty(o.optString("fm", ""), o.optString("fragment", ""));
             s.ech = o.optString("ech", "");
@@ -519,6 +526,7 @@ public class ServerSpec {
         s.fragmentRaw = firstNonEmpty(q.get("fm"), q.get("fragment"));
         s.ech = q.get("ech");
         s.fingerprint = firstNonEmpty(q.get("fp"), "chrome");
+        s.fingerprintRaw = firstNonEmpty(q.get("fp"), "");
         s.path = q.get("path");
         s.hostHeader = q.get("host");
         s.serviceName = q.get("servicename");
@@ -845,6 +853,7 @@ public class ServerSpec {
         s.security = "tls";
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
         s.fingerprint = firstNonEmpty(q.get("fp"), "chrome");
+        s.fingerprintRaw = firstNonEmpty(q.get("fp"), "");
         s.path = q.get("path");
         s.hostHeader = q.get("host");
         s.obfs = q.get("obfs");
