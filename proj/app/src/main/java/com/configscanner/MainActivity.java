@@ -159,6 +159,8 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger noCountryCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger unreachableCount = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger skipCount = new java.util.concurrent.atomic.AtomicInteger();
+    /** v81: how many configs the user pasted in (before dedup) */
+    private final java.util.concurrent.atomic.AtomicInteger inputCount = new java.util.concurrent.atomic.AtomicInteger();
     /** lines that ServerSpec.parse could not parse (reported, never silent) */
     private final java.util.concurrent.atomic.AtomicInteger parseFailCount = new java.util.concurrent.atomic.AtomicInteger();
     /** Raw URIs of servers that connected but whose country could not be detected. */
@@ -879,6 +881,12 @@ public class MainActivity extends AppCompatActivity {
         // Failed block instead of silently disappearing (review fix v1.0.63)
         parseFailCount.set(0);
         failedReasons.clear();
+        // v81 fix: the duplicate counter is incremented DURING the parse, so
+        // it must be reset BEFORE it — the old code reset it after the parse
+        // and the end-of-run summary always reported "0 duplicate" even when
+        // 10 configs had been skipped as duplicates
+        dupCount.set(0);
+        inputCount.set(0);
         // v1.0.71/73: JSON config dumps (Xray / sing-box / v2rayN / Clash)
         // in the paste are pulled apart into the proxy URIs they contain.
         // Plain links are scanned FIRST and win dedup — the raw link is the
@@ -924,6 +932,9 @@ public class MainActivity extends AppCompatActivity {
                 scanLines.add(t);
             }
             if (jsonFound) scanLines.addAll(fromJson);
+            // v81: remember how many configs were pasted in (before dedup) so
+            // the end-of-run summary can show "N in · M unique"
+            inputCount.set(scanLines.size());
 
             // v1.0.73: dedup by protocol+host+port+credential+transport —
             // identical endpoints from a pasted link AND a pasted JSON config
@@ -954,7 +965,16 @@ public class MainActivity extends AppCompatActivity {
                             + "|" + s.network + "|" + s.security
                             + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName)
                             + "|" + ServerSpec.firstNonEmpty(s.fragmentRaw)
-                            + "|" + ServerSpec.firstNonEmpty(s.alpn);
+                            + "|" + ServerSpec.firstNonEmpty(s.alpn)
+                            // v81: SNI + REALITY key are part of the identity —
+                            // the same host:port can serve a DIFFERENT
+                            // reality/tls server (different key, different
+                            // site). Dropping those as "duplicates" lost real
+                            // configs. The fingerprint stays OUT of the key:
+                            // chrome vs firefox for one server is one server.
+                            + "|" + ServerSpec.firstNonEmpty(s.sni)
+                            + "|" + ServerSpec.firstNonEmpty(s.pbk)
+                            + "|" + ServerSpec.firstNonEmpty(s.sid);
                     ServerSpec prev = uniq.get(key);
                     if (prev == null) {
                         uniq.put(key, s);
@@ -1025,7 +1045,8 @@ public class MainActivity extends AppCompatActivity {
             noCountryCount.set(0);
             unreachableCount.set(0);
             skipCount.set(0);
-            dupCount.set(0);
+            // v81: dupCount is NOT reset here — it is reset before the parse
+            // (the parse is what increments it)
             failedCount.set(0);
             doneCount.set(0);
             totalCount = servers.size();
@@ -2273,9 +2294,12 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------- ui
 
     private String buildRunSummary() {
-        return getString(R.string.run_summary, okCount.get(), noCountryCount.get(),
-                unreachableCount.get(), skipCount.get(), parseFailCount.get(),
-                dupCount.get());
+        // v81: the summary now starts with the number of configs that were
+        // pasted in — "32 in · 10 duplicate · 22 ok" makes a shrinking
+        // result self-explanatory instead of a mystery
+        return getString(R.string.run_summary, inputCount.get(), okCount.get(),
+                noCountryCount.get(), unreachableCount.get(), skipCount.get(),
+                parseFailCount.get(), dupCount.get());
     }
 
     // ------------------------------------------------------- run stats & output tools
@@ -2671,11 +2695,15 @@ public class MainActivity extends AppCompatActivity {
             // ScrollView keeps the user's viewport where they left it.
             final String summary = countrySummaryText();
             // corner counters: lines · processed/total · failed
+            // v81: + "N in · M duplicate" — the number of configs the user
+            // pasted and how many of them were dropped as exact duplicates
             final String counter = getString(R.string.lines_count, n)
                     + "  ·  " + getString(R.string.counter_processed,
                             doneCount.get(), totalCount)
                     + "  ·  " + getString(R.string.counter_failed,
-                            failedCount.get());
+                            failedCount.get())
+                    + "  ·  " + getString(R.string.counter_input,
+                            inputCount.get(), dupCount.get());
             final String boxFinal = boxText;
             postUi(() -> {
                 outputView.setText(boxFinal);

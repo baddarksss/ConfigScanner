@@ -60,6 +60,7 @@
     <string name="lines_count">%1$d line(s)</string>
     <string name="counter_processed">%1$d/%2$d processed</string>
     <string name="counter_failed">%1$d failed</string>
+    <string name="counter_input">%1$d in · %2$d duplicate</string>
     <string name="failed_section_title">Failed / undetected configs (%1$d) — tap to copy</string>
     <string name="failed_copied">Failed block copied (%1$d items)</string>
     <string name="failed_copy_btn">Copy failed</string>
@@ -185,7 +186,8 @@
     <string name="core_update_busy">One moment — another core operation is in progress</string>
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d/%2$d servers — %3$d%%</string>
-    <string name="run_summary">%1$d ok · %2$d no country · %3$d unreachable · %4$d skipped · %5$d invalid · %6$d duplicate</string>
+    <string name="run_summary">%1$d in · %2$d ok · %3$d no country · %4$d unreachable · %5$d skipped · %6$d invalid · %7$d duplicate</string>
+    <string name="scan_start_summary">%1$d pasted · %2$d duplicate · %3$d to test</string>
     <string name="tpl_add">New caption</string>
     <string name="tpl_active_fmt">Active: %1$s</string>
     <string name="tpl_hint">{{FLAGS}} = flag row · {{COUNT}} = config count · {{LINK}} = the Mudfish RAW link</string>

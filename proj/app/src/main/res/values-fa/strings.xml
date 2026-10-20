@@ -60,6 +60,7 @@
     <string name="lines_count">%1$d خط</string>
     <string name="counter_processed">%1$d/%2$d پردازش</string>
     <string name="counter_failed">%1$d فیل</string>
+    <string name="counter_input">%1$d ورودی · %2$d تکراری</string>
     <string name="failed_section_title">کانفیگ‌های فیل / شناسایی‌نشده (%1$d) — لمس = کپی</string>
     <string name="failed_copied">بلاگ فیل‌ها کپی شد (%1$d مورد)</string>
     <string name="failed_copy_btn">کپی فیل‌ها</string>
@@ -185,7 +186,8 @@
     <string name="core_update_busy">یه لحظه — یه عملیات هسته‌ی دیگه در حال اجراست</string>
     <string name="scan_notif_title">Config Scanner</string>
     <string name="scan_notif_prog">%1$d از %2$d سرور — %3$d٪</string>
-    <string name="run_summary">%1$d موفق · %2$d بدون شناسایی کشور · %3$d غیرقابل دسترس · %4$d ردشده · %5$d نامعتبر · %6$d تکراری</string>
+    <string name="run_summary">%1$d ورودی · %2$d موفق · %3$d بدون شناسایی کشور · %4$d غیرقابل دسترس · %5$d ردشده · %6$d نامعتبر · %7$d تکراری</string>
+    <string name="scan_start_summary">%1$d داده شد · %2$d تکراری · %3$d برای تست</string>
     <string name="tpl_add">کپشن جدید</string>
     <string name="tpl_active_fmt">فعال: %1$s</string>
     <string name="tpl_hint">{{FLAGS}} = ردیف پرچم‌ها · {{COUNT}} = تعداد کانفیگ · {{LINK}} = لینک Raw مادفیش</string>
