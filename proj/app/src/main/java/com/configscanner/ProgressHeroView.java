@@ -33,6 +33,7 @@ public class ProgressHeroView extends View {
     private final Paint headGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowBehindPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint particlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
 
     private float progress = 0f;   // target 0..100
@@ -83,6 +84,9 @@ public class ProgressHeroView extends View {
 
         trackPaint.setColor(trackColor);
         trackPaint.setStyle(Paint.Style.FILL);
+
+        tickPaint.setColor(trackColor);
+        tickPaint.setStyle(Paint.Style.FILL);
 
         fillPaint.setStyle(Paint.Style.FILL);
 

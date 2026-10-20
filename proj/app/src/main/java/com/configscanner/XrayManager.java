@@ -90,7 +90,9 @@ public class XrayManager {
                     .redirectErrorStream(true).start();
             String out = drain(ch.getInputStream(), 2000);
             int rc = -1;
-            try { rc = ch.waitFor(3, TimeUnit.SECONDS); } catch (Exception ignored) { }
+            boolean done = false;
+            try { done = ch.waitFor(3, TimeUnit.SECONDS); } catch (Exception ignored) { }
+            if (done) rc = ch.exitValue();
             ch.destroy();
             AppLog.i("xray", "chmod rc=" + rc + " out=" + out);
         } catch (Exception e2) {
@@ -390,10 +392,10 @@ public class XrayManager {
         final StringBuilder sb = new StringBuilder();
         java.util.concurrent.Future<?> f = DRAIN_POOL.submit(() -> {
             try {
-                char[] buf = new char[2048];
+                byte[] buf = new byte[2048];
                 int n;
                 while ((n = is.read(buf)) > 0) {
-                    sb.append(buf, 0, n);
+                    sb.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
                     if (sb.length() > 8000) break;
                 }
             } catch (Exception ignored) {
