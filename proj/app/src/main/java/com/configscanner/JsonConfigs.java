@@ -1118,7 +1118,7 @@ public final class JsonConfigs {
         JSONArray arr = new JSONArray();
         int n = 1;
         for (String uri : uris) {
-            String remark = fragmentDecoded(uri);
+            String remark = remarkOf(uri);
             if (remark.isEmpty()) remark = "Config " + n;
             JSONObject c = clientConfig(uri, remark);
             if (c != null) {
@@ -1136,6 +1136,33 @@ public final class JsonConfigs {
         } catch (Exception e) {
             return arr.toString();
         }
+    }
+
+    /**
+     * The display name of a share link. Every protocol carries it in the
+     * URL fragment EXCEPT vmess, which keeps it inside the base64 JSON
+     * ("ps"). v1.0.82: the JSON export only looked at the fragment, so
+     * every vmess server lost its name (and the country label) and was
+     * exported as "Config N".
+     */
+    static String remarkOf(String uri) {
+        if (uri == null) return "";
+        if (uri.startsWith("vmess://")) {
+            try {
+                String body = uri.substring(8).trim();
+                int fi = body.lastIndexOf('#');
+                if (fi >= 0) body = body.substring(0, fi).trim();
+                String json = ServerSpec.b64decode(body);
+                if (json.isEmpty()) json = ServerSpec.b64decode(ServerSpec.urlDecode(body));
+                if (!json.isEmpty()) {
+                    JSONObject o = new JSONObject(json);
+                    return first(o.optString("ps", ""), o.optString("remarks", ""),
+                            o.optString("remark", ""));
+                }
+            } catch (Exception ignored) { }
+            return "";
+        }
+        return fragmentDecoded(uri);
     }
 
     private static String fragmentDecoded(String uri) {
