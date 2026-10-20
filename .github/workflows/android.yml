@@ -53,6 +53,12 @@ jobs:
         working-directory: proj
         env:
           CFGSCAN_KEY_PASS: ${{ secrets.CFGSCAN_KEY_PASS }}
+          # Auto-incrementing version per CI run: every build always has a
+          # higher versionCode than the previous one (base 1000 keeps it
+          # above every manually-released v80 build), so the new APK
+          # installs straight over the old one (needs the same keystore).
+          CFGSCAN_VERSION_CODE: ${{ 1000 + github.run_number }}
+          CFGSCAN_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('1.0.{0}', github.run_number) }}
         run: gradle assembleRelease --no-daemon
 
       - name: Collect APK

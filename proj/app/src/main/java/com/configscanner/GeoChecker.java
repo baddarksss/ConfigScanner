@@ -285,6 +285,15 @@ public class GeoChecker {
         return r;
     }
 
+    public static final okhttp3.ConnectionPool SHARED_POOL =
+            new okhttp3.ConnectionPool(5, 30, TimeUnit.SECONDS);
+    public static final okhttp3.Dispatcher SHARED_DISPATCHER = new okhttp3.Dispatcher();
+
+    static {
+        SHARED_DISPATCHER.setMaxRequests(64);
+        SHARED_DISPATCHER.setMaxRequestsPerHost(16);
+    }
+
     private static OkHttpClient newProxyClient(int proxyPort, int timeoutSec) {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", proxyPort));
         return new OkHttpClient.Builder()
@@ -293,6 +302,11 @@ public class GeoChecker {
                 .readTimeout(timeoutSec, TimeUnit.SECONDS)
                 .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(false)
+                // v81: share ONE connection pool + dispatcher across every
+                // geo probe of the run — a fresh pool per server leaked idle
+                // sockets and executor threads during long scans
+                .connectionPool(SHARED_POOL)
+                .dispatcher(SHARED_DISPATCHER)
                 .build();
     }
 

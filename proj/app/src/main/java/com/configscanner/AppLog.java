@@ -90,14 +90,17 @@ public class AppLog {
             if (BUF.length() > MAX) {
                 BUF.delete(0, BUF.length() - MAX);
             }
-        }
-        if (logFile != null) {
-            try {
-                trimFile();
-                FileWriter fw = new FileWriter(logFile, true);
-                fw.write(line);
-                fw.close();
-            } catch (IOException ignored) {
+            if (logFile != null) {
+                // v81 fix: the file append (and the trim that rewrites the
+                // whole file) now run INSIDE LOCK — a worker appending while
+                // another thread was trimming could interleave or lose lines
+                try {
+                    trimFile();
+                    FileWriter fw = new FileWriter(logFile, true);
+                    fw.write(line);
+                    fw.close();
+                } catch (IOException ignored) {
+                }
             }
         }
     }

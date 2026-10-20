@@ -3,11 +3,9 @@ package com.configscanner;
 import android.content.Context;
 import android.os.Build;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.concurrent.TimeUnit;
@@ -90,9 +88,10 @@ public class XrayManager {
             Process ch = new ProcessBuilder("/system/bin/sh", "-c",
                     "chmod 755 " + bin.getAbsolutePath())
                     .redirectErrorStream(true).start();
-            String out = readAll(ch);
+            String out = drain(ch.getInputStream(), 2000);
             int rc = -1;
-            try { rc = ch.waitFor(); } catch (Exception ignored) { }
+            try { rc = ch.waitFor(3, TimeUnit.SECONDS); } catch (Exception ignored) { }
+            ch.destroy();
             AppLog.i("xray", "chmod rc=" + rc + " out=" + out);
         } catch (Exception e2) {
             AppLog.e("xray", "chmod failed: " + e2.getMessage());
@@ -187,14 +186,16 @@ public class XrayManager {
             ProcessBuilder pb = pbOf(bin, "version");
             pb.redirectErrorStream(true);
             Process p = pb.start();
-            String out = readAll(p);
-            if (out.trim().isEmpty()) out = readError(p);
+            // Bounded drain — never block forever on a wedged binary (fix v81)
+            String out = drain(p.getInputStream(), 2500);
             int rc = -1;
             try {
-                if (p.waitFor(3, TimeUnit.SECONDS)) rc = p.exitValue();
+                if (p.waitFor(4, TimeUnit.SECONDS)) rc = p.exitValue();
             } catch (Exception ignored) { }
-            p.destroy();
+            try { p.destroy(); p.waitFor(1, TimeUnit.SECONDS); } catch (Exception ignored) { }
+            try { p.destroyForcibly(); } catch (Exception ignored) { }
             String first = out.trim();
+            if (first.isEmpty()) out = drain(p.getErrorStream(), 800); // usually nothing left
             if (first.length() > 200) first = first.substring(0, 200);
             AppLog.i("xray", "version rc=" + rc + " out=" + first.replace("\n", " / "));
             if (first.isEmpty()) return "unknown (no output, rc=" + rc + ")";
@@ -216,13 +217,13 @@ public class XrayManager {
         ProcessBuilder pb = pbOf(bin, "version");
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        String out = readAll(p);
-        if (out.trim().isEmpty()) out = readError(p);
+        String out = drain(p.getInputStream(), 4000);   // bounded (fix v81)
         int rc = -1;
-        try {
-            if (p.waitFor(5, TimeUnit.SECONDS)) rc = p.exitValue();
-        } catch (Exception ignored) { }
-        p.destroy();
+        boolean exited = false;
+        try { exited = p.waitFor(6, TimeUnit.SECONDS); } catch (Exception ignored) { }
+        if (exited) rc = p.exitValue();
+        try { p.destroy(); p.waitFor(1, TimeUnit.SECONDS); } catch (Exception ignored) { }
+        try { p.destroyForcibly(); } catch (Exception ignored) { }
         String first = out.trim();
         if (first.length() > 150) first = first.substring(0, 150);
         if (first.isEmpty() || rc != 0) {
@@ -243,13 +244,13 @@ public class XrayManager {
                         + " && " + shellQuote(bin.getAbsolutePath()) + " version");
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        String out = readAll(p);
-        if (out.trim().isEmpty()) out = readError(p);
+        String out = drain(p.getInputStream(), 5000);   // bounded (fix v81)
         int rc = -1;
-        try {
-            if (p.waitFor(6, TimeUnit.SECONDS)) rc = p.exitValue();
-        } catch (Exception ignored) { }
-        p.destroy();
+        boolean exited = false;
+        try { exited = p.waitFor(7, TimeUnit.SECONDS); } catch (Exception ignored) { }
+        if (exited) rc = p.exitValue();
+        try { p.destroy(); p.waitFor(1, TimeUnit.SECONDS); } catch (Exception ignored) { }
+        try { p.destroyForcibly(); } catch (Exception ignored) { }
         String first = out.trim();
         if (first.length() > 150) first = first.substring(0, 150);
         AppLog.i("update", "shell-verify rc=" + rc + " out=" + first.replace("\n", " / "));
@@ -370,26 +371,40 @@ public class XrayManager {
         return vline;
     }
 
-    static String readAll(Process p) {
-        return readStream(p.getInputStream());
-    }
+    /** Shared daemon pool used only for bounded child-process stream drains. */
+    private static final java.util.concurrent.ExecutorService DRAIN_POOL =
+            java.util.concurrent.Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "xray-stream-drain");
+                t.setDaemon(true);
+                return t;
+            });
 
-    static String readError(Process p) {
-        return readStream(p.getErrorStream());
-    }
-
-    static String readStream(InputStream is) {
-        try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
-                if (sb.length() > 4000) break;
+    /**
+     * Reads a child-process stream on a daemon thread with a hard timeout.
+     * Returns whatever was read before the deadline (possibly empty) and
+     * closes the stream. Never blocks longer than timeoutMs (fix v81: the
+     * previous read-until-EOF loop could wedge the calling thread forever
+     * on a hung binary).
+     */
+    static String drain(final java.io.InputStream is, long timeoutMs) {
+        final StringBuilder sb = new StringBuilder();
+        java.util.concurrent.Future<?> f = DRAIN_POOL.submit(() -> {
+            try {
+                char[] buf = new char[2048];
+                int n;
+                while ((n = is.read(buf)) > 0) {
+                    sb.append(buf, 0, n);
+                    if (sb.length() > 8000) break;
+                }
+            } catch (Exception ignored) {
+            } finally {
+                try { is.close(); } catch (Exception ignored) { }
             }
-            return sb.toString().trim();
-        } catch (Exception e) {
-            return "";
-        }
+        });
+        try {
+            f.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (Exception ignored) { }
+        return sb.toString().trim();
     }
+
 }

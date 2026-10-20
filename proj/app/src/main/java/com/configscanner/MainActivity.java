@@ -775,6 +775,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void onCoreFilePicked(Uri uri) {
         if (uri == null) return;
+        // v81 fix: replacing the core binary mid-scan corrupts the running
+        // engine — same busy guard the URL update path uses
+        if (running || coreUpdating) {
+            toast(getString(R.string.core_update_busy));
+            return;
+        }
         toast(getString(R.string.toast_checking_core));
         new Thread(() -> {
             File tmp = new File(getCacheDir(), "core_tmp.zip");
@@ -782,11 +788,11 @@ public class MainActivity extends AppCompatActivity {
             try (InputStream is = getContentResolver().openInputStream(uri)) {
                 // The zip contains a single binary named "xray" (flat layout)
                 // write stream to temp file first
-                FileOutputStream fos = new FileOutputStream(tmp);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
-                fos.close();
+                try (FileOutputStream fos = new FileOutputStream(tmp)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+                }
                 zf2 = new java.util.zip.ZipFile(tmp);
                 java.util.zip.ZipEntry e = zf2.getEntry("xray");
                 if (e == null) {
@@ -879,173 +885,190 @@ public class MainActivity extends AppCompatActivity {
         // richest form of a server the user pasted; extracted JSON servers
         // join after, so a server pasted as BOTH a link and JSON is
         // scanned once, from its original link.
-        List<String> fromJson = new ArrayList<>();
-        boolean jsonFound = false;
-        try {
-            fromJson = JsonConfigs.extract(text);
-            if (!fromJson.isEmpty()) {
-                jsonFound = true;
-                AppLog.i("run", "json configs: extracted " + fromJson.size()
-                        + " server(s) from JSON in the input");
-            }
-        } catch (Exception je) {
-            AppLog.w("run", "json config extraction failed: " + je.getMessage());
-        }
-        List<String> scanLines = new ArrayList<>();
-        int plainLinks = 0;
-        for (String line : text.split("\n")) {
-            String t = line.trim();
-            if (t.isEmpty() || t.startsWith("#")) continue;
-            // with JSON configs present, bare non-link lines are residue of
-            // the pretty-printed JSON documents — not user errors
-            if (jsonFound && !isProxyLink(t)) continue;
-            if (isProxyLink(t)) plainLinks++;
-            scanLines.add(t);
-        }
-        if (jsonFound) scanLines.addAll(fromJson);
+        // v81: the heavy paste parse + JSON extraction previously lived on
+        // the UI thread (ANR risk for very large pastes) — it now runs at
+        // the top of the run-prep worker below; UI-visible updates are
+        // marshaled back via postUi.
 
-        // v1.0.73: dedup by protocol+host+port+credential+transport —
-        // identical endpoints from a pasted link AND a pasted JSON config
-        // must not be tested (and exported) twice
-        java.util.LinkedHashMap<String, ServerSpec> uniq =
-                new java.util.LinkedHashMap<>();
-        int parseFail = 0;
-        for (String t : scanLines) {
-            ServerSpec s;
-            try {
-                s = ServerSpec.parse(t);
-            } catch (Exception pe) {
-                // recognizable but invalid/unsupported — report the reason
-                parseFail++;
-                if (parseFail <= 50) {
-                    String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
-                    failedReasons.put(t, "unsupported/invalid: " + pe.getMessage()
-                            + " — " + shortLink);
-                }
-                continue;
-            }
-            if (s != null) {
-                // v1.0.75: fragment (fm) in the key — two configs that only
-                // differ in their fragmentation ARE different configs
-                String key = s.protocol + "|" + s.host.toLowerCase()
-                        + "|" + s.port
-                        + "|" + ServerSpec.firstNonEmpty(s.uuid, s.password)
-                        + "|" + s.network + "|" + s.security
-                        + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName)
-                        + "|" + ServerSpec.firstNonEmpty(s.fragmentRaw)
-                        + "|" + ServerSpec.firstNonEmpty(s.alpn);
-                ServerSpec prev = uniq.get(key);
-                if (prev == null) {
-                    uniq.put(key, s);
-                } else {
-                    // v1.0.75: a duplicate is REPORTED, never silently
-                    // dropped — the 30-in/25-out mystery
-                    dupCount.incrementAndGet();
-                    failedReasons.put(t, "duplicate — endpoint already in the scan: "
-                            + s.protocol + " " + s.host + ":" + s.port);
-                    AppLog.d("run", "duplicate skipped: " + s.protocol
-                            + " " + s.host + ":" + s.port);
-                }
-            } else {
-                parseFail++;
-                if (parseFail <= 50) {
-                    String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
-                    failedReasons.put(t, "parse failed — unsupported/invalid format: " + shortLink);
-                }
-            }
-        }
-        List<ServerSpec> servers = new ArrayList<>(uniq.values());
-        // v1.0.77: ANY JSON config found in the input forces JSON output —
-        // v1.0.73 only switched on a PURELY-JSON paste, so a mixed batch
-        // (JSON docs + a few share links) kept output_mode=link and "copy"
-        // handed back plain links that a fragment-aware client can't use
-        runAllJsonInput = jsonFound && !servers.isEmpty();
-        if (runAllJsonInput) {
-            outputMode = "json";
-            prefs.edit().putString("output_mode", outputMode).apply();
-            refreshOutputTypeLabel();
-            refreshOutput(); // v1.0.78: the box shows the JSON array too
-        }
-        parseFailCount.set(parseFail);
-        if (servers.isEmpty()) {
-            toast(getString(R.string.toast_no_config));
-            AppLog.w("run", "no parsable config — " + parseFail
-                    + " line(s) invalid, see Log \u2192 Failed block");
-            return;
-        }
-
-        synchronized (flagList) { flagList.clear(); }
-        flagStrip.setText("");
-        runCountryCodes.clear();
-        saveLastRunCountries();
-        refreshCaptionTab();
-
-        File dir = XrayManager.coreDir(this);
-        if (!dir.exists()) dir.mkdirs();
-        cleanupEngineLogs(dir);
-
-        // ensure binary
-        XrayManager.ensureBinary(this);
-        File bin = XrayManager.binary(this);
-        if (!bin.exists()) {
-            toast(getString(R.string.toast_core_missing));
-            return;
-        }
-
-        boolean hasHy2 = false;
-        for (ServerSpec s : servers) {
-            if ("hysteria2".equals(s.protocol)) {
-                hasHy2 = true;
-                break;
-            }
-        }
+        // arm the run state synchronously: Stop must work (and re-taps must
+        // toggle to Stop) while the worker is still parsing the paste
         running = true;
-        runFinished.set(false);
-        synchronized (assignedPorts) { assignedPorts.clear(); }
-        okCount.set(0);
-        noCountryCount.set(0);
-        unreachableCount.set(0);
-        skipCount.set(0);
-        dupCount.set(0);
-        failedCount.set(0);
-        procLogs.clear();
-        // NOTE: parseFailCount and failedReasons are cleared BEFORE the parse
-        // loop, not here — parse failures are registered during parsing and
-        // were previously wiped by this reset right after (review fix).
-        synchronized (unknownLinks) { unknownLinks.clear(); }
-        syncCoreButtons();
-        doneCount.set(0);
-        totalCount = servers.size();
-        basePort = 21000 + (int) (Math.random() * 500);
-        synchronized (outputLines) {
-            outputLines.clear();
-        }
-        synchronized (outEntries) {
-            outEntries.clear();
-        }
-        selectedCountries = null; // a new run resets the country filter
-        refreshOutput();
         btnStart.setText(R.string.btn_stop);
-
-        // The progress card (big water circle) is only visible while a run
-        // is active — hidden again is handled when the run finishes/stops.
-        progressCard.setVisibility(View.VISIBLE);
-        waterCircle.setProgress(0f);
-        waterCircle.setRunning(true);
-        updateProgress();
-
-        // Read UI controls on the UI thread; everything heavy below
-        // (engine version exec, per-server port probing) runs on a worker
-        // thread so a big list can never ANR the click.
+        syncCoreButtons();
         final int parallelN = Math.max(1, parallelBar.getProgress() + 1);
         final int timeoutSec = timeoutBar.getProgress() + 5;
-        final boolean hasHy2F = hasHy2;
-        final File binF = bin;
-        final int gen = runGeneration; // captured BEFORE the version checks
+        final int gen = runGeneration; // captured BEFORE any worker work
         new Thread(() -> {
+            if (runStopped || !running || gen != runGeneration) return;
+
+            // ---- parse the paste (moved here from the UI thread, v81) ----
+            List<String> fromJson = new ArrayList<>();
+            boolean jsonFound = false;
+            try {
+                fromJson = JsonConfigs.extract(text);
+                if (!fromJson.isEmpty()) {
+                    jsonFound = true;
+                    AppLog.i("run", "json configs: extracted " + fromJson.size()
+                            + " server(s) from JSON in the input");
+                }
+            } catch (Exception je) {
+                AppLog.w("run", "json config extraction failed: " + je.getMessage());
+            }
+            List<String> scanLines = new ArrayList<>();
+            for (String line : text.split("\n")) {
+                String t = line.trim();
+                if (t.isEmpty() || t.startsWith("#")) continue;
+                // with JSON configs present, bare non-link lines are residue of
+                // the pretty-printed JSON documents — not user errors
+                if (jsonFound && !isProxyLink(t)) continue;
+                scanLines.add(t);
+            }
+            if (jsonFound) scanLines.addAll(fromJson);
+
+            // v1.0.73: dedup by protocol+host+port+credential+transport —
+            // identical endpoints from a pasted link AND a pasted JSON config
+            // must not be tested (and exported) twice
+            java.util.LinkedHashMap<String, ServerSpec> uniq =
+                    new java.util.LinkedHashMap<>();
+            int parseFail = 0;
+            for (String t : scanLines) {
+                ServerSpec s;
+                try {
+                    s = ServerSpec.parse(t);
+                } catch (Exception pe) {
+                    // recognizable but invalid/unsupported — report the reason
+                    parseFail++;
+                    if (parseFail <= 50) {
+                        String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
+                        failedReasons.put(t, "unsupported/invalid: " + pe.getMessage()
+                                + " — " + shortLink);
+                    }
+                    continue;
+                }
+                if (s != null) {
+                    // v1.0.75: fragment (fm) in the key — two configs that only
+                    // differ in their fragmentation ARE different configs
+                    String key = s.protocol + "|" + s.host.toLowerCase()
+                            + "|" + s.port
+                            + "|" + ServerSpec.firstNonEmpty(s.uuid, s.password)
+                            + "|" + s.network + "|" + s.security
+                            + "|" + ServerSpec.firstNonEmpty(s.path, s.serviceName)
+                            + "|" + ServerSpec.firstNonEmpty(s.fragmentRaw)
+                            + "|" + ServerSpec.firstNonEmpty(s.alpn);
+                    ServerSpec prev = uniq.get(key);
+                    if (prev == null) {
+                        uniq.put(key, s);
+                    } else {
+                        // v1.0.75: a duplicate is REPORTED, never silently
+                        // dropped — the 30-in/25-out mystery
+                        dupCount.incrementAndGet();
+                        if (failedReasons.size() < 200) {
+                            failedReasons.put(t, "duplicate — endpoint already in the scan: "
+                                    + s.protocol + " " + s.host + ":" + s.port);
+                        }
+                        AppLog.d("run", "duplicate skipped: " + s.protocol
+                                + " " + s.host + ":" + s.port);
+                    }
+                } else {
+                    parseFail++;
+                    if (parseFail <= 50) {
+                        String shortLink = t.length() > 90 ? t.substring(0, 90) + "…" : t;
+                        failedReasons.put(t, "parse failed — unsupported/invalid format: " + shortLink);
+                    }
+                }
+            }
+            List<ServerSpec> servers = new ArrayList<>(uniq.values());
+            // v1.0.77: ANY JSON config found in the input forces JSON output —
+            // v1.0.73 only switched on a PURELY-JSON paste, so a mixed batch
+            // (JSON docs + a few share links) kept output_mode=link and "copy"
+            // handed back plain links that a fragment-aware client can't use
+            runAllJsonInput = jsonFound && !servers.isEmpty();
+            if (runAllJsonInput) {
+                outputMode = "json";
+                prefs.edit().putString("output_mode", outputMode).apply();
+                postUi(() -> {
+                    refreshOutputTypeLabel();
+                    refreshOutput(); // v1.0.78: the box shows the JSON array too
+                });
+            }
+            parseFailCount.set(parseFail);
+            if (servers.isEmpty()) {
+                AppLog.w("run", "no parsable config — " + parseFail
+                        + " line(s) invalid, see Log \u2192 Failed block");
+                postUi(() -> {
+                    toast(getString(R.string.toast_no_config));
+                    btnStart.setText(R.string.btn_start);
+                    running = false;
+                });
+                return;
+            }
+            if (runStopped || !running || gen != runGeneration) return; // stopped during parse
+
+            // ---- resets that used to happen right after the parse ----
+            synchronized (flagList) { flagList.clear(); }
+            runCountryCodes.clear();
+            saveLastRunCountries();
+            synchronized (outputLines) { outputLines.clear(); }
+            synchronized (outEntries) { outEntries.clear(); }
+            selectedCountries = null; // a new run resets the country filter
+            // v81: drop the cached JSON export of the previous run
+            jsonCache = null;
+            jsonCacheKey = -1;
+            procLogs.clear();
+            // NOTE: parseFailCount and failedReasons are cleared BEFORE the parse
+            // loop, not here — parse failures are registered during parsing and
+            // were previously wiped by this reset right after (review fix).
+            synchronized (unknownLinks) { unknownLinks.clear(); }
+            synchronized (assignedPorts) { assignedPorts.clear(); }
+            runFinished.set(false);
+            okCount.set(0);
+            noCountryCount.set(0);
+            unreachableCount.set(0);
+            skipCount.set(0);
+            dupCount.set(0);
+            failedCount.set(0);
+            doneCount.set(0);
+            totalCount = servers.size();
+            boolean hasHy2 = false;
+            for (ServerSpec s : servers) {
+                if ("hysteria2".equals(s.protocol)) {
+                    hasHy2 = true;
+                    break;
+                }
+            }
+
+            File dir = XrayManager.coreDir(this);
+            if (!dir.exists()) dir.mkdirs();
+            cleanupEngineLogs(dir);
+
+            // ensure binary
+            XrayManager.ensureBinary(this);
+            File bin = XrayManager.binary(this);
+            if (!bin.exists()) {
+                postUi(() -> {
+                    toast(getString(R.string.toast_core_missing));
+                    btnStart.setText(R.string.btn_start);
+                    running = false;
+                });
+                return;
+            }
+
+            // ---- show the run progress surface (UI pieces via postUi) ----
+            postUi(() -> {
+                flagStrip.setText("");
+                refreshCaptionTab();
+                refreshOutput();
+                // The progress card (big water circle) is only visible while a
+                // run is active — hidden again when the run finishes/stops.
+                progressCard.setVisibility(View.VISIBLE);
+                waterCircle.setProgress(0f);
+                waterCircle.setRunning(true);
+                updateProgress();
+            });
+
             AppLog.d("run", "basePort=" + basePort + " servers=" + servers.size()
-                    + " xray=" + XrayManager.version(binF)
-                    + (hasHy2F ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
+                    + " xray=" + XrayManager.version(bin)
+                    + (hasHy2 ? " hy2=" + HysteriaManager.version(HysteriaManager.binary(this)) : ""));
             // v1.0.61: hold a foreground service for the whole run — a plain
             // notification doesn't stop Android from killing a long scan
             // when the screen is off
@@ -1197,20 +1220,34 @@ public class MainActivity extends AppCompatActivity {
                 autoScroll();
                 return;
             }
+            // v81: protocols the bundled core does not ship (ssr / tuic /
+            // shadowtls / anytls / snic) — report the explicit "not in core"
+            // message the parser header promises, instead of starting an
+            // engine that always dies with a bare "Engine error"
+            if (!ServerSpec.isInCore(s.protocol)) {
+                if (gen != runGeneration) return;
+                doneCount.incrementAndGet();
+                skipCount.incrementAndGet();
+                String base = s.name.isEmpty() ? hostport : s.name;
+                synchronized (outputLines) {
+                    outputLines.add("⚠️ " + base + " — "
+                            + getString(R.string.res_core_unsupported, s.protocol));
+                }
+                AppLog.w("test", "SKIP " + hostport + " (protocol not in the core)");
+                refreshOutput();
+                autoScroll();
+                return;
+            }
+            // v81 fix: insecure TLS pins are applied after engine startup
+            final boolean needPin = s.allowInsecure && "tls".equals(s.security) && s.pinnedCertHash != null;
             if ("hysteria2".equals(s.protocol)) {
                 engineLog = new File(XrayManager.coreDir(this), "hy2_" + port + ".log");
                 engine = HysteriaManager.start(this, s, port, engineLog);
             } else {
-                // insecure=1 with plain TLS: fetch the server's leaf cert and
-                // pin it (allowInsecure no longer exists in modern Xray)
-                if (s.allowInsecure && "tls".equals(s.security)) {
-                    String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
-                    // pin THROUGH the local socks port — the cert must be the
-                    // one the actual tunnel route sees, not the direct route
-                    s.pinnedCertHash = CertPinner.pinViaSocks(port, s.host, s.port, sni, 8000);
-                    AppLog.d("test", "certpin " + s.host + ":" + s.port + " sni=" + sni
-                            + " hash=" + (s.pinnedCertHash.isEmpty() ? "FAILED" : s.pinnedCertHash));
-                }
+                // insecure=1 with plain TLS: the leaf cert is pinned AFTER the
+                // engine is up (v81 fix — pinViaSocks connects through the
+                // local SOCKS port, which only exists while the engine runs;
+                // previously the pin ran before startup and always failed).
                 File xrayOwnLog = new File(XrayManager.coreDir(this), "xrayw_" + port + ".log");
                 String cfg = XrayConfig.buildFull(s, port, xrayOwnLog.getAbsolutePath());
                 File cfgFile = new File(XrayManager.coreDir(this), "cfg_" + port + ".json");
@@ -1270,6 +1307,60 @@ public class MainActivity extends AppCompatActivity {
             }
             AppLog.d("test", "port " + port + " up; engine alive=" + engine.isAlive()
                     + " logSize=" + engineLog.length());
+
+            // v81 fix: pin the server cert NOW — the engine is listening, so
+            // pinViaSocks can actually reach the target through the tunnel.
+            if (needPin && s.pinnedCertHash.isEmpty()) {
+                String sni = (s.sni != null && !s.sni.isEmpty()) ? s.sni : s.host;
+                String hash = CertPinner.pinViaSocks(port, s.host, s.port, sni, 8000);
+                if (gen != runGeneration) return; // run stopped during the pin
+                AppLog.d("test", "certpin " + s.host + ":" + s.port + " sni=" + sni
+                        + " hash=" + (hash.isEmpty() ? "FAILED" : hash));
+                if (!hash.isEmpty()) {
+                    // rebuild the config with the pinned cert and bounce the
+                    // engine so xray verifies against the real leaf cert
+                    try { engine.destroy(); } catch (Exception ignored) { }
+                    activeEngines.remove(engine);
+                    s.pinnedCertHash = hash;
+                    File coreDir = XrayManager.coreDir(this);
+                    File cfgFileP = new File(coreDir, "cfg_" + port + ".json");
+                    File xrOwnLog = new File(coreDir, "xrayw_" + port + ".log");
+                    File procLogP = new File(coreDir, "xray_" + port + ".log");
+                    String cfgPinned = XrayConfig.buildFull(s, port, xrOwnLog.getAbsolutePath());
+                    try (FileOutputStream fos2 = new FileOutputStream(cfgFileP)) {
+                        fos2.write(cfgPinned.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                    engine = XrayManager.start(XrayManager.binary(this), cfgFileP, procLogP);
+                    activeEngines.add(engine);
+                    Thread.sleep(300);
+                    if (gen != runGeneration) return;
+                    if (!engine.isAlive()) {
+                        String tail2 = procLogP != null
+                                ? AppLog.fileTail(procLogP, 12) : "";
+                        failedReasons.put(s.raw, tail2.isEmpty()
+                                ? "xray exited rc=" + engine.exitValue() + " (no output)"
+                                : tail2);
+                        doneCount.incrementAndGet();
+                        unreachableCount.incrementAndGet();
+                        if (tail2.contains("unknown config id")) {
+                            fail(s, getString(R.string.res_core_unsupported, s.protocol));
+                        } else {
+                            fail(s, getString(R.string.res_engine_error));
+                        }
+                        return;
+                    }
+                    boolean up2 = XrayManager.waitForPort(port, waitMs);
+                    if (gen != runGeneration) return;
+                    if (!up2) {
+                        AppLog.w("test", "port " + port + " not up after bounce; alive="
+                                + engine.isAlive());
+                        doneCount.incrementAndGet();
+                        unreachableCount.incrementAndGet();
+                        fail(s, getString(R.string.res_connect_failed));
+                        return;
+                    }
+                }
+            }
 
             // geo check via SOCKS
             long t0 = System.currentTimeMillis();
@@ -1922,12 +2013,16 @@ public class MainActivity extends AppCompatActivity {
         String count = captionCountLine();
         if (out.contains("{{COUNT}}")) {
             if (count.isEmpty()) {
+                // v81 fix: guard the trailing-newline trim — a template that
+                // is ONLY "{{COUNT}}" would throw
+                // StringIndexOutOfBoundsException on an empty builder
                 StringBuilder sb = new StringBuilder();
                 for (String ln : out.split("\n", -1)) {
                     if (ln.trim().equals("{{COUNT}}")) continue;
                     sb.append(ln).append('\n');
                 }
-                out = sb.substring(0, sb.length() - 1).replace("{{COUNT}}", "");
+                out = (sb.length() > 0 ? sb.substring(0, sb.length() - 1) : "")
+                        .replace("{{COUNT}}", "");
             } else {
                 out = out.replace("{{COUNT}}", count);
             }
@@ -1944,7 +2039,8 @@ public class MainActivity extends AppCompatActivity {
                     if (ln.trim().equals("{{LINK}}")) continue;
                     sb.append(ln).append('\n');
                 }
-                out = sb.substring(0, sb.length() - 1).replace("{{LINK}}", "");
+                out = (sb.length() > 0 ? sb.substring(0, sb.length() - 1) : "")
+                        .replace("{{LINK}}", "");
             } else {
                 out = out.replace("{{LINK}}", lastMudfishLink);
             }
@@ -2380,7 +2476,6 @@ public class MainActivity extends AppCompatActivity {
                     selectedCountries = new java.util.HashSet<>();
                     applyOutputFilters();
                 })
-                .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
@@ -2498,6 +2593,12 @@ public class MainActivity extends AppCompatActivity {
     /** Debounced output flush — long runs used to rebuild the whole box per
      *  result (O(n^2)); now at most one rebuild per 250ms. When an output
      *  filter (country/limit) is active the FILTERED model is rendered. */
+    // v81: cached JSON export for JSON output mode (built off the UI thread)
+    private final java.util.concurrent.atomic.AtomicInteger jsonJobGen =
+            new java.util.concurrent.atomic.AtomicInteger();
+    private volatile String jsonCache = null;
+    private volatile int jsonCacheKey = -1;
+
     private final Runnable outputFlusher = new Runnable() {
         @Override public void run() {
             final boolean filtered = (selectedCountries != null && !selectedCountries.isEmpty())
@@ -2529,15 +2630,40 @@ public class MainActivity extends AppCompatActivity {
             // JSON array of full client configs — what you see IS what the
             // copy button puts on the clipboard. Nothing scanned OK -> keep
             // the plain view so failed reasons stay visible.
+            // v81: the export runs on a worker thread and is cached —
+            // previously every 250 ms flush re-parsed every visible entry
+            // (ServerSpec.parse + JSON build) on the UI thread.
             String boxText = sb.toString();
             if ("json".equals(outputMode)) {
                 List<OutEntry> vis = visibleEntries();
                 if (!vis.isEmpty()) {
                     java.util.LinkedHashSet<String> jl = new java.util.LinkedHashSet<>();
                     for (OutEntry e : vis) jl.add(e.line);
-                    try {
-                        boxText = JsonConfigs.exportJsonArray(new ArrayList<>(jl));
-                    } catch (Exception ignored) { boxText = sb.toString(); }
+                    final int key = jl.hashCode();
+                    if (key == jsonCacheKey && jsonCache != null) {
+                        boxText = jsonCache;
+                    } else {
+                        final int myGen = jsonJobGen.incrementAndGet();
+                        final java.util.ArrayList<String> ls = new java.util.ArrayList<>(jl);
+                        new Thread(() -> {
+                            String out;
+                            try {
+                                out = JsonConfigs.exportJsonArray(ls);
+                            } catch (Exception ignored) {
+                                return; // next flush retries
+                            }
+                            jsonCache = out;         // volatile — main thread reads
+                            jsonCacheKey = key;
+                            if (jsonJobGen.get() == myGen) {
+                                final String cached = out;
+                                postUi(() -> {
+                                    if (jsonJobGen.get() == myGen && "json".equals(outputMode)) {
+                                        outputView.setText(cached);
+                                    }
+                                });
+                            }
+                        }, "json-export").start();
+                    }
                 }
             }
             final int n = nLines;
@@ -3429,15 +3555,25 @@ public class MainActivity extends AppCompatActivity {
         return String.format(java.util.Locale.US, "%.1f", b / 1048576.0);
     }
 
-    /** Simple dotted version comparison (works for x.y.z). */
+    /** Simple dotted version comparison (works for x.y.z). v81: a segment
+     *  with a pre-release suffix ("-beta", "rc1", …) now counts as LOWER
+     *  than the same bare number, so "1.0.80" correctly beats a running
+     *  "1.0.80-beta" (the old code parsed the suffix segment as 0 on both
+     *  sides, so a released build looked "not newer"). */
     private static boolean isNewer(String a, String b) {
         String[] pa = a.split("\\.");
         String[] pb = b.split("\\.");
         int n = Math.max(pa.length, pb.length);
         for (int i = 0; i < n; i++) {
-            int x = i < pa.length ? parseIntSafe(pa[i]) : 0;
-            int y = i < pb.length ? parseIntSafe(pb[i]) : 0;
+            String sa = i < pa.length ? pa[i].trim() : "0";
+            String sb = i < pb.length ? pb[i].trim() : "0";
+            int x = parseIntSafe(sa);
+            int y = parseIntSafe(sb);
             if (x != y) return x > y;
+            // same numeric value: a suffix makes the segment pre-release
+            boolean sufA = !sa.equals(String.valueOf(x));
+            boolean sufB = !sb.equals(String.valueOf(y));
+            if (sufA != sufB) return sufB; // B has no suffix ⇒ B is newer
         }
         return false;
     }

@@ -26,8 +26,9 @@ android {
         // ("blocked by device"). The legacy targetSdk keeps exec() allowed,
         // same approach Termux/NekoBox use. App is sideloaded (no Play).
         targetSdk 28
-        versionCode 80
-        versionName "1.0.79"
+        def envVc = System.getenv("CFGSCAN_VERSION_CODE")
+        versionCode envVc ? envVc.toInteger() : 1000
+        versionName System.getenv("CFGSCAN_VERSION_NAME") ?: "1.0.80"
     }
 
     signingConfigs {

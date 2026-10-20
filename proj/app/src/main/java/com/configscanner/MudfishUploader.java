@@ -31,6 +31,7 @@ final class MudfishUploader {
 
     static void upload(String text, Callback cb) {
         new Thread(() -> {
+            HttpURLConnection c = null;
             try {
                 if (text == null) throw new IllegalArgumentException("text is null");
                 int textBytes = text.getBytes(StandardCharsets.UTF_8).length;
@@ -43,8 +44,9 @@ final class MudfishUploader {
                 body.put("ttl", TTL_SECONDS);
                 byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
 
-                HttpURLConnection c = (HttpURLConnection) new URL(
+                HttpURLConnection c0 = (HttpURLConnection) new URL(
                         "https://bin.mudfish.net/api/text").openConnection();
+                c = c0;
                 c.setRequestMethod("POST");
                 c.setConnectTimeout(15000);
                 c.setReadTimeout(30000);
@@ -55,13 +57,16 @@ final class MudfishUploader {
                     os.write(payload);
                 }
                 int code = c.getResponseCode();
-                BufferedReader r = new BufferedReader(new InputStreamReader(
-                        code >= 400 ? c.getErrorStream() : c.getInputStream(),
-                        StandardCharsets.UTF_8));
+                // v81 fix: read/parse errors must not leak the connection —
+                // the URL above is assigned before any body I/O so the
+                // finally below always disconnects
                 StringBuilder sb = new StringBuilder();
-                String ln;
-                while ((ln = r.readLine()) != null) sb.append(ln);
-                r.close();
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(
+                        code >= 400 ? c.getErrorStream() : c.getInputStream(),
+                        StandardCharsets.UTF_8))) {
+                    String ln;
+                    while ((ln = r.readLine()) != null) sb.append(ln);
+                }
                 if (code != 200) {
                     throw new Exception("HTTP " + code);
                 }
@@ -73,6 +78,10 @@ final class MudfishUploader {
                 cb.done(raw, null);
             } catch (Exception e) {
                 cb.done(null, String.valueOf(e.getMessage()));
+            } finally {
+                if (c != null) {
+                    try { c.disconnect(); } catch (Exception ignored) { }
+                }
             }
         }, "mudfish-upload").start();
     }

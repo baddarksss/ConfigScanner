@@ -541,7 +541,9 @@ public class ServerSpec {
             s.name = urlDecode(body.substring(fi + 1));
             body = body.substring(0, fi);
         }
-        int at = body.lastIndexOf('@');
+        // v81: userinfoAt() — same fix v1.0.74 applied to vless/trojan/hy2; an
+        // '@' inside an ss query/fragment previously split at the wrong place
+        int at = userinfoAt(body);
         if (at >= 0) {
             String rawUserinfo = body.substring(0, at);
             String userinfo = b64decode(rawUserinfo);
@@ -792,6 +794,26 @@ public class ServerSpec {
         s.sni = firstNonEmpty(q.get("sni"), q.get("servername"));
         if (s.host.isEmpty()) return null;
         return s;
+    }
+
+    /** v81: the protocols the bundled Xray-core / native Hysteria client
+     * actually support. Everything else is skipped at test time with the
+     * promised "not in core" report (see the header comment of this file and
+     * MainActivity.testOne) instead of burning an engine start that always
+     * dies with a bare "Engine error". */
+    public static boolean isInCore(String protocol) {
+        if (protocol == null) return false;
+        switch (protocol) {
+            case "vless":
+            case "vmess":
+            case "trojan":
+            case "ss":
+            case "hysteria2":
+                return true;
+            default:
+                // ssr / tuic / shadowtls / anytls / snic are parse-only
+                return false;
+        }
     }
 
     private static ServerSpec parseHysteria(String line) throws Exception {

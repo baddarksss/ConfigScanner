@@ -2,10 +2,8 @@ package com.configscanner;
 
 import android.content.Context;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStreamReader;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -108,26 +106,25 @@ public class HysteriaManager {
             // version errors are visible instead of becoming "unknown".
             pb.redirectErrorStream(true);
             Process p = pb.start();
-            StringBuilder sb = new StringBuilder();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append("\n");
-                    if (sb.length() > 300) break;
-                }
-            }
-            if (!p.waitFor(3, TimeUnit.SECONDS)) p.destroy();
+            // Bounded drain — never block forever on a wedged binary (fix v81)
+            String out = XrayManager.drain(p.getInputStream(), 2500);
+            int rc = -1;
+            try {
+                if (p.waitFor(4, TimeUnit.SECONDS)) rc = p.exitValue();
+            } catch (Exception ignored) { }
+            try { p.destroy(); p.waitFor(1, TimeUnit.SECONDS); } catch (Exception ignored) { }
+            try { p.destroyForcibly(); } catch (Exception ignored) { }
             // `hysteria version` prints an ASCII banner first; the version
             // number is on the line starting with "Version:".
             String v = "unknown";
-            for (String line : sb.toString().split("\n")) {
+            for (String line : out.split("\n")) {
                 String t = line.trim();
                 if (t.startsWith("Version:")) {
                     v = t.substring("Version:".length()).trim();
                     break;
                 }
             }
-            AppLog.i("hy2", "version out=" + v);
+            AppLog.i("hy2", "version rc=" + rc + " out=" + v);
             return v;
         } catch (Exception e) {
             return "unknown (" + e.getMessage() + ")";
